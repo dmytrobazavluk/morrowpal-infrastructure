@@ -1,7 +1,8 @@
+name: morrowpal
+
 services:
   mysql:
     image: mysql:8.4
-    container_name: morrowpal-mysql
     restart: unless-stopped
     environment:
       MYSQL_DATABASE: morrowpal
@@ -88,7 +89,6 @@ services:
         condition: service_healthy
   envoy:
     image: envoyproxy/envoy:v1.33-latest
-    container_name: morrowpal-envoy
     restart: unless-stopped
     depends_on:
       - backend-api

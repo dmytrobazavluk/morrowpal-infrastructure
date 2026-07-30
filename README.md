@@ -44,9 +44,9 @@ Job workers use separate connection-pool settings per service:
 
 Default database credentials:
 
-- database: `morrowletter`
-- user: `morrowletter`
-- password: `morrowletter`
+- database: `morrowpal`
+- user: `morrowpal`
+- password: `morrowpal`
 
 Data is persisted in `./mysql/data`.
 

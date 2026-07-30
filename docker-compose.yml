@@ -1,12 +1,12 @@
 services:
   mysql:
     image: mysql:8.4
-    container_name: morrowletter-mysql
+    container_name: morrowpal-mysql
     restart: unless-stopped
     environment:
-      MYSQL_DATABASE: morrowletter
-      MYSQL_USER: morrowletter
-      MYSQL_PASSWORD: morrowletter
+      MYSQL_DATABASE: morrowpal
+      MYSQL_USER: morrowpal
+      MYSQL_PASSWORD: morrowpal
       MYSQL_ROOT_PASSWORD: root
     ports:
       - "3307:3306"
@@ -27,9 +27,9 @@ services:
     environment:
       DB_HOST: mysql
       DB_PORT: 3306
-      DB_NAME: morrowletter
-      DB_USER: morrowletter
-      DB_PASSWORD: morrowletter
+      DB_NAME: morrowpal
+      DB_USER: morrowpal
+      DB_PASSWORD: morrowpal
       APP_DISPATCH_DELAY_MINUTES: 2
       APP_DISPATCH_GRANULARITY_MINUTES: 1
     depends_on:
@@ -46,9 +46,9 @@ services:
     environment:
       DB_HOST: mysql
       DB_PORT: 3306
-      DB_NAME: morrowletter
-      DB_USER: morrowletter
-      DB_PASSWORD: morrowletter
+      DB_NAME: morrowpal
+      DB_USER: morrowpal
+      DB_PASSWORD: morrowpal
       APP_JOB_DB_MAX_POOL_SIZE: "4"
       APP_JOB_DB_MIN_IDLE: "1"
       APP_JOB_DB_CONNECTION_TIMEOUT_MS: "30000"
@@ -72,9 +72,9 @@ services:
     environment:
       DB_HOST: mysql
       DB_PORT: 3306
-      DB_NAME: morrowletter
-      DB_USER: morrowletter
-      DB_PASSWORD: morrowletter
+      DB_NAME: morrowpal
+      DB_USER: morrowpal
+      DB_PASSWORD: morrowpal
       APP_JOB_DB_MAX_POOL_SIZE: "2"
       APP_JOB_DB_MIN_IDLE: "1"
       APP_JOB_DB_CONNECTION_TIMEOUT_MS: "30000"
@@ -88,7 +88,7 @@ services:
         condition: service_healthy
   envoy:
     image: envoyproxy/envoy:v1.33-latest
-    container_name: morrowletter-envoy
+    container_name: morrowpal-envoy
     restart: unless-stopped
     depends_on:
       - backend-api

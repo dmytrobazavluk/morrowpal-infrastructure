@@ -115,6 +115,50 @@ aws cloudformation deploy \
   --no-fail-on-empty-changeset
 ```
 
+## Allow Instance 01 to Pull Images
+
+Instance 01 needs an IAM instance profile so it can authenticate to ECR without
+credentials stored on the server. The `./cloudformation/ec2-access.yml`
+template grants permission to pull images only from the production backend API
+and job repositories.
+
+Validate the template:
+
+```bash
+cfn-lint --regions us-east-2 --template ./cloudformation/ec2-access.yml
+
+aws cloudformation validate-template \
+  --template-body file://./cloudformation/ec2-access.yml \
+  --region us-east-2
+```
+
+After reviewing a CloudFormation change set, deploy the IAM stack:
+
+```bash
+aws cloudformation deploy \
+  --template-file ./cloudformation/ec2-access.yml \
+  --stack-name morrowpal-prod-ec2-access \
+  --capabilities CAPABILITY_IAM \
+  --region us-east-2 \
+  --no-fail-on-empty-changeset
+```
+
+Because instance 01 already exists outside this stack, associate the generated
+instance profile once after the stack is created:
+
+```bash
+INSTANCE_PROFILE_NAME="$(aws cloudformation describe-stacks \
+  --stack-name morrowpal-prod-ec2-access \
+  --query 'Stacks[0].Outputs[?OutputKey==`InstanceProfileName`].OutputValue' \
+  --output text \
+  --region us-east-2)"
+
+aws ec2 associate-iam-instance-profile \
+  --instance-id i-01f8e89c8a239c56e \
+  --iam-instance-profile "Name=$INSTANCE_PROFILE_NAME" \
+  --region us-east-2
+```
+
 ## Publish Backend Images
 
 The publishing script tests the backend, builds the API and shared job images

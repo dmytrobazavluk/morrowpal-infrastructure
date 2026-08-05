@@ -1,0 +1,46 @@
+---
+- name: Install Docker on production EC2 instances
+  hosts: production
+  become: true
+  gather_facts: true
+
+  pre_tasks:
+    - name: Require Amazon Linux 2023
+      ansible.builtin.assert:
+        that:
+          - ansible_distribution == "Amazon"
+          - ansible_distribution_major_version == "2023"
+        fail_msg: >-
+          This playbook supports Amazon Linux 2023 only. Detected
+          {{ ansible_distribution }} {{ ansible_distribution_major_version }}.
+
+  tasks:
+    - name: Install Docker
+      ansible.builtin.dnf:
+        name: docker
+        state: present
+
+    - name: Explain check-mode service validation
+      ansible.builtin.debug:
+        msg: >-
+          Docker service startup and version validation are skipped in check
+          mode because the predicted package installation is not applied.
+      when: ansible_check_mode
+
+    - name: Start and validate Docker
+      when: not ansible_check_mode
+      block:
+        - name: Enable and start Docker
+          ansible.builtin.service:
+            name: docker
+            enabled: true
+            state: started
+
+        - name: Read the installed Docker version
+          ansible.builtin.command: docker --version
+          register: docker_version
+          changed_when: false
+
+        - name: Show the installed Docker version
+          ansible.builtin.debug:
+            var: docker_version.stdout

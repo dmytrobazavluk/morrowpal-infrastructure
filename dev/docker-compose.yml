@@ -21,7 +21,7 @@ services:
       start_period: 20s
   backend-api:
     build:
-      context: ../backend
+      context: ../../backend
       dockerfile: Dockerfile
       target: api-runtime
     restart: unless-stopped
@@ -40,7 +40,7 @@ services:
       - "8080"
   backend-job-dispatch:
     build:
-      context: ../backend
+      context: ../../backend
       dockerfile: Dockerfile
       target: job-runtime
     restart: unless-stopped
@@ -66,7 +66,7 @@ services:
         condition: service_healthy
   backend-job-cleanup:
     build:
-      context: ../backend
+      context: ../../backend
       dockerfile: Dockerfile
       target: job-runtime
     restart: unless-stopped

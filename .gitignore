@@ -1,1 +1,3 @@
-mysql/data/
+dev/mysql/data/
+prod/known_hosts
+*.pem

@@ -1,0 +1,132 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Private ECR repositories for MorrowPal production container images.
+
+Parameters:
+  Environment:
+    Type: String
+    Default: prod
+    AllowedPattern: "^[a-z0-9-]+$"
+    ConstraintDescription: Use lowercase letters, numbers, and hyphens only.
+
+  TaggedImageRetentionCount:
+    Type: Number
+    Default: 5
+    MinValue: 1
+    MaxValue: 1000
+    Description: Number of incremental build images to retain per repository.
+
+Resources:
+  BackendApiRepository:
+    Type: AWS::ECR::Repository
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      RepositoryName: !Sub "morrowpal/${Environment}/backend-api"
+      EncryptionConfiguration:
+        EncryptionType: AES256
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      ImageTagMutability: IMMUTABLE
+      LifecyclePolicy:
+        LifecyclePolicyText: !Sub |
+          {
+            "rules": [
+              {
+                "rulePriority": 1,
+                "description": "Expire untagged images after seven days",
+                "selection": {
+                  "tagStatus": "untagged",
+                  "countType": "sinceImagePushed",
+                  "countUnit": "days",
+                  "countNumber": 7
+                },
+                "action": {
+                  "type": "expire"
+                }
+              },
+              {
+                "rulePriority": 2,
+                "description": "Retain the most recent incremental builds",
+                "selection": {
+                  "tagStatus": "tagged",
+                  "tagPatternList": ["build-*"],
+                  "countType": "imageCountMoreThan",
+                  "countNumber": ${TaggedImageRetentionCount}
+                },
+                "action": {
+                  "type": "expire"
+                }
+              }
+            ]
+          }
+      Tags:
+        - Key: application
+          Value: morrowpal
+        - Key: environment
+          Value: !Ref Environment
+
+  BackendJobRepository:
+    Type: AWS::ECR::Repository
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      RepositoryName: !Sub "morrowpal/${Environment}/backend-job"
+      EncryptionConfiguration:
+        EncryptionType: AES256
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      ImageTagMutability: IMMUTABLE
+      LifecyclePolicy:
+        LifecyclePolicyText: !Sub |
+          {
+            "rules": [
+              {
+                "rulePriority": 1,
+                "description": "Expire untagged images after seven days",
+                "selection": {
+                  "tagStatus": "untagged",
+                  "countType": "sinceImagePushed",
+                  "countUnit": "days",
+                  "countNumber": 7
+                },
+                "action": {
+                  "type": "expire"
+                }
+              },
+              {
+                "rulePriority": 2,
+                "description": "Retain the most recent incremental builds",
+                "selection": {
+                  "tagStatus": "tagged",
+                  "tagPatternList": ["build-*"],
+                  "countType": "imageCountMoreThan",
+                  "countNumber": ${TaggedImageRetentionCount}
+                },
+                "action": {
+                  "type": "expire"
+                }
+              }
+            ]
+          }
+      Tags:
+        - Key: application
+          Value: morrowpal
+        - Key: environment
+          Value: !Ref Environment
+
+Outputs:
+  BackendApiRepositoryName:
+    Description: Name of the backend API ECR repository.
+    Value: !Ref BackendApiRepository
+
+  BackendApiRepositoryUri:
+    Description: URI of the backend API ECR repository.
+    Value: !GetAtt BackendApiRepository.RepositoryUri
+
+  BackendJobRepositoryName:
+    Description: Name of the shared backend job ECR repository.
+    Value: !Ref BackendJobRepository
+
+  BackendJobRepositoryUri:
+    Description: URI of the shared backend job ECR repository.
+    Value: !GetAtt BackendJobRepository.RepositoryUri

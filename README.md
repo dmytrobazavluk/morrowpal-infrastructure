@@ -151,6 +151,7 @@ curl http://127.0.0.1:8080/ready
 Verify Ansible connectivity to the production inventory:
 
 ```bash
+cd prod
 ansible production -m ping
 ```
 

@@ -1,0 +1,50 @@
+---
+- name: Prepare production EC2 hosts for MorrowPal
+  hosts: production
+  become: true
+  gather_facts: true
+
+  vars:
+    morrowpal_root: /opt/morrowpal
+
+  pre_tasks:
+    - name: Require Amazon Linux 2023
+      ansible.builtin.assert:
+        that:
+          - ansible_distribution == "Amazon"
+          - ansible_distribution_major_version == "2023"
+        fail_msg: >-
+          This playbook supports Amazon Linux 2023 only. Detected
+          {{ ansible_distribution }} {{ ansible_distribution_major_version }}.
+
+  tasks:
+    - name: Create the protected MorrowPal deployment directory
+      ansible.builtin.file:
+        path: "{{ morrowpal_root }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0750"
+
+    - name: Explain check-mode directory validation
+      ansible.builtin.debug:
+        msg: >-
+          Deployment directory validation is skipped in check mode because
+          the predicted directory creation is not applied.
+      when: ansible_check_mode
+
+    - name: Read the deployment directory metadata
+      ansible.builtin.stat:
+        path: "{{ morrowpal_root }}"
+      register: morrowpal_root_stat
+      when: not ansible_check_mode
+
+    - name: Validate the deployment directory
+      ansible.builtin.assert:
+        that:
+          - morrowpal_root_stat.stat.isdir
+          - morrowpal_root_stat.stat.pw_name == "root"
+          - morrowpal_root_stat.stat.gr_name == "root"
+          - morrowpal_root_stat.stat.mode == "0750"
+        fail_msg: The MorrowPal deployment directory is not configured securely.
+      when: not ansible_check_mode

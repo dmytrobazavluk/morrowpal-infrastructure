@@ -1,0 +1,93 @@
+---
+- name: Install Docker Compose on production EC2 instances
+  hosts: production
+  become: true
+  gather_facts: true
+
+  vars:
+    docker_compose_version: "v5.4.0"
+    docker_compose_architectures:
+      x86_64: x86_64
+      aarch64: aarch64
+
+  pre_tasks:
+    - name: Require a supported CPU architecture
+      ansible.builtin.assert:
+        that:
+          - ansible_architecture in docker_compose_architectures
+        fail_msg: >-
+          Docker Compose {{ docker_compose_version }} is not configured for
+          architecture {{ ansible_architecture }}.
+
+    - name: Define the Docker Compose release asset
+      ansible.builtin.set_fact:
+        docker_compose_asset: >-
+          docker-compose-linux-{{ docker_compose_architectures[ansible_architecture] }}
+        docker_compose_release_url: >-
+          https://github.com/docker/compose/releases/download/{{ docker_compose_version }}
+
+  tasks:
+    - name: Create the system Docker CLI plugin directory
+      ansible.builtin.file:
+        path: /usr/local/lib/docker/cli-plugins
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Read the published Docker Compose checksum
+      ansible.builtin.uri:
+        url: "{{ docker_compose_release_url }}/{{ docker_compose_asset }}.sha256"
+        return_content: true
+        status_code: 200
+      register: docker_compose_checksum_response
+      changed_when: false
+      check_mode: false
+
+    - name: Require checksum content
+      ansible.builtin.assert:
+        that:
+          - docker_compose_checksum_response.content is defined
+          - docker_compose_checksum_response.content | trim | length > 0
+        fail_msg: The Docker Compose release checksum file is empty.
+
+    - name: Extract the published SHA-256 value
+      ansible.builtin.set_fact:
+        docker_compose_checksum: >-
+          {{ docker_compose_checksum_response.content.split()[0] }}
+
+    - name: Validate the published SHA-256 value
+      ansible.builtin.assert:
+        that:
+          - >-
+            docker_compose_checksum |
+            regex_search('^[0-9a-fA-F]{64}$')
+        fail_msg: The Docker Compose release checksum is not a valid SHA-256 value.
+
+    - name: Install the checksum-verified Docker Compose plugin
+      ansible.builtin.get_url:
+        url: "{{ docker_compose_release_url }}/{{ docker_compose_asset }}"
+        dest: /usr/local/lib/docker/cli-plugins/docker-compose
+        checksum: "sha256:{{ docker_compose_checksum }}"
+        owner: root
+        group: root
+        mode: "0755"
+      when: not ansible_check_mode
+
+    - name: Explain check-mode installation validation
+      ansible.builtin.debug:
+        msg: >-
+          Docker Compose download and version validation are skipped in check
+          mode because the predicted plugin directory is not created.
+      when: ansible_check_mode
+
+    - name: Validate the installed Docker Compose version
+      ansible.builtin.command: docker compose version
+      register: docker_compose_version_output
+      changed_when: false
+      when: not ansible_check_mode
+
+    - name: Show the installed Docker Compose version
+      ansible.builtin.debug:
+        var: docker_compose_version_output.stdout
+      when: not ansible_check_mode

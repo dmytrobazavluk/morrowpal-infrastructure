@@ -1,0 +1,23 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Public HTTP ingress for MorrowPal production certificate validation.
+
+Parameters:
+  SecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: Security group attached to the MorrowPal production EC2 instance.
+
+Resources:
+  CertbotHttpIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: Allow public HTTP-01 certificate validation.
+      GroupId: !Ref SecurityGroupId
+      IpProtocol: tcp
+      FromPort: 80
+      ToPort: 80
+      CidrIp: 0.0.0.0/0
+
+Outputs:
+  SecurityGroupId:
+    Description: Security group containing the HTTP validation rule.
+    Value: !Ref SecurityGroupId

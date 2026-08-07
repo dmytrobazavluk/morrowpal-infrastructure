@@ -1,0 +1,18 @@
+[Unit]
+Description=MorrowPal production containers
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/morrowpal-service start
+ExecStop=/usr/local/sbin/morrowpal-service stop
+TimeoutStartSec=900
+TimeoutStopSec=180
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

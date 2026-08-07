@@ -1,0 +1,227 @@
+---
+- name: Prepare automated production TLS certificates
+  hosts: production
+  become: true
+  gather_facts: false
+
+  vars:
+    morrowpal_tls_certificate_name: morrowpal.com
+    morrowpal_tls_expected_ipv4: 3.12.65.199
+    morrowpal_tls_group: morrowpal-tls
+    morrowpal_tls_group_gid: 1901
+    morrowpal_tls_domains:
+      - morrowpal.com
+      - api.morrowpal.com
+      - admin.morrowpal.com
+      - app.morrowpal.com
+      - www.morrowpal.com
+      - back.morrowpal.com
+
+  pre_tasks:
+    - name: Require a Certbot registration email
+      ansible.builtin.assert:
+        that:
+          - morrowpal_certbot_email is defined
+          - morrowpal_certbot_email is match('^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$')
+        fail_msg: Pass the registration address with -e morrowpal_certbot_email=EMAIL.
+
+  tasks:
+    - name: Install Certbot and DNS diagnostic tools
+      ansible.builtin.dnf:
+        name:
+          - bind-utils
+          - certbot
+        state: present
+
+    - name: Create the dedicated Envoy TLS reader group
+      ansible.builtin.group:
+        name: "{{ morrowpal_tls_group }}"
+        gid: "{{ morrowpal_tls_group_gid }}"
+        system: true
+        state: present
+
+    - name: Resolve production IPv4 records
+      ansible.builtin.command:
+        argv:
+          - dig
+          - +short
+          - "{{ item }}"
+          - A
+      loop: "{{ morrowpal_tls_domains }}"
+      register: morrowpal_tls_ipv4_results
+      changed_when: false
+
+    - name: Require every certificate name to reach the stable IPv4 address
+      ansible.builtin.assert:
+        that:
+          - morrowpal_tls_expected_ipv4 in item.stdout_lines
+        fail_msg: >-
+          {{ item.item }} must resolve to {{ morrowpal_tls_expected_ipv4 }} before
+          requesting the certificate. Current answer: {{ item.stdout | default('none') }}
+      loop: "{{ morrowpal_tls_ipv4_results.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: Resolve production IPv6 records
+      ansible.builtin.command:
+        argv:
+          - dig
+          - +short
+          - "{{ item }}"
+          - AAAA
+      loop: "{{ morrowpal_tls_domains }}"
+      register: morrowpal_tls_ipv6_results
+      changed_when: false
+
+    - name: Reject certificate names with active IPv6 answers
+      ansible.builtin.assert:
+        that:
+          - item.stdout_lines | select('search', ':') | list | length == 0
+        fail_msg: >-
+          {{ item.item }} has an IPv6 answer but the production endpoint does not
+          support IPv6. Remove its AAAA record before requesting the certificate.
+      loop: "{{ morrowpal_tls_ipv6_results.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: Inspect the existing certificate chain
+      ansible.builtin.stat:
+        path: "/etc/letsencrypt/live/{{ morrowpal_tls_certificate_name }}/fullchain.pem"
+      register: morrowpal_tls_certificate
+
+    - name: Read the existing public certificate names
+      ansible.builtin.command:
+        argv:
+          - openssl
+          - x509
+          - -in
+          - "/etc/letsencrypt/live/{{ morrowpal_tls_certificate_name }}/fullchain.pem"
+          - -noout
+          - -ext
+          - subjectAltName
+      when: morrowpal_tls_certificate.stat.exists
+      register: morrowpal_tls_certificate_details
+      changed_when: false
+
+    - name: Record the existing public certificate names
+      ansible.builtin.set_fact:
+        morrowpal_tls_existing_domains: >-
+          {{
+            (morrowpal_tls_certificate_details.stdout | default(''))
+            | regex_findall('DNS:([^,\\s]+)')
+          }}
+
+    - name: Identify certificate names that must be added
+      ansible.builtin.set_fact:
+        morrowpal_tls_missing_domains: >-
+          {{ morrowpal_tls_domains | difference(morrowpal_tls_existing_domains) }}
+
+    - name: Obtain the initial multi-domain certificate
+      ansible.builtin.command:
+        argv: >-
+          {{
+            [
+              '/usr/bin/certbot', 'certonly', '--standalone', '--non-interactive',
+              '--agree-tos', '--no-eff-email', '--preferred-challenges', 'http',
+              '--cert-name', morrowpal_tls_certificate_name,
+              '--email', morrowpal_certbot_email
+            ]
+            + (morrowpal_tls_domains | map('regex_replace', '^', '--domains=') | list)
+          }}
+      when: not morrowpal_tls_certificate.stat.exists
+      no_log: true
+
+    - name: Expand the certificate when configured names are missing
+      ansible.builtin.command:
+        argv: >-
+          {{
+            [
+              '/usr/bin/certbot', 'certonly', '--standalone', '--non-interactive',
+              '--agree-tos', '--no-eff-email', '--preferred-challenges', 'http',
+              '--cert-name', morrowpal_tls_certificate_name, '--expand',
+              '--email', morrowpal_certbot_email
+            ]
+            + (morrowpal_tls_domains | map('regex_replace', '^', '--domains=') | list)
+          }}
+      when:
+        - morrowpal_tls_certificate.stat.exists
+        - morrowpal_tls_missing_domains | length > 0
+      no_log: true
+
+    - name: Read the issued public certificate names
+      ansible.builtin.command:
+        argv:
+          - openssl
+          - x509
+          - -in
+          - "/etc/letsencrypt/live/{{ morrowpal_tls_certificate_name }}/fullchain.pem"
+          - -noout
+          - -ext
+          - subjectAltName
+      register: morrowpal_tls_issued_certificate_details
+      changed_when: false
+
+    - name: Require every configured name in the issued certificate
+      ansible.builtin.assert:
+        that:
+          - >-
+            morrowpal_tls_domains
+            | difference(
+                morrowpal_tls_issued_certificate_details.stdout
+                | regex_findall('DNS:([^,\\s]+)')
+              )
+            | length == 0
+        fail_msg: The issued certificate does not contain every configured DNS name.
+
+    - name: Create the Certbot renewal hook directory
+      ansible.builtin.file:
+        path: /etc/letsencrypt/renewal-hooks/deploy
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Install the certificate permission hook
+      ansible.builtin.copy:
+        src: ../scripts/configure-tls-permissions.sh
+        dest: /etc/letsencrypt/renewal-hooks/deploy/10-morrowpal-permissions
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Apply least-privilege certificate permissions
+      ansible.builtin.command:
+        argv:
+          - /etc/letsencrypt/renewal-hooks/deploy/10-morrowpal-permissions
+      environment:
+        RENEWED_LINEAGE: "/etc/letsencrypt/live/{{ morrowpal_tls_certificate_name }}"
+      changed_when: false
+
+    - name: Install the certificate renewal service
+      ansible.builtin.copy:
+        src: ../systemd/morrowpal-certbot-renew.service
+        dest: /etc/systemd/system/morrowpal-certbot-renew.service
+        owner: root
+        group: root
+        mode: "0644"
+      register: morrowpal_certbot_service
+
+    - name: Install the certificate renewal timer
+      ansible.builtin.copy:
+        src: ../systemd/morrowpal-certbot-renew.timer
+        dest: /etc/systemd/system/morrowpal-certbot-renew.timer
+        owner: root
+        group: root
+        mode: "0644"
+      register: morrowpal_certbot_timer
+
+    - name: Reload systemd after renewal unit changes
+      ansible.builtin.systemd:
+        daemon_reload: true
+      when: morrowpal_certbot_service is changed or morrowpal_certbot_timer is changed
+
+    - name: Enable the automated certificate renewal timer
+      ansible.builtin.systemd:
+        name: morrowpal-certbot-renew.timer
+        enabled: true
+        state: started

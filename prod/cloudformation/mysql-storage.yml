@@ -1,0 +1,65 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Encrypted EBS data volume for MorrowPal production MySQL.
+
+Parameters:
+  AvailabilityZone:
+    Type: AWS::EC2::AvailabilityZone::Name
+    Default: us-east-2c
+    Description: Availability Zone containing the production EC2 instance.
+
+  InstanceId:
+    Type: AWS::EC2::Instance::Id
+    Description: Production EC2 instance that receives the retained data volume.
+
+  AttachVolume:
+    Type: String
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Description: Whether CloudFormation attaches the retained volume to InstanceId.
+
+  VolumeSizeGiB:
+    Type: Number
+    Default: 10
+    MinValue: 1
+    MaxValue: 16384
+    Description: Provisioned gp3 capacity in GiB.
+
+Conditions:
+  ShouldAttachVolume: !Equals [!Ref AttachVolume, 'true']
+
+Resources:
+  MysqlDataVolume:
+    Type: AWS::EC2::Volume
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      AvailabilityZone: !Ref AvailabilityZone
+      Encrypted: true
+      Size: !Ref VolumeSizeGiB
+      VolumeType: gp3
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-mysql-data
+        - Key: Environment
+          Value: prod
+        - Key: Application
+          Value: morrowpal
+
+  MysqlDataVolumeAttachment:
+    Type: AWS::EC2::VolumeAttachment
+    Condition: ShouldAttachVolume
+    Properties:
+      Device: /dev/sdf
+      InstanceId: !Ref InstanceId
+      VolumeId: !Ref MysqlDataVolume
+
+Outputs:
+  DeviceName:
+    Description: Requested EC2 device name; Nitro instances expose it as an NVMe device.
+    Value: /dev/sdf
+
+  VolumeId:
+    Description: ID of the encrypted MySQL data volume.
+    Value: !Ref MysqlDataVolume

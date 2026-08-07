@@ -1,0 +1,227 @@
+---
+- name: Deploy MorrowPal production containers
+  hosts: production
+  become: true
+  gather_facts: false
+
+  vars:
+    morrowpal_root: /opt/morrowpal
+    asm_exec_version: fa92497351cca80bdd90f42845cbef6bd8c5175c
+    asm_exec_checksum: d55eb38ad33a5b76f584ca180f633ecc120cf39b8fd29427ffbe11a8fbf19556
+    asm_exec_url: >-
+      https://raw.githubusercontent.com/aws/agent-toolkit-for-aws/{{ asm_exec_version
+      }}/plugins/aws-core/skills/aws-secrets-manager/references/asm-exec
+
+  pre_tasks:
+    - name: Require an immutable backend image tag
+      ansible.builtin.assert:
+        that:
+          - morrowpal_image_tag is defined
+          - morrowpal_image_tag is match('^build-[1-9][0-9]*-[0-9a-f]{7}$')
+        fail_msg: Pass an immutable tag with -e morrowpal_image_tag=build-N-GITSHA.
+
+    - name: Require the prepared deployment directory
+      ansible.builtin.stat:
+        path: "{{ morrowpal_root }}"
+      register: morrowpal_root_stat
+
+    - name: Validate the deployment directory
+      ansible.builtin.assert:
+        that:
+          - morrowpal_root_stat.stat.isdir | default(false)
+        fail_msg: Run prepare-host.yml before deploy.yml.
+
+    - name: Read the MySQL mount metadata
+      ansible.builtin.command:
+        argv:
+          - findmnt
+          - --noheadings
+          - --output
+          - FSTYPE
+          - --target
+          - /var/lib/morrowpal
+      register: morrowpal_data_mount
+      changed_when: false
+
+    - name: Require the encrypted XFS data mount
+      ansible.builtin.assert:
+        that:
+          - morrowpal_data_mount.stdout == 'xfs'
+        fail_msg: Run prepare-storage.yml before deploy.yml.
+
+    - name: Inspect the production TLS certificate files
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - /etc/letsencrypt/live/morrowpal.com/fullchain.pem
+        - /etc/letsencrypt/live/morrowpal.com/privkey.pem
+      register: morrowpal_tls_files
+
+    - name: Require the prepared production TLS certificate
+      ansible.builtin.assert:
+        that:
+          - morrowpal_tls_files.results | map(attribute='stat.exists') | min
+        fail_msg: Run prepare-tls.yml before deploy.yml.
+
+  tasks:
+    - name: Install deployment runtime packages
+      ansible.builtin.dnf:
+        name:
+          - awscli-2
+          - curl-minimal
+          - python3
+        state: present
+
+    - name: Install the checksum-verified asm-exec helper
+      ansible.builtin.get_url:
+        url: "{{ asm_exec_url }}"
+        dest: /usr/local/bin/asm-exec
+        owner: root
+        group: root
+        mode: "0755"
+        checksum: "sha256:{{ asm_exec_checksum }}"
+
+    - name: Create the MorrowPal libexec directory
+      ansible.builtin.file:
+        path: /usr/local/libexec/morrowpal
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Create the Envoy configuration directory
+      ansible.builtin.file:
+        path: "{{ morrowpal_root }}/envoy"
+        state: directory
+        owner: root
+        group: root
+        mode: "0750"
+
+    - name: Install the runtime secret writer
+      ansible.builtin.copy:
+        src: ../scripts/write-runtime-secrets.sh
+        dest: /usr/local/libexec/morrowpal/write-runtime-secrets
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Install the production service command
+      ansible.builtin.copy:
+        src: ../scripts/morrowpal-service.sh
+        dest: /usr/local/sbin/morrowpal-service
+        owner: root
+        group: root
+        mode: "0755"
+      register: morrowpal_service_command
+
+    - name: Install the rolling release command
+      ansible.builtin.copy:
+        src: ../scripts/morrowpal-deploy-release.sh
+        dest: /usr/local/sbin/morrowpal-deploy-release
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Install the production Envoy configuration
+      ansible.builtin.copy:
+        src: ../envoy/envoy.yaml
+        dest: "{{ morrowpal_root }}/envoy/envoy.yaml"
+        owner: root
+        group: root
+        mode: "0644"
+      register: morrowpal_envoy_config
+
+    - name: Install the Envoy TLS certificate SDS configuration
+      ansible.builtin.copy:
+        src: ../envoy/tls-certificate-sds.yaml
+        dest: "{{ morrowpal_root }}/envoy/tls-certificate-sds.yaml"
+        owner: root
+        group: root
+        mode: "0644"
+      register: morrowpal_envoy_tls_sds_config
+
+    - name: Install the production Compose file
+      ansible.builtin.copy:
+        src: ../docker-compose.yml
+        dest: "{{ morrowpal_root }}/docker-compose.yml"
+        owner: root
+        group: root
+        mode: "0640"
+      register: morrowpal_compose_file
+
+    - name: Inspect the blue API image tag
+      ansible.builtin.stat:
+        path: "{{ morrowpal_root }}/api-blue-image-tag"
+      register: morrowpal_blue_tag_stat
+
+    - name: Initialize the blue-green image tags
+      ansible.builtin.copy:
+        content: "{{ morrowpal_image_tag }}\n"
+        dest: "{{ morrowpal_root }}/{{ item }}"
+        owner: root
+        group: root
+        mode: "0640"
+      loop:
+        - api-blue-image-tag
+        - api-green-image-tag
+        - job-image-tag
+      when: not morrowpal_blue_tag_stat.stat.exists
+
+    - name: Install the MorrowPal systemd unit
+      ansible.builtin.copy:
+        src: ../systemd/morrowpal.service
+        dest: /etc/systemd/system/morrowpal.service
+        owner: root
+        group: root
+        mode: "0644"
+      register: morrowpal_systemd_unit
+
+    - name: Reload systemd after unit changes
+      ansible.builtin.systemd:
+        daemon_reload: true
+      when: morrowpal_systemd_unit is changed
+
+    - name: Enable and restart MorrowPal after infrastructure changes
+      ansible.builtin.systemd:
+        name: morrowpal.service
+        enabled: true
+        state: restarted
+      when: >-
+        (not morrowpal_blue_tag_stat.stat.exists) or
+        (morrowpal_service_command is changed) or
+        (morrowpal_envoy_config is changed) or
+        (morrowpal_envoy_tls_sds_config is changed) or
+        (morrowpal_compose_file is changed) or
+        (morrowpal_systemd_unit is changed)
+      no_log: true
+
+    - name: Enable MorrowPal without restarting unchanged infrastructure
+      ansible.builtin.systemd:
+        name: morrowpal.service
+        enabled: true
+        state: started
+      when: >-
+        morrowpal_blue_tag_stat.stat.exists and
+        not (morrowpal_service_command is changed) and
+        not (morrowpal_envoy_config is changed) and
+        not (morrowpal_envoy_tls_sds_config is changed) and
+        not (morrowpal_compose_file is changed) and
+        not (morrowpal_systemd_unit is changed)
+      no_log: true
+
+    - name: Roll out the requested immutable release
+      ansible.builtin.command:
+        argv:
+          - /usr/local/sbin/morrowpal-deploy-release
+          - "{{ morrowpal_image_tag }}"
+      when: morrowpal_blue_tag_stat.stat.exists
+      no_log: true
+
+    - name: Verify the backend readiness endpoint
+      ansible.builtin.uri:
+        url: http://127.0.0.1:8080/ready
+        status_code: 200
+      register: morrowpal_readiness
+      retries: 12
+      delay: 5
+      until: morrowpal_readiness.status == 200

@@ -1,0 +1,105 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CloudFormation-managed EC2 host for MorrowPal production containers.
+
+Parameters:
+  Environment:
+    Type: String
+    Default: prod
+    AllowedValues:
+      - prod
+    Description: Deployment environment used for resource tags.
+
+  InstanceType:
+    Type: String
+    Default: t3.small
+    AllowedValues:
+      - t3.small
+      - t3.medium
+    Description: EC2 instance type for the production container host.
+
+  LatestAmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
+    Description: Public SSM parameter containing the current Amazon Linux 2023 x86_64 AMI.
+
+  KeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: Existing EC2 key pair used for recovery SSH access.
+
+  SubnetId:
+    Type: AWS::EC2::Subnet::Id
+    Description: Public subnet in the same Availability Zone as the retained MySQL volume.
+
+  SecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: Existing security group applied to the production container host.
+
+  InstanceProfileName:
+    Type: String
+    MinLength: 1
+    MaxLength: 128
+    AllowedPattern: '[A-Za-z0-9+=,.@_-]+'
+    Description: Instance profile created by the MorrowPal production EC2 access stack.
+
+  RootVolumeSizeGiB:
+    Type: Number
+    Default: 8
+    MinValue: 8
+    MaxValue: 16384
+    Description: Encrypted gp3 root volume capacity in GiB.
+
+Resources:
+  ProductionInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref LatestAmiId
+      InstanceType: !Ref InstanceType
+      KeyName: !Ref KeyName
+      IamInstanceProfile: !Ref InstanceProfileName
+      CreditSpecification:
+        CPUCredits: standard
+      MetadataOptions:
+        HttpEndpoint: enabled
+        HttpProtocolIpv6: disabled
+        HttpPutResponseHopLimit: 2
+        HttpTokens: required
+        InstanceMetadataTags: disabled
+      Monitoring: false
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: true
+          DeleteOnTermination: true
+          DeviceIndex: '0'
+          GroupSet:
+            - !Ref SecurityGroupId
+          SubnetId: !Ref SubnetId
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            DeleteOnTermination: true
+            Encrypted: true
+            VolumeSize: !Ref RootVolumeSizeGiB
+            VolumeType: gp3
+      Tags:
+        - Key: Name
+          Value: !Sub morrowpal-${Environment}-01
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: morrowpal
+
+Outputs:
+  AvailabilityZone:
+    Description: Availability Zone of the production EC2 instance.
+    Value: !GetAtt ProductionInstance.AvailabilityZone
+
+  InstanceId:
+    Description: ID passed to the MySQL storage and public IP stacks.
+    Value: !Ref ProductionInstance
+
+  PrivateIp:
+    Description: Private IPv4 address of the production EC2 instance.
+    Value: !GetAtt ProductionInstance.PrivateIp
+
+  BootstrapPublicIp:
+    Description: Temporary public IPv4 address used before the stable Elastic IP is moved.
+    Value: !GetAtt ProductionInstance.PublicIp

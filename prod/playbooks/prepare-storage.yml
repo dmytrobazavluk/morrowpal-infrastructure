@@ -1,0 +1,157 @@
+---
+- name: Prepare the encrypted production data volume
+  hosts: production
+  become: true
+  gather_facts: false
+
+  vars:
+    morrowpal_data_root: /var/lib/morrowpal
+    morrowpal_swap_file: /var/lib/morrowpal/swapfile
+
+  pre_tasks:
+    - name: Require the EBS volume ID
+      ansible.builtin.assert:
+        that:
+          - morrowpal_mysql_volume_id is defined
+          - morrowpal_mysql_volume_id is match('^vol-[0-9a-f]+$')
+        fail_msg: Pass the encrypted EBS volume ID with -e morrowpal_mysql_volume_id=vol-...
+
+  tasks:
+    - name: Install XFS filesystem tools
+      ansible.builtin.dnf:
+        name: xfsprogs
+        state: present
+
+    - name: Resolve the Nitro NVMe device for the EBS volume
+      ansible.builtin.shell: >-
+        set -o pipefail;
+        lsblk -ndo PATH,SERIAL |
+        awk -v serial="{{ morrowpal_mysql_volume_id | replace('-', '') }}"
+        '$2 == serial { print $1 }'
+      args:
+        executable: /bin/bash
+      register: morrowpal_mysql_device_result
+      changed_when: false
+
+    - name: Validate the resolved EBS device
+      ansible.builtin.assert:
+        that:
+          - morrowpal_mysql_device_result.stdout_lines | length == 1
+          - morrowpal_mysql_device_result.stdout is match('^/dev/nvme[0-9]+n[0-9]+$')
+        fail_msg: Could not resolve exactly one NVMe device for the requested EBS volume.
+
+    - name: Inspect the data volume filesystem
+      ansible.builtin.command:
+        argv:
+          - blkid
+          - -o
+          - value
+          - -s
+          - TYPE
+          - "{{ morrowpal_mysql_device_result.stdout }}"
+      register: morrowpal_mysql_filesystem
+      changed_when: false
+      failed_when: morrowpal_mysql_filesystem.rc not in [0, 2]
+
+    - name: Create the XFS filesystem on the empty data volume
+      ansible.builtin.command:
+        argv:
+          - mkfs.xfs
+          - "{{ morrowpal_mysql_device_result.stdout }}"
+      when: morrowpal_mysql_filesystem.rc == 2
+      register: morrowpal_mysql_mkfs
+      changed_when: morrowpal_mysql_mkfs.rc == 0
+
+    - name: Require XFS on the data volume
+      ansible.builtin.assert:
+        that:
+          - (morrowpal_mysql_filesystem.stdout == 'xfs') or
+            (morrowpal_mysql_mkfs is defined and morrowpal_mysql_mkfs is changed)
+        fail_msg: The data volume contains an unexpected filesystem; it was not modified.
+
+    - name: Read the data volume UUID
+      ansible.builtin.command:
+        argv:
+          - blkid
+          - -o
+          - value
+          - -s
+          - UUID
+          - "{{ morrowpal_mysql_device_result.stdout }}"
+      register: morrowpal_mysql_uuid
+      changed_when: false
+
+    - name: Mount the encrypted data volume persistently
+      ansible.posix.mount:
+        path: "{{ morrowpal_data_root }}"
+        src: "UUID={{ morrowpal_mysql_uuid.stdout }}"
+        fstype: xfs
+        opts: defaults,nofail
+        state: mounted
+
+    - name: Create the MySQL data directory
+      ansible.builtin.file:
+        path: "{{ morrowpal_data_root }}/mysql"
+        state: directory
+        owner: root
+        group: root
+        mode: "0750"
+
+    - name: Inspect the encrypted swap file
+      ansible.builtin.stat:
+        path: "{{ morrowpal_swap_file }}"
+      register: morrowpal_swap_file_stat
+
+    - name: Allocate encrypted swap space
+      ansible.builtin.command:
+        argv:
+          - fallocate
+          - --length
+          - 1G
+          - "{{ morrowpal_swap_file }}"
+      when: not morrowpal_swap_file_stat.stat.exists
+      register: morrowpal_swap_allocate
+      changed_when: morrowpal_swap_allocate.rc == 0
+
+    - name: Protect the encrypted swap file
+      ansible.builtin.file:
+        path: "{{ morrowpal_swap_file }}"
+        owner: root
+        group: root
+        mode: "0600"
+
+    - name: Initialize the encrypted swap file
+      ansible.builtin.command:
+        argv:
+          - mkswap
+          - "{{ morrowpal_swap_file }}"
+      when: morrowpal_swap_allocate is changed
+      register: morrowpal_swap_initialize
+      changed_when: morrowpal_swap_initialize.rc == 0
+
+    - name: Persist the encrypted swap file
+      ansible.posix.mount:
+        path: none
+        src: "{{ morrowpal_swap_file }}"
+        fstype: swap
+        opts: sw
+        state: present
+
+    - name: Read active swap devices
+      ansible.builtin.command:
+        argv:
+          - swapon
+          - --show=NAME
+          - --noheadings
+          - --raw
+      register: morrowpal_active_swap
+      changed_when: false
+
+    - name: Enable the encrypted swap file
+      ansible.builtin.command:
+        argv:
+          - swapon
+          - "{{ morrowpal_swap_file }}"
+      when: morrowpal_swap_file not in morrowpal_active_swap.stdout_lines
+      register: morrowpal_swap_enable
+      changed_when: morrowpal_swap_enable.rc == 0

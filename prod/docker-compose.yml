@@ -1,0 +1,194 @@
+name: morrowpal
+
+x-backend-common: &backend-common
+  restart: unless-stopped
+  read_only: true
+  user: "10001:10001"
+  pids_limit: 256
+  tmpfs:
+    - /tmp:size=64m,mode=1777
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+
+x-api-environment: &api-environment
+  DB_HOST: mysql
+  DB_PORT: "3306"
+  DB_NAME: morrowpal
+  DB_USER: morrowpal
+  APP_API_DB_MAX_POOL_SIZE: "6"
+  APP_API_DB_MIN_IDLE: "1"
+  APP_AUTH_ACCESS_TOKEN_TTL_SECONDS: "900"
+  APP_AUTH_REFRESH_TOKEN_TTL_DAYS: "365"
+  APP_DISPATCH_DELAY_MINUTES: "240"
+  APP_DISPATCH_GRANULARITY_MINUTES: "5"
+  JAVA_TOOL_OPTIONS: >-
+    -XX:MaxRAMPercentage=55.0 -XX:InitialRAMPercentage=15.0
+    -XX:+ExitOnOutOfMemoryError
+
+x-api-command: &api-command
+  - |
+    export DB_PASSWORD="$$(cat /run/secrets/mysql_app_password)"
+    export APP_AUTH_JWT_SECRET="$$(cat /run/secrets/jwt_signing_secret)"
+    exec java -jar /app/app.jar
+
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    mem_limit: 384m
+    pids_limit: 256
+    environment:
+      MYSQL_DATABASE: morrowpal
+      MYSQL_USER: morrowpal
+      MYSQL_PASSWORD_FILE: /run/secrets/mysql_app_password
+      MYSQL_ROOT_PASSWORD_FILE: /run/secrets/mysql_root_password
+    volumes:
+      - /var/lib/morrowpal/mysql:/var/lib/mysql
+      - /opt/morrowpal/mysql-migration-ready.cnf:/etc/mysql/conf.d/migration-ready.cnf:ro
+    secrets:
+      - mysql_app_password
+      - mysql_root_password
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 30s
+    stop_grace_period: 60s
+    security_opt:
+      - no-new-privileges:true
+
+  backend-api-blue:
+    <<: *backend-common
+    image: 384078510608.dkr.ecr.us-east-2.amazonaws.com/morrowpal/prod/backend-api:${API_BLUE_IMAGE_TAG:?API_BLUE_IMAGE_TAG is required}
+    mem_limit: 288m
+    environment: *api-environment
+    entrypoint: ["/bin/sh", "-ec"]
+    command: *api-command
+    depends_on:
+      mysql:
+        condition: service_healthy
+    expose:
+      - "8080"
+    stop_grace_period: 30s
+    secrets:
+      - mysql_app_password
+      - jwt_signing_secret
+
+  backend-api-green:
+    <<: *backend-common
+    image: 384078510608.dkr.ecr.us-east-2.amazonaws.com/morrowpal/prod/backend-api:${API_GREEN_IMAGE_TAG:?API_GREEN_IMAGE_TAG is required}
+    mem_limit: 288m
+    environment: *api-environment
+    entrypoint: ["/bin/sh", "-ec"]
+    command: *api-command
+    depends_on:
+      mysql:
+        condition: service_healthy
+    expose:
+      - "8080"
+    stop_grace_period: 30s
+    secrets:
+      - mysql_app_password
+      - jwt_signing_secret
+
+  envoy:
+    image: envoyproxy/envoy:v1.39.0@sha256:d59f7f5fa10cff6d5892b6c5e7df5c9297ddfb2c3683e33fbfb82da24de4fa66
+    restart: unless-stopped
+    read_only: true
+    user: "101:101"
+    group_add:
+      - "1901"
+    mem_limit: 128m
+    pids_limit: 128
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      - backend-api-blue
+      - backend-api-green
+    volumes:
+      - /opt/morrowpal/envoy/envoy.yaml:/etc/envoy/envoy.yaml:ro
+      - /opt/morrowpal/envoy/tls-certificate-sds.yaml:/etc/envoy/tls-certificate-sds.yaml:ro
+      - /etc/letsencrypt/live/morrowpal.com:/etc/letsencrypt/live/morrowpal.com:ro
+      - /etc/letsencrypt/archive/morrowpal.com:/etc/letsencrypt/archive/morrowpal.com:ro
+    ports:
+      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:9901:9901"
+      - "0.0.0.0:443:8443"
+
+  backend-job-dispatch:
+    <<: *backend-common
+    mem_limit: 256m
+    image: 384078510608.dkr.ecr.us-east-2.amazonaws.com/morrowpal/prod/backend-job:${JOB_IMAGE_TAG:?JOB_IMAGE_TAG is required}
+    environment:
+      DB_HOST: mysql
+      DB_PORT: "3306"
+      DB_NAME: morrowpal
+      DB_USER: morrowpal
+      APP_JOB_DB_MAX_POOL_SIZE: "4"
+      APP_JOB_DB_MIN_IDLE: "1"
+      APP_JOBS_DISPATCH_ENABLED: "true"
+      APP_JOBS_DISPATCH_POLL_INTERVAL_MS: "30000"
+      APP_JOBS_DISPATCH_BATCH_SIZE: "100"
+      APP_JOBS_CLEANUP_ENABLED: "false"
+      APP_DISPATCH_DELAY_MINUTES: "240"
+      APP_DISPATCH_GRANULARITY_MINUTES: "5"
+      JAVA_TOOL_OPTIONS: >-
+        -XX:MaxRAMPercentage=55.0 -XX:InitialRAMPercentage=15.0
+        -XX:+ExitOnOutOfMemoryError
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        export DB_PASSWORD="$$(cat /run/secrets/mysql_app_password)"
+        export APP_AUTH_JWT_SECRET="$$(cat /run/secrets/jwt_signing_secret)"
+        exec java -jar /app/app.jar
+    depends_on:
+      mysql:
+        condition: service_healthy
+    secrets:
+      - mysql_app_password
+      - jwt_signing_secret
+
+  backend-job-cleanup:
+    <<: *backend-common
+    mem_limit: 256m
+    image: 384078510608.dkr.ecr.us-east-2.amazonaws.com/morrowpal/prod/backend-job:${JOB_IMAGE_TAG:?JOB_IMAGE_TAG is required}
+    environment:
+      DB_HOST: mysql
+      DB_PORT: "3306"
+      DB_NAME: morrowpal
+      DB_USER: morrowpal
+      APP_JOB_DB_MAX_POOL_SIZE: "2"
+      APP_JOB_DB_MIN_IDLE: "1"
+      APP_JOBS_DISPATCH_ENABLED: "false"
+      APP_JOBS_CLEANUP_ENABLED: "true"
+      APP_JOBS_CLEANUP_POLL_INTERVAL_MS: "300000"
+      JAVA_TOOL_OPTIONS: >-
+        -XX:MaxRAMPercentage=55.0 -XX:InitialRAMPercentage=15.0
+        -XX:+ExitOnOutOfMemoryError
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        export DB_PASSWORD="$$(cat /run/secrets/mysql_app_password)"
+        export APP_AUTH_JWT_SECRET="$$(cat /run/secrets/jwt_signing_secret)"
+        exec java -jar /app/app.jar
+    depends_on:
+      mysql:
+        condition: service_healthy
+    secrets:
+      - mysql_app_password
+      - jwt_signing_secret
+
+secrets:
+  mysql_app_password:
+    file: /run/morrowpal/secrets/mysql-app-password
+  mysql_root_password:
+    file: /run/morrowpal/secrets/mysql-root-password
+  jwt_signing_secret:
+    file: /run/morrowpal/secrets/jwt-signing-secret

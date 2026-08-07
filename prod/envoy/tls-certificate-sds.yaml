@@ -1,0 +1,10 @@
+resources:
+  - "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.Secret
+    name: morrowpal_certificate
+    tls_certificate:
+      certificate_chain:
+        filename: /etc/letsencrypt/live/morrowpal.com/fullchain.pem
+      private_key:
+        filename: /etc/letsencrypt/live/morrowpal.com/privkey.pem
+      watched_directory:
+        path: /etc/letsencrypt/live/morrowpal.com

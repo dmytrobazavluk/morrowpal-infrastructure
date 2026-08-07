@@ -1,0 +1,11 @@
+[Unit]
+Description=Check MorrowPal production TLS certificates for renewal
+
+[Timer]
+OnCalendar=*-*-* 03,15:00:00
+RandomizedDelaySec=3600
+Persistent=true
+Unit=morrowpal-certbot-renew.service
+
+[Install]
+WantedBy=timers.target

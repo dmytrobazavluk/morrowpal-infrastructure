@@ -1,0 +1,35 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Stable public IPv4 address for the MorrowPal production EC2 instance.
+
+Parameters:
+  InstanceId:
+    Type: AWS::EC2::Instance::Id
+    Description: Production EC2 instance that receives the Elastic IP address.
+
+Resources:
+  ProductionElasticIp:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-public-ip
+        - Key: Environment
+          Value: prod
+        - Key: Application
+          Value: morrowpal
+
+  ProductionElasticIpAssociation:
+    Type: AWS::EC2::EIPAssociation
+    Properties:
+      AllocationId: !GetAtt ProductionElasticIp.AllocationId
+      InstanceId: !Ref InstanceId
+
+Outputs:
+  AllocationId:
+    Description: Allocation ID of the production Elastic IP address.
+    Value: !GetAtt ProductionElasticIp.AllocationId
+
+  PublicIp:
+    Description: Stable public IPv4 address assigned to the production EC2 instance.
+    Value: !Ref ProductionElasticIp

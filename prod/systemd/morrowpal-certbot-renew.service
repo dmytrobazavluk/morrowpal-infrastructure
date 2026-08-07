@@ -1,0 +1,12 @@
+[Unit]
+Description=Renew MorrowPal production TLS certificates
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/certbot renew --quiet
+UMask=0027
+PrivateTmp=true
+ProtectHome=true
+NoNewPrivileges=true

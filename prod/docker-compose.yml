@@ -21,6 +21,7 @@ x-api-environment: &api-environment
   APP_API_DB_MIN_IDLE: "1"
   APP_AUTH_ACCESS_TOKEN_TTL_SECONDS: "900"
   APP_AUTH_REFRESH_TOKEN_TTL_DAYS: "365"
+  APP_API_CORS_ALLOWED_ORIGIN_PATTERNS: "https://app.morrowpal.com"
   APP_DISPATCH_DELAY_MINUTES: "240"
   APP_DISPATCH_GRANULARITY_MINUTES: "5"
   JAVA_TOOL_OPTIONS: >-
@@ -94,6 +95,28 @@ services:
       - mysql_app_password
       - jwt_signing_secret
 
+  app:
+    image: 384078510608.dkr.ecr.us-east-2.amazonaws.com/morrowpal/prod/app:${APP_IMAGE_TAG:?APP_IMAGE_TAG is required}
+    restart: unless-stopped
+    read_only: true
+    user: "101:101"
+    mem_limit: 64m
+    pids_limit: 64
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--spider", "http://127.0.0.1:8080/ready"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
   envoy:
     image: envoyproxy/envoy:v1.39.0@sha256:d59f7f5fa10cff6d5892b6c5e7df5c9297ddfb2c3683e33fbfb82da24de4fa66
     restart: unless-stopped
@@ -112,6 +135,7 @@ services:
     depends_on:
       - backend-api-blue
       - backend-api-green
+      - app
     volumes:
       - /opt/morrowpal/envoy/envoy.yaml:/etc/envoy/envoy.yaml:ro
       - /opt/morrowpal/envoy/tls-certificate-sds.yaml:/etc/envoy/tls-certificate-sds.yaml:ro

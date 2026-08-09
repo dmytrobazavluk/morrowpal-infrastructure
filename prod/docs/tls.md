@@ -1,4 +1,4 @@
-# Production TLS Plan
+# Production TLS
 
 This document describes the replayable TLS configuration for the production
 Envoy edge proxy. Run commands from `infrastructure/prod`.
@@ -31,9 +31,10 @@ supports IPv6.
   files without a container restart.
 - The existing host-loopback listener at `127.0.0.1:8080` remains the local
   readiness endpoint.
-- Only `api.morrowpal.com` routes to the backend API. Reserved certificate
-  names return HTTP 404 until their applications are configured, and unknown
-  hostnames return HTTP 421.
+- `api.morrowpal.com` routes to the backend API and `app.morrowpal.com` routes
+  to the Flutter web app container. Reserved certificate names return HTTP 404
+  until their applications are configured, and unknown hostnames return HTTP
+  421.
 
 ## Replay and Renewal
 

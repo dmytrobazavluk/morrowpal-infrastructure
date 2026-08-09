@@ -9,8 +9,9 @@ readonly compose_file="$deployment_root/docker-compose.yml"
 readonly blue_tag_file="$deployment_root/api-blue-image-tag"
 readonly green_tag_file="$deployment_root/api-green-image-tag"
 readonly job_tag_file="$deployment_root/job-image-tag"
+readonly app_tag_file="$deployment_root/app-image-tag"
 
-for tag_file in "$blue_tag_file" "$green_tag_file" "$job_tag_file"; do
+for tag_file in "$blue_tag_file" "$green_tag_file" "$job_tag_file" "$app_tag_file"; do
     [[ -r "$tag_file" ]] || {
         printf 'Image tag file is missing: %s\n' "$tag_file" >&2
         exit 1
@@ -20,7 +21,8 @@ done
 blue_tag="$(<"$blue_tag_file")"
 green_tag="$(<"$green_tag_file")"
 job_tag="$(<"$job_tag_file")"
-for image_tag in "$blue_tag" "$green_tag" "$job_tag"; do
+app_tag="$(<"$app_tag_file")"
+for image_tag in "$blue_tag" "$green_tag" "$job_tag" "$app_tag"; do
     [[ "$image_tag" =~ ^build-[1-9][0-9]*-[0-9a-f]{7}$ ]] || {
         printf 'Invalid image tag: %s\n' "$image_tag" >&2
         exit 1
@@ -31,6 +33,7 @@ compose() {
     API_BLUE_IMAGE_TAG="$blue_tag" \
     API_GREEN_IMAGE_TAG="$green_tag" \
     JOB_IMAGE_TAG="$job_tag" \
+    APP_IMAGE_TAG="$app_tag" \
         docker compose \
         --project-directory "$deployment_root" \
         --file "$compose_file" \
@@ -107,7 +110,7 @@ done
     exit 1
 }
 
-compose up -d backend-api-blue backend-api-green envoy
+compose up -d app backend-api-blue backend-api-green envoy
 
 api_ready=false
 for _ in {1..60}; do
@@ -119,6 +122,21 @@ for _ in {1..60}; do
 done
 [[ "$api_ready" == true ]] || {
     printf 'Envoy did not find a ready backend API.\n' >&2
+    exit 1
+}
+
+app_ready=false
+for _ in {1..30}; do
+    if curl --fail --silent --show-error \
+        --resolve app.morrowpal.com:443:127.0.0.1 \
+        https://app.morrowpal.com/ready >/dev/null 2>&1; then
+        app_ready=true
+        break
+    fi
+    sleep 2
+done
+[[ "$app_ready" == true ]] || {
+    printf 'Envoy did not find a ready app.\n' >&2
     exit 1
 }
 

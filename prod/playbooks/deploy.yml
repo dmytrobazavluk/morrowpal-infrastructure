@@ -13,12 +13,12 @@
       }}/plugins/aws-core/skills/aws-secrets-manager/references/asm-exec
 
   pre_tasks:
-    - name: Require an immutable backend image tag
+    - name: Validate the requested backend image tag
       ansible.builtin.assert:
         that:
-          - morrowpal_image_tag is defined
           - morrowpal_image_tag is match('^build-[1-9][0-9]*-[0-9a-f]{7}$')
         fail_msg: Pass an immutable tag with -e morrowpal_image_tag=build-N-GITSHA.
+      when: morrowpal_image_tag is defined
 
     - name: Require the prepared deployment directory
       ansible.builtin.stat:
@@ -30,6 +30,44 @@
         that:
           - morrowpal_root_stat.stat.isdir | default(false)
         fail_msg: Run prepare-host.yml before deploy.yml.
+
+    - name: Inspect the blue API image tag
+      ansible.builtin.stat:
+        path: "{{ morrowpal_root }}/api-blue-image-tag"
+      register: morrowpal_blue_tag_stat
+
+    - name: Require an initial immutable backend image tag
+      ansible.builtin.assert:
+        that:
+          - morrowpal_image_tag is defined
+          - morrowpal_image_tag is match('^build-[1-9][0-9]*-[0-9a-f]{7}$')
+        fail_msg: >-
+          Pass an immutable backend tag with
+          -e morrowpal_image_tag=build-N-GITSHA.
+      when: not morrowpal_blue_tag_stat.stat.exists
+
+    - name: Inspect the app image tag
+      ansible.builtin.stat:
+        path: "{{ morrowpal_root }}/app-image-tag"
+      register: morrowpal_app_tag_stat
+
+    - name: Require an initial immutable app image tag
+      ansible.builtin.assert:
+        that:
+          - morrowpal_app_image_tag is defined
+          - morrowpal_app_image_tag is match('^build-[1-9][0-9]*-[0-9a-f]{7}$')
+        fail_msg: >-
+          Pass an immutable app tag with
+          -e morrowpal_app_image_tag=build-N-GITSHA.
+      when: not morrowpal_app_tag_stat.stat.exists
+
+    - name: Validate the requested app image tag
+      ansible.builtin.assert:
+        that:
+          - morrowpal_app_image_tag is match('^build-[1-9][0-9]*-[0-9a-f]{7}$')
+        fail_msg: >-
+          morrowpal_app_image_tag must use the build-N-GITSHA format.
+      when: morrowpal_app_image_tag is defined
 
     - name: Read the MySQL mount metadata
       ansible.builtin.command:
@@ -122,6 +160,14 @@
         group: root
         mode: "0755"
 
+    - name: Install the app release command
+      ansible.builtin.copy:
+        src: ../scripts/morrowpal-deploy-app.sh
+        dest: /usr/local/sbin/morrowpal-deploy-app
+        owner: root
+        group: root
+        mode: "0755"
+
     - name: Install the production Envoy configuration
       ansible.builtin.copy:
         src: ../envoy/envoy.yaml
@@ -149,11 +195,6 @@
         mode: "0640"
       register: morrowpal_compose_file
 
-    - name: Inspect the blue API image tag
-      ansible.builtin.stat:
-        path: "{{ morrowpal_root }}/api-blue-image-tag"
-      register: morrowpal_blue_tag_stat
-
     - name: Initialize the blue-green image tags
       ansible.builtin.copy:
         content: "{{ morrowpal_image_tag }}\n"
@@ -166,6 +207,15 @@
         - api-green-image-tag
         - job-image-tag
       when: not morrowpal_blue_tag_stat.stat.exists
+
+    - name: Initialize the app image tag
+      ansible.builtin.copy:
+        content: "{{ morrowpal_app_image_tag }}\n"
+        dest: "{{ morrowpal_root }}/app-image-tag"
+        owner: root
+        group: root
+        mode: "0640"
+      when: not morrowpal_app_tag_stat.stat.exists
 
     - name: Install the MorrowPal systemd unit
       ansible.builtin.copy:
@@ -188,6 +238,7 @@
         state: restarted
       when: >-
         (not morrowpal_blue_tag_stat.stat.exists) or
+        (not morrowpal_app_tag_stat.stat.exists) or
         (morrowpal_service_command is changed) or
         (morrowpal_envoy_config is changed) or
         (morrowpal_envoy_tls_sds_config is changed) or
@@ -202,6 +253,7 @@
         state: started
       when: >-
         morrowpal_blue_tag_stat.stat.exists and
+        morrowpal_app_tag_stat.stat.exists and
         not (morrowpal_service_command is changed) and
         not (morrowpal_envoy_config is changed) and
         not (morrowpal_envoy_tls_sds_config is changed) and
@@ -214,7 +266,19 @@
         argv:
           - /usr/local/sbin/morrowpal-deploy-release
           - "{{ morrowpal_image_tag }}"
-      when: morrowpal_blue_tag_stat.stat.exists
+      when:
+        - morrowpal_blue_tag_stat.stat.exists
+        - morrowpal_image_tag is defined
+      no_log: true
+
+    - name: Roll out the requested immutable app release
+      ansible.builtin.command:
+        argv:
+          - /usr/local/sbin/morrowpal-deploy-app
+          - "{{ morrowpal_app_image_tag }}"
+      when:
+        - morrowpal_app_tag_stat.stat.exists
+        - morrowpal_app_image_tag is defined
       no_log: true
 
     - name: Verify the backend readiness endpoint
@@ -225,3 +289,15 @@
       retries: 12
       delay: 5
       until: morrowpal_readiness.status == 200
+
+    - name: Verify the app readiness endpoint
+      ansible.builtin.uri:
+        url: https://app.morrowpal.com/ready
+        status_code: 200
+        return_content: true
+      register: morrowpal_app_readiness
+      retries: 12
+      delay: 5
+      until:
+        - morrowpal_app_readiness.status == 200
+        - morrowpal_app_readiness.content == 'ok\n'

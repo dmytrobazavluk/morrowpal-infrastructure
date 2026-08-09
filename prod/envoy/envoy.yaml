@@ -105,11 +105,19 @@ static_resources:
                       domains:
                         - api.morrowpal.com
                       routes: *backend_api_routes
+                    - name: production_app
+                      domains:
+                        - app.morrowpal.com
+                      routes:
+                        - match:
+                            prefix: "/"
+                          route:
+                            cluster: app
+                            timeout: 30s
                     - name: reserved_production_names
                       domains:
                         - morrowpal.com
                         - admin.morrowpal.com
-                        - app.morrowpal.com
                         - www.morrowpal.com
                         - back.morrowpal.com
                       routes:
@@ -147,6 +155,29 @@ static_resources:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
 
   clusters:
+    - name: app
+      type: STRICT_DNS
+      connect_timeout: 2s
+      dns_lookup_family: V4_ONLY
+      lb_policy: ROUND_ROBIN
+      health_checks:
+        - timeout: 2s
+          interval: 5s
+          unhealthy_threshold: 2
+          healthy_threshold: 1
+          http_health_check:
+            host: app
+            path: /ready
+      load_assignment:
+        cluster_name: app
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: app
+                      port_value: 8080
+
     - name: backend_api_blue
       type: STRICT_DNS
       connect_timeout: 2s

@@ -446,7 +446,13 @@ Follow the publication sections in these component runbooks:
 - [Update the backend](./update-backend.md)
 - [Update the app](./update-app.md)
 
-Record the resulting immutable tags as `BACKEND_TAG` and `APP_TAG`.
+Assign the exact resulting immutable tags to shell variables, replacing the
+example values:
+
+```bash
+BACKEND_TAG='build-N-GITSHA'
+APP_TAG='build-N-GITSHA'
+```
 
 ## 12. Deploy the production containers
 
@@ -454,12 +460,12 @@ Record the resulting immutable tags as `BACKEND_TAG` and `APP_TAG`.
 ansible-playbook ./playbooks/deploy.yml \
   --check \
   --diff \
-  -e morrowpal_image_tag=BACKEND_TAG \
-  -e morrowpal_app_image_tag=APP_TAG
+  -e "morrowpal_image_tag=$BACKEND_TAG" \
+  -e "morrowpal_app_image_tag=$APP_TAG"
 
 ansible-playbook ./playbooks/deploy.yml \
-  -e morrowpal_image_tag=BACKEND_TAG \
-  -e morrowpal_app_image_tag=APP_TAG
+  -e "morrowpal_image_tag=$BACKEND_TAG" \
+  -e "morrowpal_app_image_tag=$APP_TAG"
 ```
 
 The systemd service resolves secrets at runtime, authenticates to ECR with the

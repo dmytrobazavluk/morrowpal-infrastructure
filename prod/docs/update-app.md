@@ -45,7 +45,12 @@ The publisher:
 - Waits for the ECR vulnerability scan.
 - Rejects critical or high findings.
 
-Record the published tag as `APP_TAG`.
+Assign the exact published tag to a shell variable, replacing the example
+value:
+
+```bash
+APP_TAG='build-N-GITSHA'
+```
 
 ## 3. Preview the deployment
 
@@ -53,17 +58,20 @@ Record the published tag as `APP_TAG`.
 ansible-playbook ./playbooks/deploy.yml \
   --check \
   --diff \
-  -e morrowpal_app_image_tag=APP_TAG
+  -e "morrowpal_app_image_tag=$APP_TAG"
 ```
 
-Infrastructure file changes can cause a full service restart. An app-only tag
+Infrastructure changes are reconciled in place: new services are created and
+only services with changed Compose definitions are recreated. An app-only tag
 change replaces only the app container; the backend release task is skipped.
+An Envoy configuration change recreates only the single Envoy container and
+can cause a brief edge interruption.
 
 ## 4. Deploy
 
 ```bash
 ansible-playbook ./playbooks/deploy.yml \
-  -e morrowpal_app_image_tag=APP_TAG
+  -e "morrowpal_app_image_tag=$APP_TAG"
 ```
 
 The app deployment waits for both the container health check and the public
@@ -105,8 +113,10 @@ SQLite persistence, and sign-out in a private browser window.
 Deploy a previously retained app tag:
 
 ```bash
+PREVIOUS_APP_TAG='build-N-GITSHA'
+
 ansible-playbook ./playbooks/deploy.yml \
-  -e morrowpal_app_image_tag=PREVIOUS_APP_TAG
+  -e "morrowpal_app_image_tag=$PREVIOUS_APP_TAG"
 ```
 
 The ECR lifecycle policy retains the five most recent `build-*` images by

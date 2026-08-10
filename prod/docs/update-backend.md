@@ -47,7 +47,12 @@ The publisher:
 - Refuses the wrong AWS account, a dirty backend worktree, an existing tag, or
   a non-increasing build number.
 
-Record the published tag as `BACKEND_TAG`.
+Assign the exact published tag to a shell variable, replacing the example
+value:
+
+```bash
+BACKEND_TAG='build-N-GITSHA'
+```
 
 ## 3. Preview the deployment
 
@@ -55,21 +60,24 @@ Record the published tag as `BACKEND_TAG`.
 ansible-playbook ./playbooks/deploy.yml \
   --check \
   --diff \
-  -e morrowpal_image_tag=BACKEND_TAG
+  -e "morrowpal_image_tag=$BACKEND_TAG"
 ```
 
 The app tag may be omitted after `/opt/morrowpal/app-image-tag` has been
 initialized. If this is also the first app deployment, follow
 [Update the app](./update-app.md) and pass both tags.
 
-Infrastructure file changes can cause a full service restart. When only image
-tags change, the backend update uses the rolling blue-green path.
+Infrastructure changes are reconciled in place: new services are created and
+only services with changed Compose definitions are recreated. An Envoy
+configuration change recreates only the single Envoy container and can cause a
+brief edge interruption. When only image tags change, the backend update uses
+the rolling blue-green path.
 
 ## 4. Deploy
 
 ```bash
 ansible-playbook ./playbooks/deploy.yml \
-  -e morrowpal_image_tag=BACKEND_TAG
+  -e "morrowpal_image_tag=$BACKEND_TAG"
 ```
 
 The rolling release command performs these steps:
@@ -99,8 +107,10 @@ Select a previously retained backend tag and deploy it through the same
 playbook:
 
 ```bash
+PREVIOUS_BACKEND_TAG='build-N-GITSHA'
+
 ansible-playbook ./playbooks/deploy.yml \
-  -e morrowpal_image_tag=PREVIOUS_BACKEND_TAG
+  -e "morrowpal_image_tag=$PREVIOUS_BACKEND_TAG"
 ```
 
 The ECR lifecycle policy retains the five most recent `build-*` images by

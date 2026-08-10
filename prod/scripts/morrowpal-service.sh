@@ -40,7 +40,10 @@ compose() {
         "$@"
 }
 
-case "${1:-start}" in
+action="${1:-start}"
+recreate_envoy=false
+
+case "$action" in
     stop)
         compose down --remove-orphans
         rm -rf /run/morrowpal/secrets
@@ -54,11 +57,76 @@ case "${1:-start}" in
         ;;
     start)
         ;;
+    reconcile)
+        case "${2:-}" in
+            "")
+                ;;
+            --recreate-envoy)
+                recreate_envoy=true
+                ;;
+            *)
+                printf 'Usage: %s reconcile [--recreate-envoy]\n' "$0" >&2
+                exit 2
+                ;;
+        esac
+        exec 9>/run/morrowpal-deploy.lock
+        flock --exclusive --nonblock 9 || {
+            printf 'Another MorrowPal deployment is already running.\n' >&2
+            exit 1
+        }
+        systemctl is-active --quiet morrowpal.service || {
+            printf 'morrowpal.service must be active before reconciliation.\n' >&2
+            exit 1
+        }
+        ;;
     *)
-        printf 'Usage: %s [start|stop|status]\n' "$0" >&2
+        printf 'Usage: %s [start|stop|status|reconcile [--recreate-envoy]]\n' "$0" >&2
         exit 2
         ;;
 esac
+
+wait_for_mysql() {
+    local mysql_container_id
+    local mysql_status=""
+
+    for _ in {1..60}; do
+        mysql_container_id="$(compose ps -q mysql)"
+        if [[ -n "$mysql_container_id" ]]; then
+            mysql_status="$(docker inspect --format '{{.State.Health.Status}}' "$mysql_container_id" 2>/dev/null || true)"
+        fi
+        [[ "$mysql_status" == healthy ]] && return 0
+        sleep 5
+    done
+
+    printf 'MySQL did not become healthy. Last status: %s\n' "$mysql_status" >&2
+    return 1
+}
+
+wait_for_api() {
+    for _ in {1..60}; do
+        if curl --fail --silent --show-error http://127.0.0.1:8080/ready >/dev/null 2>&1; then
+            return 0
+        fi
+        sleep 5
+    done
+
+    printf 'Envoy did not find a ready backend API.\n' >&2
+    return 1
+}
+
+wait_for_app() {
+    for _ in {1..30}; do
+        if curl --fail --silent --show-error \
+                --resolve app.morrowpal.com:443:127.0.0.1 \
+                https://app.morrowpal.com/ready >/dev/null 2>&1; then
+            return 0
+        fi
+        sleep 2
+    done
+
+    printf 'Envoy did not find a ready app.\n' >&2
+    return 1
+}
 
 logged_in=false
 cleanup() {
@@ -96,49 +164,24 @@ compose pull
 docker logout "$registry" >/dev/null 2>&1
 logged_in=false
 
-compose up -d --remove-orphans mysql
+if [[ "$action" == reconcile ]]; then
+    compose up --detach --remove-orphans --wait --wait-timeout 300
+    if [[ "$recreate_envoy" == true ]]; then
+        compose up --detach --no-deps --force-recreate envoy
+    fi
+    wait_for_mysql
+    wait_for_api
+    wait_for_app
+    compose ps
+    exit 0
+fi
 
-mysql_status=""
-for _ in {1..60}; do
-    mysql_container_id="$(compose ps -q mysql)"
-    mysql_status="$(docker inspect --format '{{.State.Health.Status}}' "$mysql_container_id" 2>/dev/null || true)"
-    [[ "$mysql_status" == healthy ]] && break
-    sleep 5
-done
-[[ "$mysql_status" == healthy ]] || {
-    printf 'MySQL did not become healthy. Last status: %s\n' "$mysql_status" >&2
-    exit 1
-}
+compose up -d --remove-orphans mysql
+wait_for_mysql
 
 compose up -d app backend-api-blue backend-api-green envoy
-
-api_ready=false
-for _ in {1..60}; do
-    if curl --fail --silent --show-error http://127.0.0.1:8080/ready >/dev/null 2>&1; then
-        api_ready=true
-        break
-    fi
-    sleep 5
-done
-[[ "$api_ready" == true ]] || {
-    printf 'Envoy did not find a ready backend API.\n' >&2
-    exit 1
-}
-
-app_ready=false
-for _ in {1..30}; do
-    if curl --fail --silent --show-error \
-        --resolve app.morrowpal.com:443:127.0.0.1 \
-        https://app.morrowpal.com/ready >/dev/null 2>&1; then
-        app_ready=true
-        break
-    fi
-    sleep 2
-done
-[[ "$app_ready" == true ]] || {
-    printf 'Envoy did not find a ready app.\n' >&2
-    exit 1
-}
+wait_for_api
+wait_for_app
 
 compose up -d backend-job-dispatch backend-job-cleanup
 compose ps

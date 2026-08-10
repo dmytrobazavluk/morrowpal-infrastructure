@@ -80,11 +80,12 @@
           - /var/lib/morrowpal
       register: morrowpal_data_mount
       changed_when: false
+      check_mode: false
 
     - name: Require the encrypted XFS data mount
       ansible.builtin.assert:
         that:
-          - morrowpal_data_mount.stdout == 'xfs'
+          - (morrowpal_data_mount.stdout | default('')) == 'xfs'
         fail_msg: Run prepare-storage.yml before deploy.yml.
 
     - name: Inspect the production TLS certificate files
@@ -100,6 +101,18 @@
         that:
           - morrowpal_tls_files.results | map(attribute='stat.exists') | min
         fail_msg: Run prepare-tls.yml before deploy.yml.
+
+    - name: Inspect the MorrowPal service state
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-active
+          - --quiet
+          - morrowpal.service
+      register: morrowpal_service_state
+      changed_when: false
+      failed_when: false
+      check_mode: false
 
   tasks:
     - name: Install deployment runtime packages
@@ -150,7 +163,6 @@
         owner: root
         group: root
         mode: "0755"
-      register: morrowpal_service_command
 
     - name: Install the rolling release command
       ansible.builtin.copy:
@@ -231,34 +243,64 @@
         daemon_reload: true
       when: morrowpal_systemd_unit is changed
 
-    - name: Enable and restart MorrowPal after infrastructure changes
-      ansible.builtin.systemd:
-        name: morrowpal.service
-        enabled: true
-        state: restarted
-      when: >-
-        (not morrowpal_blue_tag_stat.stat.exists) or
-        (not morrowpal_app_tag_stat.stat.exists) or
-        (morrowpal_service_command is changed) or
-        (morrowpal_envoy_config is changed) or
-        (morrowpal_envoy_tls_sds_config is changed) or
-        (morrowpal_compose_file is changed) or
-        (morrowpal_systemd_unit is changed)
-      no_log: true
+    - name: Determine the container reconciliation scope
+      ansible.builtin.set_fact:
+        morrowpal_reconciliation_required: >-
+          {{
+            (not morrowpal_blue_tag_stat.stat.exists) or
+            (not morrowpal_app_tag_stat.stat.exists) or
+            (morrowpal_compose_file is changed) or
+            (morrowpal_envoy_config is changed) or
+            (morrowpal_envoy_tls_sds_config is changed)
+          }}
+        morrowpal_envoy_recreation_required: >-
+          {{
+            (morrowpal_envoy_config is changed) or
+            (morrowpal_envoy_tls_sds_config is changed)
+          }}
 
-    - name: Enable MorrowPal without restarting unchanged infrastructure
+    - name: Enable and start MorrowPal
       ansible.builtin.systemd:
         name: morrowpal.service
         enabled: true
         state: started
-      when: >-
-        morrowpal_blue_tag_stat.stat.exists and
-        morrowpal_app_tag_stat.stat.exists and
-        not (morrowpal_service_command is changed) and
-        not (morrowpal_envoy_config is changed) and
-        not (morrowpal_envoy_tls_sds_config is changed) and
-        not (morrowpal_compose_file is changed) and
-        not (morrowpal_systemd_unit is changed)
+      no_log: true
+
+    - name: Preview in-place container reconciliation
+      ansible.builtin.debug:
+        msg: >-
+          Existing containers stay running unless their Compose definition
+          changed. New services are created in place. Envoy recreation:
+          {{ morrowpal_envoy_recreation_required }}.
+      changed_when: true
+      when:
+        - ansible_check_mode
+        - morrowpal_service_state.rc == 0
+        - morrowpal_reconciliation_required
+
+    - name: Reconcile containers and recreate Envoy
+      ansible.builtin.command:
+        argv:
+          - /usr/local/sbin/morrowpal-service
+          - reconcile
+          - --recreate-envoy
+      when:
+        - not ansible_check_mode
+        - morrowpal_service_state.rc == 0
+        - morrowpal_reconciliation_required
+        - morrowpal_envoy_recreation_required
+      no_log: true
+
+    - name: Reconcile changed and new containers in place
+      ansible.builtin.command:
+        argv:
+          - /usr/local/sbin/morrowpal-service
+          - reconcile
+      when:
+        - not ansible_check_mode
+        - morrowpal_service_state.rc == 0
+        - morrowpal_reconciliation_required
+        - not morrowpal_envoy_recreation_required
       no_log: true
 
     - name: Roll out the requested immutable release
@@ -289,6 +331,8 @@
       retries: 12
       delay: 5
       until: morrowpal_readiness.status == 200
+      check_mode: false
+      when: not ansible_check_mode or morrowpal_blue_tag_stat.stat.exists
 
     - name: Verify the app readiness endpoint
       ansible.builtin.uri:
@@ -301,3 +345,5 @@
       until:
         - morrowpal_app_readiness.status == 200
         - morrowpal_app_readiness.content == 'ok\n'
+      check_mode: false
+      when: not ansible_check_mode or morrowpal_app_tag_stat.stat.exists

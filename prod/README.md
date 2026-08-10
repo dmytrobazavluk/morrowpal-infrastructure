@@ -95,6 +95,24 @@ Do not use mutable tags such as `latest` in production.
 7. Prefer the Ansible deployment playbook over direct host commands because it
    also reconciles infrastructure files and verifies readiness.
 
+## Deployment Behavior
+
+The systemd service owns full-stack startup after host boot and full-stack
+shutdown. Routine deployments do not restart it on an existing host.
+
+Ansible reconciles Compose changes in place:
+
+- New services are created without stopping existing services.
+- Only services with changed Compose definitions are recreated.
+- MySQL remains running unless its own Compose definition changes.
+- Backend image releases use the rolling blue-green release command.
+- App image releases replace only the app container.
+- Envoy configuration changes recreate only Envoy. Because production has one
+  Envoy container, that operation can cause a brief public edge interruption.
+
+A full-stack restart is reserved for initial startup, host reboot, explicit
+operator action, or recovery.
+
 ## Connectivity and Status
 
 Verify Ansible access:
@@ -115,6 +133,51 @@ Inspect the production service without exposing secrets:
 ansible 01 -b -m command -a 'systemctl status morrowpal --no-pager'
 ansible 01 -b -m command -a '/usr/local/sbin/morrowpal-service status'
 ```
+
+### Direct Docker Compose Access
+
+The production Compose project and its image-tag files are stored under
+`/opt/morrowpal` on the EC2 host:
+
+```text
+/opt/morrowpal/
+├── docker-compose.yml
+├── api-blue-image-tag
+├── api-green-image-tag
+├── job-image-tag
+├── app-image-tag
+└── envoy/
+    ├── envoy.yaml
+    └── tls-certificate-sds.yaml
+```
+
+For routine status checks, prefer the service helper:
+
+```bash
+sudo /usr/local/sbin/morrowpal-service status
+```
+
+To run read-only Docker Compose commands directly, enter a root shell and load
+the immutable image tags required by the Compose file:
+
+```bash
+sudo -i
+cd /opt/morrowpal
+
+export API_BLUE_IMAGE_TAG="$(<api-blue-image-tag)"
+export API_GREEN_IMAGE_TAG="$(<api-green-image-tag)"
+export JOB_IMAGE_TAG="$(<job-image-tag)"
+export APP_IMAGE_TAG="$(<app-image-tag)"
+
+docker compose ps
+docker compose logs --tail=200 app
+docker compose logs --tail=200 envoy
+```
+
+Do not inspect files under `/run/morrowpal/secrets`. Do not use
+`docker compose down` during normal operation because it removes the complete
+stack and causes downtime. Use the Ansible deployment playbook or the approved
+service and release helpers for state-changing operations.
 
 Verify public readiness:
 

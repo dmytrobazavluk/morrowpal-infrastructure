@@ -61,11 +61,12 @@ ansible-playbook ./playbooks/deploy.yml \
   -e "morrowpal_app_image_tag=$APP_TAG"
 ```
 
-Infrastructure changes are reconciled in place: new services are created and
-only services with changed Compose definitions are recreated. An app-only tag
-change replaces only the app container; the backend release task is skipped.
-An Envoy configuration change recreates only the single Envoy container and
-can cause a brief edge interruption.
+Non-API infrastructure changes are reconciled in place. An app-only tag change
+replaces only the app container, and the backend release task is skipped. If
+the Compose file changed, both API slots are rolled one at a time so API
+configuration changes cannot recreate them together. An Envoy configuration
+change recreates the single Envoy container and can cause a brief edge
+interruption.
 
 ## 4. Deploy
 

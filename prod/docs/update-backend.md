@@ -65,15 +65,14 @@ ansible-playbook ./playbooks/deploy.yml \
   -e "morrowpal_image_tag=$BACKEND_TAG"
 ```
 
-The app tag may be omitted after `/opt/morrowpal/app-image-tag` has been
-initialized. If this is also the first app deployment, follow
-[Update the app](./update-app.md) and pass both tags.
+The deployment preserves the currently recorded app image tag; a backend
+update does not require an app tag.
 
-Infrastructure changes are reconciled in place: new services are created and
-only services with changed Compose definitions are recreated. An Envoy
-configuration change recreates only the single Envoy container and can cause a
-brief edge interruption. When only image tags change, the backend update uses
-the rolling blue-green path.
+Non-API infrastructure changes are reconciled in place. API services are
+excluded from the generic Compose reconciliation and always use the rolling
+blue-green path when their image or Compose configuration changes. An Envoy
+configuration change recreates the single Envoy container and can cause a
+brief edge interruption.
 
 ## 4. Deploy
 
@@ -91,8 +90,15 @@ The rolling release command performs these steps:
 5. Repeats the process for the other API slot.
 6. Updates both job containers after both API slots are healthy.
 
-If an API slot fails readiness, the prior immutable tag is restored while the
-other slot continues serving traffic.
+When the API Compose configuration changed without a new backend image, the
+same sequence force-recreates each slot with its existing immutable tag. This
+applies new environment variables, secrets, mounts, and other container
+settings without taking both API slots down together.
+
+If an image update fails readiness, the prior immutable tag is restored while
+the other slot continues serving traffic. If a configuration-only recreation
+fails, the other slot remains active and the deployment stops; restore the
+previous Compose configuration before retrying.
 
 ## 5. Verify
 

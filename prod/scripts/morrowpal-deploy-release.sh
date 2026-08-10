@@ -13,9 +13,23 @@ readonly app_tag_file="$deployment_root/app-image-tag"
 readonly envoy_admin=http://127.0.0.1:9901
 readonly deployment_lock=/run/morrowpal-deploy.lock
 
-new_tag="${1:-}"
-[[ "$new_tag" =~ ^build-[1-9][0-9]*-[0-9a-f]{7}$ ]] || {
-    printf 'Usage: %s build-N-GITSHA\n' "$0" >&2
+force_recreate=false
+if [[ "${1:-}" == --force-recreate ]]; then
+    force_recreate=true
+    shift
+fi
+
+requested_tag="${1:-}"
+[[ -z "$requested_tag" || "$requested_tag" =~ ^build-[1-9][0-9]*-[0-9a-f]{7}$ ]] || {
+    printf 'Usage: %s [--force-recreate] [build-N-GITSHA]\n' "$0" >&2
+    exit 2
+}
+[[ "$force_recreate" == true || -n "$requested_tag" ]] || {
+    printf 'Usage: %s [--force-recreate] [build-N-GITSHA]\n' "$0" >&2
+    exit 2
+}
+[[ $# -le 1 ]] || {
+    printf 'Usage: %s [--force-recreate] [build-N-GITSHA]\n' "$0" >&2
     exit 2
 }
 
@@ -114,6 +128,7 @@ deploy_api_slot() {
     local slot="$1"
     local service="backend-api-$slot"
     local old_tag
+    local target_tag
     local other_service
     local drained_cluster
 
@@ -121,31 +136,51 @@ deploy_api_slot() {
         old_tag="$blue_tag"
         other_service=backend-api-green
         drained_cluster=backend_api_blue
-        [[ "$old_tag" == "$new_tag" ]] && return 0
-        wait_for_container_ready "$other_service"
-        API_BLUE_IMAGE_TAG="$new_tag" API_GREEN_IMAGE_TAG="$green_tag" JOB_IMAGE_TAG="$job_tag" \
+        target_tag="${requested_tag:-$old_tag}"
+        [[ "$old_tag" == "$target_tag" && "$force_recreate" == false ]] && return 0
+        if ! wait_for_container_ready "$other_service"; then
+            printf 'The green API is not ready; refusing to replace blue.\n' >&2
+            return 1
+        fi
+        printf 'Rolling blue API from %s to %s.\n' "$old_tag" "$target_tag"
+        API_BLUE_IMAGE_TAG="$target_tag" API_GREEN_IMAGE_TAG="$green_tag" \
+            JOB_IMAGE_TAG="$job_tag" APP_IMAGE_TAG="$app_tag" \
             docker compose --project-directory "$deployment_root" --file "$compose_file" pull "$service"
         set_weights 0 100
-        wait_for_cluster_drained "$drained_cluster"
-        blue_tag="$new_tag"
+        if ! wait_for_cluster_drained "$drained_cluster"; then
+            printf 'The blue API did not drain; restoring balanced traffic.\n' >&2
+            set_weights 50 50
+            return 1
+        fi
+        blue_tag="$target_tag"
     else
         old_tag="$green_tag"
         other_service=backend-api-blue
         drained_cluster=backend_api_green
-        [[ "$old_tag" == "$new_tag" ]] && return 0
-        wait_for_container_ready "$other_service"
-        API_BLUE_IMAGE_TAG="$blue_tag" API_GREEN_IMAGE_TAG="$new_tag" JOB_IMAGE_TAG="$job_tag" \
+        target_tag="${requested_tag:-$old_tag}"
+        [[ "$old_tag" == "$target_tag" && "$force_recreate" == false ]] && return 0
+        if ! wait_for_container_ready "$other_service"; then
+            printf 'The blue API is not ready; refusing to replace green.\n' >&2
+            return 1
+        fi
+        printf 'Rolling green API from %s to %s.\n' "$old_tag" "$target_tag"
+        API_BLUE_IMAGE_TAG="$blue_tag" API_GREEN_IMAGE_TAG="$target_tag" \
+            JOB_IMAGE_TAG="$job_tag" APP_IMAGE_TAG="$app_tag" \
             docker compose --project-directory "$deployment_root" --file "$compose_file" pull "$service"
         set_weights 100 0
-        wait_for_cluster_drained "$drained_cluster"
-        green_tag="$new_tag"
+        if ! wait_for_cluster_drained "$drained_cluster"; then
+            printf 'The green API did not drain; restoring balanced traffic.\n' >&2
+            set_weights 50 50
+            return 1
+        fi
+        green_tag="$target_tag"
     fi
 
-    if compose up --detach --no-deps "$service" && wait_for_container_ready "$service"; then
+    if compose up --detach --no-deps --force-recreate "$service" && wait_for_container_ready "$service"; then
         if [[ "$slot" == blue ]]; then
-            write_tag "$blue_tag_file" "$new_tag"
+            write_tag "$blue_tag_file" "$target_tag"
         else
-            write_tag "$green_tag_file" "$new_tag"
+            write_tag "$green_tag_file" "$target_tag"
         fi
         set_weights 50 50
         return 0
@@ -178,14 +213,15 @@ logged_in=true
 deploy_api_slot blue
 deploy_api_slot green
 
-if [[ "$job_tag" != "$new_tag" ]]; then
-    API_BLUE_IMAGE_TAG="$blue_tag" API_GREEN_IMAGE_TAG="$green_tag" JOB_IMAGE_TAG="$new_tag" \
+if [[ -n "$requested_tag" && "$job_tag" != "$requested_tag" ]]; then
+    API_BLUE_IMAGE_TAG="$blue_tag" API_GREEN_IMAGE_TAG="$green_tag" \
+        JOB_IMAGE_TAG="$requested_tag" APP_IMAGE_TAG="$app_tag" \
         docker compose --project-directory "$deployment_root" --file "$compose_file" \
         pull backend-job-dispatch backend-job-cleanup
-    job_tag="$new_tag"
+    job_tag="$requested_tag"
     compose up --detach --no-deps backend-job-dispatch
     compose up --detach --no-deps backend-job-cleanup
-    write_tag "$job_tag_file" "$new_tag"
+    write_tag "$job_tag_file" "$requested_tag"
 fi
 
 docker logout "$registry" >/dev/null 2>&1

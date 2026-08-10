@@ -101,12 +101,13 @@ Do not use mutable tags such as `latest` in production.
 The systemd service owns full-stack startup after host boot and full-stack
 shutdown. Routine deployments do not restart it on an existing host.
 
-Ansible reconciles Compose changes in place:
+Ansible applies service-specific deployment behavior:
 
 - New services are created without stopping existing services.
-- Only services with changed Compose definitions are recreated.
+- Non-API services with changed Compose definitions are reconciled in place.
 - MySQL remains running unless its own Compose definition changes.
-- Backend image releases use the rolling blue-green release command.
+- API image and Compose configuration changes use the rolling blue-green
+  release command, which recreates only one API slot at a time.
 - App image releases replace only the app container.
 - Envoy configuration changes recreate only Envoy. Because production has one
   Envoy container, that operation can cause a brief public edge interruption.

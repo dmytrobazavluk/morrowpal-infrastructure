@@ -269,8 +269,9 @@
     - name: Preview in-place container reconciliation
       ansible.builtin.debug:
         msg: >-
-          Existing containers stay running unless their Compose definition
-          changed. New services are created in place. Envoy recreation:
+          Non-API services with changed Compose definitions are reconciled in
+          place. API services are recreated one at a time through the rolling
+          release path. Envoy recreation:
           {{ morrowpal_envoy_recreation_required }}.
       changed_when: true
       when:
@@ -278,7 +279,7 @@
         - morrowpal_service_state.rc == 0
         - morrowpal_reconciliation_required
 
-    - name: Reconcile containers and recreate Envoy
+    - name: Reconcile non-API containers and recreate Envoy
       ansible.builtin.command:
         argv:
           - /usr/local/sbin/morrowpal-service
@@ -291,7 +292,7 @@
         - morrowpal_envoy_recreation_required
       no_log: true
 
-    - name: Reconcile changed and new containers in place
+    - name: Reconcile changed and new non-API containers in place
       ansible.builtin.command:
         argv:
           - /usr/local/sbin/morrowpal-service
@@ -303,6 +304,27 @@
         - not morrowpal_envoy_recreation_required
       no_log: true
 
+    - name: Roll changed API configuration with a requested release
+      ansible.builtin.command:
+        argv:
+          - /usr/local/sbin/morrowpal-deploy-release
+          - --force-recreate
+          - "{{ morrowpal_image_tag }}"
+      when:
+        - morrowpal_blue_tag_stat.stat.exists
+        - morrowpal_compose_file is changed
+        - morrowpal_image_tag is defined
+
+    - name: Roll changed API configuration with current releases
+      ansible.builtin.command:
+        argv:
+          - /usr/local/sbin/morrowpal-deploy-release
+          - --force-recreate
+      when:
+        - morrowpal_blue_tag_stat.stat.exists
+        - morrowpal_compose_file is changed
+        - morrowpal_image_tag is not defined
+
     - name: Roll out the requested immutable release
       ansible.builtin.command:
         argv:
@@ -310,8 +332,8 @@
           - "{{ morrowpal_image_tag }}"
       when:
         - morrowpal_blue_tag_stat.stat.exists
+        - morrowpal_compose_file is not changed
         - morrowpal_image_tag is defined
-      no_log: true
 
     - name: Roll out the requested immutable app release
       ansible.builtin.command:

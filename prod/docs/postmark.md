@@ -54,12 +54,12 @@ their injected token until they are recreated.
    while keeping the current token active.
 2. Replace `serverToken` in `morrowpal/prod/postmark` through the AWS Secrets
    Manager console.
-3. Reconcile the service so the host refreshes its root-protected runtime
-   secret:
+3. Refresh the host's root-protected runtime secrets without recreating any
+   containers:
 
    ```bash
    ansible 01 -b -m command \
-     -a '/usr/local/sbin/morrowpal-service reconcile'
+     -a '/usr/local/sbin/morrowpal-service refresh-secrets'
    ```
 
 4. Deploy a fresh immutable backend tag using

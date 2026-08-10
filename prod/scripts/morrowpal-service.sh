@@ -57,6 +57,21 @@ case "$action" in
         ;;
     start)
         ;;
+    refresh-secrets)
+        [[ $# -eq 1 ]] || {
+            printf 'Usage: %s refresh-secrets\n' "$0" >&2
+            exit 2
+        }
+        exec 9>/run/morrowpal-deploy.lock
+        flock --exclusive --nonblock 9 || {
+            printf 'Another MorrowPal deployment is already running.\n' >&2
+            exit 1
+        }
+        systemctl is-active --quiet morrowpal.service || {
+            printf 'morrowpal.service must be active before refreshing secrets.\n' >&2
+            exit 1
+        }
+        ;;
     reconcile)
         case "${2:-}" in
             "")
@@ -80,7 +95,7 @@ case "$action" in
         }
         ;;
     *)
-        printf 'Usage: %s [start|stop|status|reconcile [--recreate-envoy]]\n' "$0" >&2
+        printf 'Usage: %s [start|stop|status|refresh-secrets|reconcile [--recreate-envoy]]\n' "$0" >&2
         exit 2
         ;;
 esac
@@ -157,16 +172,31 @@ done
 
 unset MYSQL_APP_PASSWORD MYSQL_ROOT_PASSWORD JWT_SIGNING_SECRET POSTMARK_SERVER_TOKEN
 
-aws ecr get-login-password --region "$aws_region" \
-    | docker login --username AWS --password-stdin "$registry"
-logged_in=true
-
-compose pull
-docker logout "$registry" >/dev/null 2>&1
-logged_in=false
+if [[ "$action" == refresh-secrets ]]; then
+    exit 0
+fi
 
 if [[ "$action" == reconcile ]]; then
-    compose up --detach --remove-orphans --wait --wait-timeout 300
+    aws ecr get-login-password --region "$aws_region" \
+        | docker login --username AWS --password-stdin "$registry"
+    logged_in=true
+    compose pull mysql app envoy backend-job-dispatch backend-job-cleanup
+    docker logout "$registry" >/dev/null 2>&1
+    logged_in=false
+
+    # API containers are deliberately excluded. The release command shifts
+    # traffic, drains, and recreates them one slot at a time.
+    compose up \
+        --detach \
+        --no-deps \
+        --remove-orphans \
+        --wait \
+        --wait-timeout 300 \
+        mysql \
+        app \
+        envoy \
+        backend-job-dispatch \
+        backend-job-cleanup
     if [[ "$recreate_envoy" == true ]]; then
         compose up --detach --no-deps --force-recreate envoy
     fi
@@ -176,6 +206,14 @@ if [[ "$action" == reconcile ]]; then
     compose ps
     exit 0
 fi
+
+aws ecr get-login-password --region "$aws_region" \
+    | docker login --username AWS --password-stdin "$registry"
+logged_in=true
+
+compose pull
+docker logout "$registry" >/dev/null 2>&1
+logged_in=false
 
 compose up -d --remove-orphans mysql
 wait_for_mysql

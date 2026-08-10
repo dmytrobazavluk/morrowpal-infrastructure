@@ -140,6 +140,7 @@ export AWS_REGION="$aws_region"
 export MYSQL_APP_PASSWORD='{{resolve:secretsmanager:morrowpal/prod/mysql:SecretString:password}}'
 export MYSQL_ROOT_PASSWORD='{{resolve:secretsmanager:morrowpal/prod/mysql-root:SecretString:password}}'
 export JWT_SIGNING_SECRET='{{resolve:secretsmanager:morrowpal/prod/jwt:SecretString:value}}'
+export POSTMARK_SERVER_TOKEN='{{resolve:secretsmanager:morrowpal/prod/postmark:SecretString:serverToken}}'
 
 secrets_resolved=false
 for _ in {1..6}; do
@@ -154,7 +155,7 @@ done
     exit 1
 }
 
-unset MYSQL_APP_PASSWORD MYSQL_ROOT_PASSWORD JWT_SIGNING_SECRET
+unset MYSQL_APP_PASSWORD MYSQL_ROOT_PASSWORD JWT_SIGNING_SECRET POSTMARK_SERVER_TOKEN
 
 aws ecr get-login-password --region "$aws_region" \
     | docker login --username AWS --password-stdin "$registry"

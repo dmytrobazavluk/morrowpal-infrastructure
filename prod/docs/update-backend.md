@@ -9,7 +9,9 @@ This procedure updates all backend runtime components:
 - `backend-job-dispatch`
 - `backend-job-cleanup`
 
-The API and job images receive the same immutable backend tag.
+The API and job images receive the same immutable backend tag. For Postmark
+configuration, delivery checks, and token rotation, see
+[Postmark operations](./postmark.md).
 
 ## 1. Preconditions
 

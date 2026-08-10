@@ -10,6 +10,7 @@ otherwise.
 
 - [Install production from scratch](./docs/install-from-scratch.md)
 - [Update the backend](./docs/update-backend.md)
+- [Postmark operations](./docs/postmark.md)
 - [Update the app](./docs/update-app.md)
 - [Production TLS](./docs/tls.md)
 - [Replace the production host](./docs/replace-host.md)
@@ -62,8 +63,8 @@ The remaining private services are:
 - `backend-job-cleanup`
 
 MySQL data lives on a separately retained, encrypted EBS volume. Runtime
-passwords and the JWT signing secret live in AWS Secrets Manager and are
-resolved only at service startup.
+passwords, the JWT signing secret, and the Postmark server token live in AWS
+Secrets Manager and are resolved only at service startup.
 
 ## Container Repositories
 

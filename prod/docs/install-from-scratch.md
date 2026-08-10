@@ -295,8 +295,8 @@ filesystem.
 ## 8. Create runtime secrets
 
 The secrets stack generates the MySQL application password, MySQL root
-password, and JWT signing secret inside Secrets Manager. Do not retrieve or
-print their values.
+password, JWT signing secret, and a placeholder Postmark server token inside
+Secrets Manager. Do not retrieve or print their values.
 
 ```bash
 PRODUCTION_EC2_ROLE_ARN="$(aws cloudformation describe-stacks \
@@ -327,7 +327,7 @@ aws cloudformation describe-change-set \
   --region us-east-2
 ```
 
-Confirm that the change set creates three secrets and the scoped EC2 role
+Confirm that the change set creates four secrets and the scoped EC2 role
 policy, then execute it:
 
 ```bash
@@ -343,6 +343,13 @@ aws cloudformation wait stack-create-complete \
 
 At runtime, `asm-exec` resolves dynamic references through the instance role
 and writes short-lived root-protected files under `/run` for Docker Compose.
+
+Before starting the backend API, replace the generated `serverToken` value in
+`morrowpal/prod/postmark` with the production Postmark Server API Token using
+the AWS Secrets Manager console. Do not place the token in a shell command,
+repository file, Ansible variable, or deployment log. Confirm the sending
+domain, Return-Path, sender, and transactional stream described in
+[Postmark operations](./postmark.md).
 
 ## 9. Create the stable public IP
 
@@ -489,7 +496,9 @@ ansible 01 -b -m command -a 'certbot renew --dry-run'
 ```
 
 Open `https://app.morrowpal.com` in a private browser window and test sign-in,
-an API-backed action, refresh, local persistence, and sign-out.
+an API-backed action, refresh, local persistence, and sign-out. Confirm that a
+verification email arrives and complete the received code. Follow the full
+delivery checklist in [Postmark operations](./postmark.md).
 
 After installation, use the component update runbooks for every release rather
 than repeating this document.

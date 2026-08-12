@@ -18,15 +18,16 @@ registry=""
 
 usage() {
     cat <<'EOF'
-Usage: publish-app-image.sh BUILD_NUMBER
+Usage: publish-app-image.sh APP_VERSION BUILD_NUMBER
 
 Build, publish, and scan the production Flutter web app image.
 
 Arguments:
+  APP_VERSION   Semantic app version used in X-MorrowPal-Build, for example 1.1.0.
   BUILD_NUMBER  Positive, increasing integer used in the immutable image tag.
 
 Example:
-  ./infrastructure/prod/scripts/publish-app-image.sh 1
+  ./infrastructure/prod/scripts/publish-app-image.sh 1.1.0 2
 
 Set APP_DIR to override the default sibling frontend repository location.
 EOF
@@ -108,17 +109,20 @@ wait_for_scan() {
 
 trap cleanup EXIT
 
-if (($# != 1)); then
-    usage >&2
-    exit 2
-fi
-
-if [[ "$1" == "-h" || "$1" == "--help" ]]; then
+if (($# == 1)) && [[ "$1" == "-h" || "$1" == "--help" ]]; then
     usage
     exit 0
 fi
 
-readonly build_number="$1"
+if (($# != 2)); then
+    usage >&2
+    exit 2
+fi
+
+readonly app_version="$1"
+readonly build_number="$2"
+[[ "$app_version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] \
+    || fail "APP_VERSION must use major.minor.patch with non-negative integers"
 [[ "$build_number" =~ ^[1-9][0-9]*$ ]] || fail "BUILD_NUMBER must be a positive integer"
 
 require_command aws
@@ -166,7 +170,11 @@ readonly image="$registry/$repository:$image_tag"
 (
     cd "$app_dir"
     flutter pub get
-    flutter build web --release --dart-define="API_BASE_URL=$api_base_url"
+    flutter build web \
+        --release \
+        --build-name="$app_version" \
+        --build-number="$build_number" \
+        --dart-define="API_BASE_URL=$api_base_url"
     docker build \
         --platform linux/amd64 \
         --build-context "web=$app_dir/build/web" \

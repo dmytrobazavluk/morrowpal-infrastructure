@@ -1,26 +1,26 @@
 # Development Infrastructure
 
 This directory contains the local Docker Compose stack. Run the commands below
-from the `infrastructure` directory unless stated otherwise.
+from this directory (`infrastructure/dev`) unless stated otherwise.
 
 ## Development Stack
 
 Start the full local stack:
 
 ```bash
-docker compose -f dev/docker-compose.yml up --build -d
+docker compose up --build -d
 ```
 
 Start the stack with multiple API instances behind Envoy:
 
 ```bash
-docker compose -f dev/docker-compose.yml up --build -d --scale backend-api=2
+docker compose up --build -d --scale backend-api=2
 ```
 
 Stop the stack:
 
 ```bash
-docker compose -f dev/docker-compose.yml down
+docker compose down
 ```
 
 Envoy listens on `127.0.0.1:8080` and balances traffic across the `backend`
@@ -51,8 +51,7 @@ Default local database credentials:
 - User: `morrowpal`
 - Password: `morrowpal`
 
-Data is persisted in `./dev/mysql/data` relative to the `infrastructure`
-directory.
+Data is persisted in `./mysql/data` relative to this directory.
 
 ## Backend Routing
 
@@ -71,13 +70,13 @@ reachable only on the Compose network.
 Start two API instances behind Envoy:
 
 ```bash
-docker compose -f dev/docker-compose.yml up --build -d --scale backend-api=2
+docker compose up --build -d --scale backend-api=2
 ```
 
 Change the API replica count later without rebuilding:
 
 ```bash
-docker compose -f dev/docker-compose.yml up -d --scale backend-api=3
+docker compose up -d --scale backend-api=3
 ```
 
 ## Logs and Status
@@ -85,31 +84,31 @@ docker compose -f dev/docker-compose.yml up -d --scale backend-api=3
 Tail Envoy logs:
 
 ```bash
-docker compose -f dev/docker-compose.yml logs -f envoy
+docker compose logs -f envoy
 ```
 
 Tail API container logs:
 
 ```bash
-docker compose -f dev/docker-compose.yml logs -f backend-api
+docker compose logs -f backend-api
 ```
 
 Tail dispatch job logs:
 
 ```bash
-docker compose -f dev/docker-compose.yml logs -f backend-job-dispatch
+docker compose logs -f backend-job-dispatch
 ```
 
 Tail cleanup job logs:
 
 ```bash
-docker compose -f dev/docker-compose.yml logs -f backend-job-cleanup
+docker compose logs -f backend-job-cleanup
 ```
 
 List the API containers created by scaling:
 
 ```bash
-docker compose -f dev/docker-compose.yml ps backend-api
+docker compose ps backend-api
 ```
 
 ## Rebuilding
@@ -117,19 +116,19 @@ docker compose -f dev/docker-compose.yml ps backend-api
 Rebuild the API image after backend changes:
 
 ```bash
-docker compose -f dev/docker-compose.yml up --build -d backend-api
+docker compose up --build -d backend-api
 ```
 
 Rebuild the job images after backend changes:
 
 ```bash
-docker compose -f dev/docker-compose.yml up --build -d backend-job-dispatch backend-job-cleanup
+docker compose up --build -d backend-job-dispatch backend-job-cleanup
 ```
 
 Rebuild and restart the load-balanced local stack:
 
 ```bash
-docker compose -f dev/docker-compose.yml up --build -d --scale backend-api=2 backend-api backend-job-dispatch backend-job-cleanup envoy
+docker compose up --build -d --scale backend-api=2 backend-api backend-job-dispatch backend-job-cleanup envoy
 ```
 
 ## Health Checks

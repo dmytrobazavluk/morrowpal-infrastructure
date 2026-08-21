@@ -69,6 +69,29 @@
           morrowpal_app_image_tag must use the build-N-GITSHA format.
       when: morrowpal_app_image_tag is defined
 
+    - name: Inspect the website image tag
+      ansible.builtin.stat:
+        path: "{{ morrowpal_root }}/website-image-tag"
+      register: morrowpal_website_tag_stat
+
+    - name: Require an initial immutable website image tag
+      ansible.builtin.assert:
+        that:
+          - morrowpal_website_image_tag is defined
+          - morrowpal_website_image_tag is match('^build-[1-9][0-9]*-[0-9a-f]{7}$')
+        fail_msg: >-
+          Pass an immutable website tag with
+          -e morrowpal_website_image_tag=build-N-SOURCESHA.
+      when: not morrowpal_website_tag_stat.stat.exists
+
+    - name: Validate the requested website image tag
+      ansible.builtin.assert:
+        that:
+          - morrowpal_website_image_tag is match('^build-[1-9][0-9]*-[0-9a-f]{7}$')
+        fail_msg: >-
+          morrowpal_website_image_tag must use the build-N-SOURCESHA format.
+      when: morrowpal_website_image_tag is defined
+
     - name: Read the MySQL mount metadata
       ansible.builtin.command:
         argv:
@@ -180,6 +203,14 @@
         group: root
         mode: "0755"
 
+    - name: Install the website release command
+      ansible.builtin.copy:
+        src: ../scripts/morrowpal-deploy-website.sh
+        dest: /usr/local/sbin/morrowpal-deploy-website
+        owner: root
+        group: root
+        mode: "0755"
+
     - name: Install the production Envoy configuration
       ansible.builtin.copy:
         src: ../envoy/envoy.yaml
@@ -229,6 +260,15 @@
         mode: "0640"
       when: not morrowpal_app_tag_stat.stat.exists
 
+    - name: Initialize the website image tag
+      ansible.builtin.copy:
+        content: "{{ morrowpal_website_image_tag }}\n"
+        dest: "{{ morrowpal_root }}/website-image-tag"
+        owner: root
+        group: root
+        mode: "0640"
+      when: not morrowpal_website_tag_stat.stat.exists
+
     - name: Install the MorrowPal systemd unit
       ansible.builtin.copy:
         src: ../systemd/morrowpal.service
@@ -249,6 +289,7 @@
           {{
             (not morrowpal_blue_tag_stat.stat.exists) or
             (not morrowpal_app_tag_stat.stat.exists) or
+            (not morrowpal_website_tag_stat.stat.exists) or
             (morrowpal_compose_file is changed) or
             (morrowpal_envoy_config is changed) or
             (morrowpal_envoy_tls_sds_config is changed)
@@ -345,6 +386,16 @@
         - morrowpal_app_image_tag is defined
       no_log: true
 
+    - name: Roll out the requested immutable website release
+      ansible.builtin.command:
+        argv:
+          - /usr/local/sbin/morrowpal-deploy-website
+          - "{{ morrowpal_website_image_tag }}"
+      when:
+        - morrowpal_website_tag_stat.stat.exists
+        - morrowpal_website_image_tag is defined
+      no_log: true
+
     - name: Verify the backend readiness endpoint
       ansible.builtin.uri:
         url: http://127.0.0.1:8080/ready
@@ -369,3 +420,44 @@
         - morrowpal_app_readiness.content == 'ok\n'
       check_mode: false
       when: not ansible_check_mode or morrowpal_app_tag_stat.stat.exists
+
+    - name: Verify the website readiness endpoint
+      ansible.builtin.uri:
+        url: https://morrowpal.com/ready
+        status_code: 200
+        return_content: true
+      register: morrowpal_website_readiness
+      retries: 12
+      delay: 5
+      until:
+        - morrowpal_website_readiness.status == 200
+        - morrowpal_website_readiness.content == 'ok\n'
+      check_mode: false
+      when: not ansible_check_mode or morrowpal_website_tag_stat.stat.exists
+
+    - name: Verify the website canonical redirect
+      ansible.builtin.uri:
+        url: https://www.morrowpal.com/
+        follow_redirects: none
+        status_code: 301
+        return_content: false
+      register: morrowpal_website_redirect
+      retries: 12
+      delay: 5
+      until:
+        - morrowpal_website_redirect.status == 301
+        - morrowpal_website_redirect.location == 'https://morrowpal.com/'
+      check_mode: false
+      when: not ansible_check_mode or morrowpal_website_tag_stat.stat.exists
+
+    - name: Verify the website landing page
+      ansible.builtin.uri:
+        url: https://morrowpal.com/
+        status_code: 200
+        return_content: false
+      register: morrowpal_website_landing_page
+      retries: 12
+      delay: 5
+      until: morrowpal_website_landing_page.status == 200
+      check_mode: false
+      when: not ansible_check_mode or morrowpal_website_tag_stat.stat.exists

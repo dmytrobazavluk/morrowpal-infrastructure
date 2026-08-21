@@ -12,6 +12,7 @@ otherwise.
 - [Update the backend](./docs/update-backend.md)
 - [Postmark operations](./docs/postmark.md)
 - [Update the app](./docs/update-app.md)
+- [Update the website](./docs/update-website.md)
 - [Production TLS](./docs/tls.md)
 - [Replace the production host](./docs/replace-host.md)
 - [Production database administration](./docs/admin.md)
@@ -40,8 +41,10 @@ chmod 400 ../../morrowpal-prod-01.pem
 
 - `api.morrowpal.com` routes to the backend API.
 - `app.morrowpal.com` routes to the Flutter web app.
-- `morrowpal.com`, `admin.morrowpal.com`, `www.morrowpal.com`, and
-  `back.morrowpal.com` are reserved and currently return HTTP 404.
+- `morrowpal.com` routes to the public landing page.
+- `www.morrowpal.com` permanently redirects to `morrowpal.com`.
+- `admin.morrowpal.com` and `back.morrowpal.com` are reserved and currently
+  return HTTP 404.
 - Unknown hostnames return HTTP 421.
 
 All names on the production certificate resolve to the stable production IPv4
@@ -55,6 +58,7 @@ Envoy is the only public container. It terminates TLS and routes requests to:
 - `backend-api-blue` and `backend-api-green`, with active readiness checks and
   blue-green traffic control.
 - `app`, a non-root Nginx container serving the Flutter web build.
+- `website`, a separate non-root Nginx container serving the landing page.
 
 The remaining private services are:
 
@@ -71,10 +75,13 @@ Secrets Manager and are resolved only at service startup.
 - `morrowpal/prod/backend-api`
 - `morrowpal/prod/backend-job`
 - `morrowpal/prod/app`
+- `morrowpal/prod/website`
 
-Images use immutable `build-N-GITSHA` tags. The backend API and job images use
-the same backend tag. The app has an independent build sequence and tag.
-After initial installation, backend and app releases are deployed independently.
+Images use immutable `build-N-REVISION` tags. The backend API and job images use
+the same backend Git revision. The app uses its own Git revision. Until the
+website has its own Git repository, its revision is a digest of the deployable
+website files. Backend, app, and website releases have independent build
+sequences and are deployed independently.
 
 Do not use mutable tags such as `latest` in production.
 
@@ -109,6 +116,7 @@ Ansible applies service-specific deployment behavior:
 - API image and Compose configuration changes use the rolling blue-green
   release command, which recreates only one API slot at a time.
 - App image releases replace only the app container.
+- Website image releases replace only the website container.
 - Envoy configuration changes recreate only Envoy. Because production has one
   Envoy container, that operation can cause a brief public edge interruption.
 
@@ -148,6 +156,7 @@ The production Compose project and its image-tag files are stored under
 ├── api-green-image-tag
 ├── job-image-tag
 ├── app-image-tag
+├── website-image-tag
 └── envoy/
     ├── envoy.yaml
     └── tls-certificate-sds.yaml
@@ -170,9 +179,11 @@ export API_BLUE_IMAGE_TAG="$(<api-blue-image-tag)"
 export API_GREEN_IMAGE_TAG="$(<api-green-image-tag)"
 export JOB_IMAGE_TAG="$(<job-image-tag)"
 export APP_IMAGE_TAG="$(<app-image-tag)"
+export WEBSITE_IMAGE_TAG="$(<website-image-tag)"
 
 docker compose ps
 docker compose logs --tail=200 app
+docker compose logs --tail=200 website
 docker compose logs --tail=200 envoy
 ```
 
@@ -186,6 +197,7 @@ Verify public readiness:
 ```bash
 curl --fail --show-error --silent https://api.morrowpal.com/ready
 curl --fail --show-error --silent https://app.morrowpal.com/ready
+curl --fail --show-error --silent https://morrowpal.com/ready
 ```
 
 ## CloudFormation Failure Diagnosis

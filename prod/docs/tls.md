@@ -31,10 +31,11 @@ supports IPv6.
   files without a container restart.
 - The existing host-loopback listener at `127.0.0.1:8080` remains the local
   readiness endpoint.
-- `api.morrowpal.com` routes to the backend API and `app.morrowpal.com` routes
-  to the Flutter web app container. Reserved certificate names return HTTP 404
-  until their applications are configured, and unknown hostnames return HTTP
-  421.
+- `api.morrowpal.com` routes to the backend API, `app.morrowpal.com` routes to
+  the Flutter web app container, `morrowpal.com` routes to the landing page,
+  and `www.morrowpal.com` redirects to the apex name. Reserved certificate
+  names return HTTP 404 until their applications are configured, and unknown
+  hostnames return HTTP 421.
 
 ## Replay and Renewal
 
@@ -60,8 +61,8 @@ certificate authority enforces rate limits.
 3. Run `playbooks/prepare-tls.yml` with the Certbot registration email.
 4. Validate the exact Envoy configuration using the pinned container image.
 5. Run `playbooks/deploy.yml` to enable public HTTPS.
-6. Verify the certificate names, `https://api.morrowpal.com/ready`, reserved
-   hostname behavior, container health, and local readiness.
+6. Verify the certificate names, API and website readiness, the website
+   redirect, reserved hostname behavior, container health, and local readiness.
 7. Run `certbot renew --dry-run` and confirm Envoy stays available.
 
 CloudFormation change sets are reviewed before execution. The TLS deployment

@@ -114,11 +114,28 @@ static_resources:
                           route:
                             cluster: app
                             timeout: 30s
-                    - name: reserved_production_names
+                    - name: production_website
                       domains:
                         - morrowpal.com
-                        - admin.morrowpal.com
+                      routes:
+                        - match:
+                            prefix: "/"
+                          route:
+                            cluster: website
+                            timeout: 30s
+                    - name: production_website_redirect
+                      domains:
                         - www.morrowpal.com
+                      routes:
+                        - match:
+                            prefix: "/"
+                          redirect:
+                            host_redirect: morrowpal.com
+                            https_redirect: true
+                            response_code: MOVED_PERMANENTLY
+                    - name: reserved_production_names
+                      domains:
+                        - admin.morrowpal.com
                         - back.morrowpal.com
                       routes:
                         - match:
@@ -155,6 +172,29 @@ static_resources:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
 
   clusters:
+    - name: website
+      type: STRICT_DNS
+      connect_timeout: 2s
+      dns_lookup_family: V4_ONLY
+      lb_policy: ROUND_ROBIN
+      health_checks:
+        - timeout: 2s
+          interval: 5s
+          unhealthy_threshold: 2
+          healthy_threshold: 1
+          http_health_check:
+            host: website
+            path: /ready
+      load_assignment:
+        cluster_name: website
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: website
+                      port_value: 8080
+
     - name: app
       type: STRICT_DNS
       connect_timeout: 2s

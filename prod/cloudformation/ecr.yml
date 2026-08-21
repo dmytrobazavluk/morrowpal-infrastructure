@@ -16,6 +16,55 @@ Parameters:
     Description: Number of incremental build images to retain per repository.
 
 Resources:
+  WebsiteRepository:
+    Type: AWS::ECR::Repository
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      RepositoryName: !Sub "morrowpal/${Environment}/website"
+      EncryptionConfiguration:
+        EncryptionType: AES256
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      ImageTagMutability: IMMUTABLE
+      LifecyclePolicy:
+        LifecyclePolicyText: !Sub |
+          {
+            "rules": [
+              {
+                "rulePriority": 1,
+                "description": "Expire untagged images after seven days",
+                "selection": {
+                  "tagStatus": "untagged",
+                  "countType": "sinceImagePushed",
+                  "countUnit": "days",
+                  "countNumber": 7
+                },
+                "action": {
+                  "type": "expire"
+                }
+              },
+              {
+                "rulePriority": 2,
+                "description": "Retain the most recent incremental builds",
+                "selection": {
+                  "tagStatus": "tagged",
+                  "tagPatternList": ["build-*"],
+                  "countType": "imageCountMoreThan",
+                  "countNumber": ${TaggedImageRetentionCount}
+                },
+                "action": {
+                  "type": "expire"
+                }
+              }
+            ]
+          }
+      Tags:
+        - Key: application
+          Value: morrowpal
+        - Key: environment
+          Value: !Ref Environment
+
   AppRepository:
     Type: AWS::ECR::Repository
     DeletionPolicy: Retain
@@ -164,6 +213,14 @@ Resources:
           Value: !Ref Environment
 
 Outputs:
+  WebsiteRepositoryName:
+    Description: Name of the landing-page ECR repository.
+    Value: !Ref WebsiteRepository
+
+  WebsiteRepositoryUri:
+    Description: URI of the landing-page ECR repository.
+    Value: !GetAtt WebsiteRepository.RepositoryUri
+
   AppRepositoryName:
     Description: Name of the Flutter web ECR repository.
     Value: !Ref AppRepository

@@ -30,6 +30,7 @@ Resources:
                   - ecr:GetDownloadUrlForLayer
                 Resource:
                   - !Sub arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/morrowpal/prod/app
+                  - !Sub arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/morrowpal/prod/website
                   - !Sub arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/morrowpal/prod/backend-api
                   - !Sub arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/morrowpal/prod/backend-job
 

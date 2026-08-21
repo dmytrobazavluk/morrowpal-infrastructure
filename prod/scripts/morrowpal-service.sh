@@ -10,8 +10,9 @@ readonly blue_tag_file="$deployment_root/api-blue-image-tag"
 readonly green_tag_file="$deployment_root/api-green-image-tag"
 readonly job_tag_file="$deployment_root/job-image-tag"
 readonly app_tag_file="$deployment_root/app-image-tag"
+readonly website_tag_file="$deployment_root/website-image-tag"
 
-for tag_file in "$blue_tag_file" "$green_tag_file" "$job_tag_file" "$app_tag_file"; do
+for tag_file in "$blue_tag_file" "$green_tag_file" "$job_tag_file" "$app_tag_file" "$website_tag_file"; do
     [[ -r "$tag_file" ]] || {
         printf 'Image tag file is missing: %s\n' "$tag_file" >&2
         exit 1
@@ -22,7 +23,8 @@ blue_tag="$(<"$blue_tag_file")"
 green_tag="$(<"$green_tag_file")"
 job_tag="$(<"$job_tag_file")"
 app_tag="$(<"$app_tag_file")"
-for image_tag in "$blue_tag" "$green_tag" "$job_tag" "$app_tag"; do
+website_tag="$(<"$website_tag_file")"
+for image_tag in "$blue_tag" "$green_tag" "$job_tag" "$app_tag" "$website_tag"; do
     [[ "$image_tag" =~ ^build-[1-9][0-9]*-[0-9a-f]{7}$ ]] || {
         printf 'Invalid image tag: %s\n' "$image_tag" >&2
         exit 1
@@ -34,6 +36,7 @@ compose() {
     API_GREEN_IMAGE_TAG="$green_tag" \
     JOB_IMAGE_TAG="$job_tag" \
     APP_IMAGE_TAG="$app_tag" \
+    WEBSITE_IMAGE_TAG="$website_tag" \
         docker compose \
         --project-directory "$deployment_root" \
         --file "$compose_file" \
@@ -143,6 +146,23 @@ wait_for_app() {
     return 1
 }
 
+wait_for_website() {
+    for _ in {1..30}; do
+        if curl --fail --silent --show-error \
+                --resolve morrowpal.com:443:127.0.0.1 \
+                https://morrowpal.com/ready >/dev/null 2>&1 && \
+                curl --fail --silent --show-error \
+                    --resolve morrowpal.com:443:127.0.0.1 \
+                    https://morrowpal.com/ >/dev/null 2>&1; then
+            return 0
+        fi
+        sleep 2
+    done
+
+    printf 'Envoy did not find a ready website landing page.\n' >&2
+    return 1
+}
+
 logged_in=false
 cleanup() {
     if [[ "$logged_in" == true ]]; then
@@ -180,7 +200,7 @@ if [[ "$action" == reconcile ]]; then
     aws ecr get-login-password --region "$aws_region" \
         | docker login --username AWS --password-stdin "$registry"
     logged_in=true
-    compose pull mysql app envoy backend-job-dispatch backend-job-cleanup
+    compose pull mysql app website envoy backend-job-dispatch backend-job-cleanup
     docker logout "$registry" >/dev/null 2>&1
     logged_in=false
 
@@ -194,6 +214,7 @@ if [[ "$action" == reconcile ]]; then
         --wait-timeout 300 \
         mysql \
         app \
+        website \
         envoy \
         backend-job-dispatch \
         backend-job-cleanup
@@ -203,6 +224,7 @@ if [[ "$action" == reconcile ]]; then
     wait_for_mysql
     wait_for_api
     wait_for_app
+    wait_for_website
     compose ps
     exit 0
 fi
@@ -218,9 +240,10 @@ logged_in=false
 compose up -d --remove-orphans mysql
 wait_for_mysql
 
-compose up -d app backend-api-blue backend-api-green envoy
+compose up -d app website backend-api-blue backend-api-green envoy
 wait_for_api
 wait_for_app
+wait_for_website
 
 compose up -d backend-job-dispatch backend-job-cleanup
 compose ps

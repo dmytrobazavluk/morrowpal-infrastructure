@@ -10,6 +10,7 @@ readonly blue_tag_file="$deployment_root/api-blue-image-tag"
 readonly green_tag_file="$deployment_root/api-green-image-tag"
 readonly job_tag_file="$deployment_root/job-image-tag"
 readonly app_tag_file="$deployment_root/app-image-tag"
+readonly website_tag_file="$deployment_root/website-image-tag"
 readonly envoy_admin=http://127.0.0.1:9901
 readonly deployment_lock=/run/morrowpal-deploy.lock
 
@@ -44,7 +45,7 @@ systemctl is-active --quiet morrowpal.service || {
     exit 1
 }
 
-for tag_file in "$blue_tag_file" "$green_tag_file" "$job_tag_file" "$app_tag_file"; do
+for tag_file in "$blue_tag_file" "$green_tag_file" "$job_tag_file" "$app_tag_file" "$website_tag_file"; do
     [[ -r "$tag_file" ]] || {
         printf 'Required tag file is missing: %s\n' "$tag_file" >&2
         exit 1
@@ -55,12 +56,14 @@ blue_tag="$(<"$blue_tag_file")"
 green_tag="$(<"$green_tag_file")"
 job_tag="$(<"$job_tag_file")"
 app_tag="$(<"$app_tag_file")"
+website_tag="$(<"$website_tag_file")"
 
 compose() {
     API_BLUE_IMAGE_TAG="$blue_tag" \
     API_GREEN_IMAGE_TAG="$green_tag" \
     JOB_IMAGE_TAG="$job_tag" \
     APP_IMAGE_TAG="$app_tag" \
+    WEBSITE_IMAGE_TAG="$website_tag" \
         docker compose \
             --project-directory "$deployment_root" \
             --file "$compose_file" \
@@ -144,7 +147,7 @@ deploy_api_slot() {
         fi
         printf 'Rolling blue API from %s to %s.\n' "$old_tag" "$target_tag"
         API_BLUE_IMAGE_TAG="$target_tag" API_GREEN_IMAGE_TAG="$green_tag" \
-            JOB_IMAGE_TAG="$job_tag" APP_IMAGE_TAG="$app_tag" \
+            JOB_IMAGE_TAG="$job_tag" APP_IMAGE_TAG="$app_tag" WEBSITE_IMAGE_TAG="$website_tag" \
             docker compose --project-directory "$deployment_root" --file "$compose_file" pull "$service"
         set_weights 0 100
         if ! wait_for_cluster_drained "$drained_cluster"; then
@@ -165,7 +168,7 @@ deploy_api_slot() {
         fi
         printf 'Rolling green API from %s to %s.\n' "$old_tag" "$target_tag"
         API_BLUE_IMAGE_TAG="$blue_tag" API_GREEN_IMAGE_TAG="$target_tag" \
-            JOB_IMAGE_TAG="$job_tag" APP_IMAGE_TAG="$app_tag" \
+            JOB_IMAGE_TAG="$job_tag" APP_IMAGE_TAG="$app_tag" WEBSITE_IMAGE_TAG="$website_tag" \
             docker compose --project-directory "$deployment_root" --file "$compose_file" pull "$service"
         set_weights 100 0
         if ! wait_for_cluster_drained "$drained_cluster"; then
@@ -215,7 +218,7 @@ deploy_api_slot green
 
 if [[ -n "$requested_tag" && "$job_tag" != "$requested_tag" ]]; then
     API_BLUE_IMAGE_TAG="$blue_tag" API_GREEN_IMAGE_TAG="$green_tag" \
-        JOB_IMAGE_TAG="$requested_tag" APP_IMAGE_TAG="$app_tag" \
+        JOB_IMAGE_TAG="$requested_tag" APP_IMAGE_TAG="$app_tag" WEBSITE_IMAGE_TAG="$website_tag" \
         docker compose --project-directory "$deployment_root" --file "$compose_file" \
         pull backend-job-dispatch backend-job-cleanup
     job_tag="$requested_tag"

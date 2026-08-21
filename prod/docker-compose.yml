@@ -126,6 +126,28 @@ services:
       retries: 3
       start_period: 5s
 
+  website:
+    image: 384078510608.dkr.ecr.us-east-2.amazonaws.com/morrowpal/prod/website:${WEBSITE_IMAGE_TAG:?WEBSITE_IMAGE_TAG is required}
+    restart: unless-stopped
+    read_only: true
+    user: "101:101"
+    mem_limit: 64m
+    pids_limit: 64
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--spider", "http://127.0.0.1:8080/ready"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
   envoy:
     image: envoyproxy/envoy:v1.39.0@sha256:d59f7f5fa10cff6d5892b6c5e7df5c9297ddfb2c3683e33fbfb82da24de4fa66
     restart: unless-stopped
@@ -145,6 +167,7 @@ services:
       - backend-api-blue
       - backend-api-green
       - app
+      - website
     volumes:
       - /opt/morrowpal/envoy/envoy.yaml:/etc/envoy/envoy.yaml:ro
       - /opt/morrowpal/envoy/tls-certificate-sds.yaml:/etc/envoy/tls-certificate-sds.yaml:ro

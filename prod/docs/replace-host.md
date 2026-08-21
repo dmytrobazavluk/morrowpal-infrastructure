@@ -152,8 +152,8 @@ The playbook must detect the existing filesystem and must not format it.
 
 ## 5. Deploy and verify through the temporary address
 
-Deploy the currently approved backend and app tags to the replacement host.
-Verify local service readiness before moving public traffic.
+Deploy the currently approved backend, app, and website tags to the replacement
+host. Verify local service readiness before moving public traffic.
 
 ## 6. Move the stable Elastic IP
 
@@ -200,6 +200,7 @@ ansible production -m ping
 ansible 01 -b -m command -a '/usr/local/sbin/morrowpal-service status'
 curl --fail --show-error --silent https://api.morrowpal.com/ready
 curl --fail --show-error --silent https://app.morrowpal.com/ready
+curl --fail --show-error --silent https://morrowpal.com/ready
 ```
 
 Do not terminate the old host until the retained database, public routes, TLS

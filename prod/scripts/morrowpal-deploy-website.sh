@@ -15,7 +15,7 @@ readonly deployment_lock=/run/morrowpal-deploy.lock
 
 new_tag="${1:-}"
 [[ "$new_tag" =~ ^build-[1-9][0-9]*-[0-9a-f]{7}$ ]] || {
-    printf 'Usage: %s build-N-GITSHA\n' "$0" >&2
+    printf 'Usage: %s build-N-SOURCESHA\n' "$0" >&2
     exit 2
 }
 
@@ -26,7 +26,7 @@ flock --exclusive --nonblock 9 || {
 }
 
 systemctl is-active --quiet morrowpal.service || {
-    printf 'morrowpal.service must be active before an app deployment.\n' >&2
+    printf 'morrowpal.service must be active before a website deployment.\n' >&2
     exit 1
 }
 
@@ -40,9 +40,9 @@ done
 blue_tag="$(<"$blue_tag_file")"
 green_tag="$(<"$green_tag_file")"
 job_tag="$(<"$job_tag_file")"
-old_tag="$(<"$app_tag_file")"
-website_tag="$(<"$website_tag_file")"
-app_tag="$old_tag"
+app_tag="$(<"$app_tag_file")"
+old_tag="$(<"$website_tag_file")"
+website_tag="$old_tag"
 
 compose() {
     API_BLUE_IMAGE_TAG="$blue_tag" \
@@ -68,18 +68,21 @@ write_tag() {
     mv -f "$temporary_file" "$destination"
 }
 
-wait_for_app() {
+wait_for_website() {
     local container_id
     local status
 
     for _ in {1..30}; do
-        container_id="$(compose ps -q app)"
+        container_id="$(compose ps -q website)"
         if [[ -n "$container_id" ]]; then
             status="$(docker inspect --format '{{.State.Health.Status}}' "$container_id" 2>/dev/null || true)"
             if [[ "$status" == healthy ]] && \
                     curl --fail --silent --show-error \
-                        --resolve app.morrowpal.com:443:127.0.0.1 \
-                        https://app.morrowpal.com/ready >/dev/null 2>&1; then
+                        --resolve morrowpal.com:443:127.0.0.1 \
+                        https://morrowpal.com/ready >/dev/null 2>&1 && \
+                    curl --fail --silent --show-error \
+                        --resolve morrowpal.com:443:127.0.0.1 \
+                        https://morrowpal.com/ >/dev/null 2>&1; then
                 return 0
             fi
         fi
@@ -89,7 +92,7 @@ wait_for_app() {
 }
 
 if [[ "$old_tag" == "$new_tag" ]]; then
-    printf 'App %s is already deployed.\n' "$new_tag"
+    printf 'Website %s is already deployed.\n' "$new_tag"
     exit 0
 fi
 
@@ -105,19 +108,19 @@ aws ecr get-login-password --region "$aws_region" \
     | docker login --username AWS --password-stdin "$registry"
 logged_in=true
 
-app_tag="$new_tag"
-compose pull app
+website_tag="$new_tag"
+compose pull website
 
-if compose up --detach --no-deps app && wait_for_app; then
-    write_tag "$app_tag_file" "$new_tag"
+if compose up --detach --no-deps website && wait_for_website; then
+    write_tag "$website_tag_file" "$new_tag"
     docker logout "$registry" >/dev/null 2>&1
     logged_in=false
-    compose ps app
+    compose ps website
     exit 0
 fi
 
-printf 'App failed readiness; restoring %s.\n' "$old_tag" >&2
-app_tag="$old_tag"
-compose up --detach --no-deps app
-wait_for_app
+printf 'Website failed readiness; restoring %s.\n' "$old_tag" >&2
+website_tag="$old_tag"
+compose up --detach --no-deps website
+wait_for_website
 exit 1

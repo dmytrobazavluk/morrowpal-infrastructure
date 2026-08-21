@@ -94,8 +94,8 @@ aws cloudformation describe-change-set \
   --region us-east-2
 ```
 
-Confirm that the change set creates only the app, backend API, and backend job
-ECR repositories. Then execute it:
+Confirm that the change set creates only the app, website, backend API, and
+backend job ECR repositories. Then execute it:
 
 ```bash
 aws cloudformation execute-change-set \
@@ -452,6 +452,7 @@ Follow the publication sections in these component runbooks:
 
 - [Update the backend](./update-backend.md)
 - [Update the app](./update-app.md)
+- [Update the website](./update-website.md)
 
 Assign the exact resulting immutable tags to shell variables, replacing the
 example values:
@@ -459,6 +460,7 @@ example values:
 ```bash
 BACKEND_TAG='build-N-GITSHA'
 APP_TAG='build-N-GITSHA'
+WEBSITE_TAG='build-N-SOURCESHA'
 ```
 
 ## 12. Deploy the production containers
@@ -468,17 +470,19 @@ ansible-playbook ./playbooks/deploy.yml \
   --check \
   --diff \
   -e "morrowpal_image_tag=$BACKEND_TAG" \
-  -e "morrowpal_app_image_tag=$APP_TAG"
+  -e "morrowpal_app_image_tag=$APP_TAG" \
+  -e "morrowpal_website_image_tag=$WEBSITE_TAG"
 
 ansible-playbook ./playbooks/deploy.yml \
   -e "morrowpal_image_tag=$BACKEND_TAG" \
-  -e "morrowpal_app_image_tag=$APP_TAG"
+  -e "morrowpal_app_image_tag=$APP_TAG" \
+  -e "morrowpal_website_image_tag=$WEBSITE_TAG"
 ```
 
 The systemd service resolves secrets at runtime, authenticates to ECR with the
 instance role, pulls the immutable images, starts MySQL, waits for readiness,
-starts the API, app, Envoy, and both job containers, and verifies the public
-routes.
+starts the API, app, website, Envoy, and both job containers, and verifies the
+public routes.
 
 ## 13. Verify the installation
 
@@ -488,6 +492,7 @@ ansible 01 -b -m command -a '/usr/local/sbin/morrowpal-service status'
 
 curl --fail --show-error --silent https://api.morrowpal.com/ready
 curl --fail --show-error --silent https://app.morrowpal.com/ready
+curl --fail --show-error --silent https://morrowpal.com/ready
 
 ansible 01 -b -m command \
   -a 'systemctl status morrowpal-certbot-renew.timer --no-pager'
@@ -495,7 +500,9 @@ ansible 01 -b -m command \
 ansible 01 -b -m command -a 'certbot renew --dry-run'
 ```
 
-Open `https://app.morrowpal.com` in a private browser window and test sign-in,
+Open `https://morrowpal.com` and confirm that the landing page loads and that
+`https://www.morrowpal.com` redirects to it. Open `https://app.morrowpal.com`
+in a private browser window and test sign-in,
 an API-backed action, refresh, local persistence, and sign-out. Confirm that a
 verification email arrives and complete the received code. Follow the full
 delivery checklist in [Postmark operations](./postmark.md).

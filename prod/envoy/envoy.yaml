@@ -62,6 +62,33 @@ static_resources:
                           response_flags: "%RESPONSE_FLAGS%"
                           upstream_host: "%UPSTREAM_HOST%"
                 http_filters:
+                  - name: envoy.filters.http.local_ratelimit
+                    typed_config: &backend_api_local_rate_limit_config
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.local_ratelimit.v3.LocalRateLimit
+                      stat_prefix: backend_api_local_rate_limiter
+                      token_bucket:
+                        max_tokens: 200
+                        tokens_per_fill: 100
+                        fill_interval: 1s
+                      filter_enabled:
+                        default_value:
+                          numerator: 100
+                          denominator: HUNDRED
+                      filter_enforced:
+                        default_value:
+                          numerator: 100
+                          denominator: HUNDRED
+                      rate_limits:
+                        - actions:
+                            - remote_address: {}
+                      max_dynamic_descriptors: 4096
+                      descriptors:
+                        - entries:
+                            - key: remote_address
+                          token_bucket:
+                            max_tokens: 120
+                            tokens_per_fill: 120
+                            fill_interval: 60s
                   - name: envoy.filters.http.router
                     typed_config:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
@@ -167,6 +194,8 @@ static_resources:
                           response_flags: "%RESPONSE_FLAGS%"
                           upstream_host: "%UPSTREAM_HOST%"
                 http_filters:
+                  - name: envoy.filters.http.local_ratelimit
+                    typed_config: *backend_api_local_rate_limit_config
                   - name: envoy.filters.http.router
                     typed_config:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router

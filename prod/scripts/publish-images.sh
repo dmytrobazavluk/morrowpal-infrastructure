@@ -189,6 +189,7 @@ printf 'Publishing backend commit %s as %s\n' "$GIT_SHA" "$IMAGE_TAG"
     ./gradlew test apiTest jobTest --no-daemon
 
     docker build \
+        --pull \
         --platform linux/amd64 \
         --target api-runtime \
         --label "org.opencontainers.image.revision=$GIT_SHA" \
@@ -197,6 +198,7 @@ printf 'Publishing backend commit %s as %s\n' "$GIT_SHA" "$IMAGE_TAG"
         .
 
     docker build \
+        --pull \
         --platform linux/amd64 \
         --target job-runtime \
         --label "org.opencontainers.image.revision=$GIT_SHA" \

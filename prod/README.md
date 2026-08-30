@@ -9,6 +9,7 @@ otherwise.
 ## Documentation Index
 
 - [Install production from scratch](./docs/install-from-scratch.md)
+- [Update production infrastructure](./docs/update-infrastructure.md)
 - [Update the backend](./docs/update-backend.md)
 - [Postmark operations](./docs/postmark.md)
 - [Update the app](./docs/update-app.md)

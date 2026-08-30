@@ -100,9 +100,21 @@ ansible 01 -b -m command \
 ```
 
 Exercise the routes affected by the change before declaring the deployment
-complete. For a rate-limit change, verify ordinary requests still succeed and
-confirm expected rejection behavior in a controlled test that cannot affect
-other production clients.
+complete. For a rate-limit change, run the guarded verification script:
+
+```bash
+./scripts/verify-production-rate-limit.sh --confirm-production
+```
+
+The script sends 160 requests to the API readiness endpoint in controlled
+batches of 20 per second. Envoy continuously refills the 120-token client-IP
+bucket at 2 tokens per second, so the test exhausts that bucket while remaining
+below the global bucket's 100-token-per-second refill rate. It passes only after
+observing both HTTP 200 and HTTP 429 responses. The readiness endpoint normally
+returns HTTP 200, so a 429 during this controlled burst demonstrates that the
+edge limit is enforced without depending on an optional response header. The
+test consumes the caller's client-IP bucket, so wait at least 60 seconds before
+repeating it from the same public IP.
 
 ## Rollback
 

@@ -144,3 +144,16 @@ Check readiness through Envoy:
 ```bash
 curl http://127.0.0.1:8080/ready
 ```
+
+## Account Creation Rate-Limit Test
+
+Run the isolated Envoy integration test:
+
+```bash
+./scripts/verify-account-creation-rate-limit.sh
+```
+
+The script does not start the application or write to MySQL. It creates a
+temporary Docker network with Envoy and three client containers, verifies the
+25-request per-IP burst and 50-request global burst for `POST /accounts`, and
+removes all temporary resources when it exits.

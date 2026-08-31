@@ -81,6 +81,31 @@ static_resources:
                       rate_limits:
                         - actions:
                             - remote_address: {}
+                        - actions:
+                            - header_value_match:
+                                descriptor_key: generic_key
+                                descriptor_value: account_creation_global
+                                headers:
+                                  - name: ":method"
+                                    string_match:
+                                      exact: "POST"
+                                  - name: ":path"
+                                    string_match:
+                                      safe_regex:
+                                        regex: "^/accounts(?:\\?.*)?$"
+                        - actions:
+                            - header_value_match:
+                                descriptor_key: generic_key
+                                descriptor_value: account_creation_per_ip
+                                headers:
+                                  - name: ":method"
+                                    string_match:
+                                      exact: "POST"
+                                  - name: ":path"
+                                    string_match:
+                                      safe_regex:
+                                        regex: "^/accounts(?:\\?.*)?$"
+                            - remote_address: {}
                       max_dynamic_descriptors: 4096
                       descriptors:
                         - entries:
@@ -88,6 +113,21 @@ static_resources:
                           token_bucket:
                             max_tokens: 120
                             tokens_per_fill: 120
+                            fill_interval: 60s
+                        - entries:
+                            - key: generic_key
+                              value: account_creation_global
+                          token_bucket:
+                            max_tokens: 50
+                            tokens_per_fill: 2
+                            fill_interval: 60s
+                        - entries:
+                            - key: generic_key
+                              value: account_creation_per_ip
+                            - key: remote_address
+                          token_bucket:
+                            max_tokens: 25
+                            tokens_per_fill: 1
                             fill_interval: 60s
                   - name: envoy.filters.http.router
                     typed_config:

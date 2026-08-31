@@ -116,6 +116,22 @@ edge limit is enforced without depending on an optional response header. The
 test consumes the caller's client-IP bucket, so wait at least 60 seconds before
 repeating it from the same public IP.
 
+For a change to the anonymous account-creation limit, run its guarded
+production verification script instead:
+
+```bash
+./scripts/verify-production-account-creation-rate-limit.sh --confirm-production
+```
+
+This script sends 30 deliberately invalid `POST /accounts` requests. The first
+requests reach backend validation and return HTTP 400 without creating
+accounts; requests beyond the 25-token per-client-IP burst return an
+Envoy-generated HTTP 429. The invalid payload is rejected by backend validation
+with HTTP 400 before business logic runs, so the script can distinguish allowed
+requests from Envoy-rejected requests without depending on an optional response
+header. It verifies the production per-client-IP bucket only; the isolated
+development test covers the global bucket across multiple simulated client IPs.
+
 ## Rollback
 
 Restore the previous infrastructure definitions in the local worktree, review

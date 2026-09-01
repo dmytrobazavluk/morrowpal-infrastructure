@@ -48,40 +48,38 @@ JOIN correspondence_request
 WHERE correspondence_request.account_id = @account_id;
 
 -- Preview the destructive scope before continuing.
-SELECT
-    (SELECT COUNT(*) FROM account_removal_correspondence) AS correspondences,
-    (
-        SELECT COUNT(*)
-        FROM letter
-        WHERE correspondence_id IN (
-            SELECT correspondence_id
-            FROM account_removal_correspondence
-        )
-    ) AS letters,
-    (
-        SELECT COUNT(*)
-        FROM correspondence_participant
-        WHERE correspondence_id IN (
-            SELECT correspondence_id
-            FROM account_removal_correspondence
-        )
-    ) AS participants,
-    (
-        SELECT COUNT(*)
-        FROM account_report
-        WHERE reporting_account_id = @account_id
-           OR reported_account_id = @account_id
-           OR correspondence_id IN (
-               SELECT correspondence_id
-               FROM account_removal_correspondence
-           )
-    ) AS reports,
-    (
-        SELECT COUNT(*)
-        FROM account_block
-        WHERE blocker_account_id = @account_id
-           OR blocked_account_id = @account_id
-    ) AS blocks;
+-- Keep these as separate statements. MySQL cannot reopen a temporary table
+-- multiple times within one statement.
+SELECT COUNT(*) AS correspondences
+FROM account_removal_correspondence;
+
+SELECT COUNT(*) AS letters
+FROM letter
+WHERE correspondence_id IN (
+    SELECT correspondence_id
+    FROM account_removal_correspondence
+);
+
+SELECT COUNT(*) AS participants
+FROM correspondence_participant
+WHERE correspondence_id IN (
+    SELECT correspondence_id
+    FROM account_removal_correspondence
+);
+
+SELECT COUNT(*) AS reports
+FROM account_report
+WHERE reporting_account_id = @account_id
+   OR reported_account_id = @account_id
+   OR correspondence_id IN (
+       SELECT correspondence_id
+       FROM account_removal_correspondence
+   );
+
+SELECT COUNT(*) AS blocks
+FROM account_block
+WHERE blocker_account_id = @account_id
+   OR blocked_account_id = @account_id;
 
 DELETE FROM account_report
 WHERE reporting_account_id = @account_id

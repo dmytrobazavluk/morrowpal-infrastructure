@@ -67,3 +67,4 @@ shell variable.
 ## Queries
 
 - [Recently registered users with correspondences](./queries/recent-users-correspondences.md)
+- [Remove an account and its related records](./queries/remove-account.md)

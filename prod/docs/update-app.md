@@ -35,13 +35,13 @@ Choose a semantic app version and a positive build number greater than the
 latest published app build:
 
 ```bash
-./scripts/publish-app-image.sh APP_VERSION BUILD_NUMBER
+source ./scripts/publish-app-image.sh APP_VERSION BUILD_NUMBER
 ```
 
 For example:
 
 ```bash
-./scripts/publish-app-image.sh 1.1.0 2
+source ./scripts/publish-app-image.sh 1.1.0 2
 ```
 
 `APP_VERSION` becomes the packaged Flutter version and the
@@ -56,13 +56,7 @@ The publisher:
 - Pushes an immutable `build-N-GITSHA` tag to `morrowpal/prod/app`.
 - Waits for the ECR vulnerability scan.
 - Rejects critical or high findings.
-
-Assign the exact published tag to a shell variable, replacing the example
-value:
-
-```bash
-APP_TAG='build-N-GITSHA'
-```
+- Exports the exact published tag as `APP_TAG` in the current shell.
 
 ## 3. Preview the deployment
 

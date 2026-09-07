@@ -1,5 +1,42 @@
 #!/usr/bin/env bash
 
+if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
+    _publish_app_image_and_export() {
+        local tag_output_file
+        local publish_status
+
+        if (($# == 1)) && [[ "$1" == "-h" || "$1" == "--help" ]]; then
+            "${BASH_SOURCE[0]}" "$1"
+            return
+        fi
+
+        tag_output_file="$(mktemp)" || return 1
+        MORROWPAL_IMAGE_TAG_OUTPUT_FILE="$tag_output_file" "${BASH_SOURCE[0]}" "$@"
+        publish_status=$?
+
+        if ((publish_status == 0)); then
+            if ! IFS= read -r APP_TAG <"$tag_output_file" || [[ -z "$APP_TAG" ]]; then
+                printf 'Error: Publisher did not return APP_TAG\n' >&2
+                publish_status=1
+            else
+                export APP_TAG
+                printf 'Exported APP_TAG=%s\n' "$APP_TAG"
+            fi
+        fi
+
+        rm -f "$tag_output_file"
+        return "$publish_status"
+    }
+
+    if _publish_app_image_and_export "$@"; then
+        unset -f _publish_app_image_and_export
+        return 0
+    else
+        unset -f _publish_app_image_and_export
+        return 1
+    fi
+fi
+
 set -Eeuo pipefail
 
 readonly aws_region="us-east-2"
@@ -27,9 +64,10 @@ Arguments:
   BUILD_NUMBER  Positive, increasing integer used in the immutable image tag.
 
 Example:
-  ./infrastructure/prod/scripts/publish-app-image.sh 1.1.0 2
+  source ./infrastructure/prod/scripts/publish-app-image.sh 1.1.0 2
 
 Set APP_DIR to override the default sibling frontend repository location.
+When sourced, the script exports APP_TAG in the current shell.
 EOF
 }
 
@@ -192,5 +230,9 @@ wait_for_scan "$image_tag"
 
 docker logout "$registry" >/dev/null 2>&1
 logged_in=false
+
+if [[ -n "${MORROWPAL_IMAGE_TAG_OUTPUT_FILE:-}" ]]; then
+    printf '%s\n' "$image_tag" >"$MORROWPAL_IMAGE_TAG_OUTPUT_FILE"
+fi
 
 printf 'Published %s\n' "$image"

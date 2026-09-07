@@ -1,5 +1,42 @@
 #!/usr/bin/env bash
 
+if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
+    _publish_backend_images_and_export() {
+        local tag_output_file
+        local publish_status
+
+        if (($# == 1)) && [[ "$1" == "-h" || "$1" == "--help" ]]; then
+            "${BASH_SOURCE[0]}" "$1"
+            return
+        fi
+
+        tag_output_file="$(mktemp)" || return 1
+        MORROWPAL_IMAGE_TAG_OUTPUT_FILE="$tag_output_file" "${BASH_SOURCE[0]}" "$@"
+        publish_status=$?
+
+        if ((publish_status == 0)); then
+            if ! IFS= read -r BACKEND_TAG <"$tag_output_file" || [[ -z "$BACKEND_TAG" ]]; then
+                printf 'Error: Publisher did not return BACKEND_TAG\n' >&2
+                publish_status=1
+            else
+                export BACKEND_TAG
+                printf 'Exported BACKEND_TAG=%s\n' "$BACKEND_TAG"
+            fi
+        fi
+
+        rm -f "$tag_output_file"
+        return "$publish_status"
+    }
+
+    if _publish_backend_images_and_export "$@"; then
+        unset -f _publish_backend_images_and_export
+        return 0
+    else
+        unset -f _publish_backend_images_and_export
+        return 1
+    fi
+fi
+
 set -Eeuo pipefail
 
 readonly AWS_REGION="us-east-2"
@@ -26,9 +63,10 @@ Arguments:
   BUILD_NUMBER  Positive, increasing integer used in the immutable image tag.
 
 Example:
-  ./infrastructure/prod/scripts/publish-images.sh 2
+  source ./infrastructure/prod/scripts/publish-images.sh 2
 
 Set BACKEND_DIR to override the default sibling backend repository location.
+When sourced, the script exports BACKEND_TAG in the current shell.
 EOF
 }
 
@@ -224,5 +262,9 @@ for repository in "$API_REPOSITORY" "$JOB_REPOSITORY"; do
 
     wait_for_scan "$repository" "$IMAGE_TAG"
 done
+
+if [[ -n "${MORROWPAL_IMAGE_TAG_OUTPUT_FILE:-}" ]]; then
+    printf '%s\n' "$IMAGE_TAG" >"$MORROWPAL_IMAGE_TAG_OUTPUT_FILE"
+fi
 
 printf 'Published and verified %s\n' "$IMAGE_TAG"

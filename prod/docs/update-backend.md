@@ -36,7 +36,7 @@ The AWS account must be `384078510608`.
 Choose a positive build number greater than the latest published backend build:
 
 ```bash
-./scripts/publish-images.sh BUILD_NUMBER
+source ./scripts/publish-images.sh BUILD_NUMBER
 ```
 
 The publisher:
@@ -48,13 +48,7 @@ The publisher:
 - Rejects critical or high findings.
 - Refuses the wrong AWS account, a dirty backend worktree, an existing tag, or
   a non-increasing build number.
-
-Assign the exact published tag to a shell variable, replacing the example
-value:
-
-```bash
-BACKEND_TAG='build-N-GITSHA'
-```
+- Exports the exact published tag as `BACKEND_TAG` in the current shell.
 
 ## 3. Preview the deployment
 

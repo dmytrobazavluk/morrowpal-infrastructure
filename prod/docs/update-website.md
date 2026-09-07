@@ -25,25 +25,20 @@ The AWS account must be `384078510608`.
 Choose a positive build number greater than the latest published website build:
 
 ```bash
-./scripts/publish-website-image.sh BUILD_NUMBER
+source ./scripts/publish-website-image.sh BUILD_NUMBER
 ```
 
 For example:
 
 ```bash
-./scripts/publish-website-image.sh 1
+source ./scripts/publish-website-image.sh 1
 ```
 
 The publisher computes a stable seven-character digest from the deployable
 website files, builds the pinned non-root Nginx image for Linux AMD64, pushes an
 immutable `build-N-SOURCESHA` tag to `morrowpal/prod/website`, waits for the ECR
-vulnerability scan, and rejects critical or high findings.
-
-Assign the exact published tag to a shell variable:
-
-```bash
-WEBSITE_TAG='build-N-SOURCESHA'
-```
+vulnerability scan, rejects critical or high findings, and exports the exact
+published tag as `WEBSITE_TAG` in the current shell.
 
 ## 3. Preview the Deployment
 

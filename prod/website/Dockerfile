@@ -1,4 +1,8 @@
-FROM nginxinc/nginx-unprivileged:1.30.4-alpine3.24@sha256:44e36330f74d4f3a1d4e222acca9e23b401fb87811a7597024502bb759c4dd49
+FROM nginxinc/nginx-unprivileged:1.30.4-alpine3.24-slim@sha256:3a4485bf084957d56674ee22db07d77d5a281418815c5852827419d6d629d440
+
+USER root
+
+RUN apk upgrade --no-cache
 
 COPY --chown=101:101 nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=website --chown=101:101 index.html robots.txt sitemap.xml styles.css /usr/share/nginx/html/

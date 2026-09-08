@@ -67,4 +67,8 @@ shell variable.
 ## Queries
 
 - [Recently registered users with correspondences](./queries/recent-users-correspondences.md)
+- [Correspondences and participants for an account](./queries/account-correspondence-participants.md)
+- [Existing simple-exchange partners of an account](./queries/account-simple-exchange-partners.md)
+- [Accounts blocked in either direction](./queries/account-blocked-accounts.md)
+- [Remove a correspondence and its related records](./queries/remove-correspondence.md)
 - [Remove an account and its related records](./queries/remove-account.md)

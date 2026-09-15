@@ -21,6 +21,7 @@ x-api-environment: &api-environment
   APP_API_DB_MIN_IDLE: "1"
   APP_AUTH_ACCESS_TOKEN_TTL_SECONDS: "900"
   APP_AUTH_REFRESH_TOKEN_TTL_DAYS: "365"
+  APP_AUTH_STORE_REVIEW_EMAIL: "store-revirew@morrowpal.com"
   APP_API_CORS_ALLOWED_ORIGIN_PATTERNS: "https://app.morrowpal.com"
   APP_EMAIL_PROVIDER: postmark
   APP_EMAIL_POSTMARK_FROM_ADDRESS: "MorrowPal <verification-code@morrowpal.com>"
@@ -42,6 +43,7 @@ x-api-command: &api-command
   - |
     export DB_PASSWORD="$$(cat /run/secrets/mysql_app_password)"
     export APP_AUTH_JWT_SECRET="$$(cat /run/secrets/jwt_signing_secret)"
+    export APP_AUTH_STORE_REVIEW_VERIFICATION_CODE="$$(cat /run/secrets/store_review_verification_code)"
     export APP_EMAIL_POSTMARK_SERVER_TOKEN="$$(cat /run/secrets/postmark_server_token)"
     exec java -jar /app/app.jar
 
@@ -89,6 +91,7 @@ services:
       - mysql_app_password
       - jwt_signing_secret
       - postmark_server_token
+      - store_review_verification_code
 
   backend-api-green:
     <<: *backend-common
@@ -107,6 +110,7 @@ services:
       - mysql_app_password
       - jwt_signing_secret
       - postmark_server_token
+      - store_review_verification_code
 
   app:
     image: 384078510608.dkr.ecr.us-east-2.amazonaws.com/morrowpal/prod/app:${APP_IMAGE_TAG:?APP_IMAGE_TAG is required}
@@ -254,3 +258,5 @@ secrets:
     file: /run/morrowpal/secrets/jwt-signing-secret
   postmark_server_token:
     file: /run/morrowpal/secrets/postmark-server-token
+  store_review_verification_code:
+    file: /run/morrowpal/secrets/store-review-verification-code

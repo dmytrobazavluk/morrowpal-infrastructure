@@ -68,8 +68,9 @@ The remaining private services are:
 - `backend-job-cleanup`
 
 MySQL data lives on a separately retained, encrypted EBS volume. Runtime
-passwords, the JWT signing secret, and the Postmark server token live in AWS
-Secrets Manager and are resolved only at service startup.
+passwords, the JWT signing secret, the Postmark server token, and the
+store-review verification code live in AWS Secrets Manager and are resolved
+only at service startup.
 
 ## Container Repositories
 

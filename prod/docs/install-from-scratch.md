@@ -295,8 +295,9 @@ filesystem.
 ## 8. Create runtime secrets
 
 The secrets stack generates the MySQL application password, MySQL root
-password, JWT signing secret, and a placeholder Postmark server token inside
-Secrets Manager. Do not retrieve or print their values.
+password, JWT signing secret, a placeholder Postmark server token, and a
+placeholder application-store review verification code inside Secrets Manager.
+Do not retrieve or print their values.
 
 ```bash
 PRODUCTION_EC2_ROLE_ARN="$(aws cloudformation describe-stacks \
@@ -327,7 +328,7 @@ aws cloudformation describe-change-set \
   --region us-east-2
 ```
 
-Confirm that the change set creates four secrets and the scoped EC2 role
+Confirm that the change set creates five secrets and the scoped EC2 role
 policy, then execute it:
 
 ```bash
@@ -346,10 +347,12 @@ and writes short-lived root-protected files under `/run` for Docker Compose.
 
 Before starting the backend API, replace the generated `serverToken` value in
 `morrowpal/prod/postmark` with the production Postmark Server API Token using
-the AWS Secrets Manager console. Do not place the token in a shell command,
-repository file, Ansible variable, or deployment log. Confirm the sending
-domain, Return-Path, sender, and transactional stream described in
-[Postmark operations](./postmark.md).
+the AWS Secrets Manager console. Also replace the generated `value` in
+`morrowpal/prod/store-review` with the approved six-character store-review
+verification code. Do not place either value in a shell command, repository
+file, Ansible variable, or deployment log. Confirm the sending domain,
+Return-Path, sender, and transactional stream described in [Postmark
+operations](./postmark.md).
 
 ## 9. Create the stable public IP
 

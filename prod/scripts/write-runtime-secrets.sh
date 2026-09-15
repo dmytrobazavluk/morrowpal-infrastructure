@@ -8,6 +8,7 @@ readonly secrets_directory=/run/morrowpal/secrets
 : "${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD is required}"
 : "${JWT_SIGNING_SECRET:?JWT_SIGNING_SECRET is required}"
 : "${POSTMARK_SERVER_TOKEN:?POSTMARK_SERVER_TOKEN is required}"
+: "${STORE_REVIEW_VERIFICATION_CODE:?STORE_REVIEW_VERIFICATION_CODE is required}"
 
 install -d -o root -g root -m 0700 "$secrets_directory"
 
@@ -27,3 +28,4 @@ write_secret "$secrets_directory/mysql-app-password" "$MYSQL_APP_PASSWORD"
 write_secret "$secrets_directory/mysql-root-password" "$MYSQL_ROOT_PASSWORD"
 write_secret "$secrets_directory/jwt-signing-secret" "$JWT_SIGNING_SECRET"
 write_secret "$secrets_directory/postmark-server-token" "$POSTMARK_SERVER_TOKEN"
+write_secret "$secrets_directory/store-review-verification-code" "$STORE_REVIEW_VERIFICATION_CODE"

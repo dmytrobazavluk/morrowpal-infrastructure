@@ -176,6 +176,7 @@ export MYSQL_APP_PASSWORD='{{resolve:secretsmanager:morrowpal/prod/mysql:SecretS
 export MYSQL_ROOT_PASSWORD='{{resolve:secretsmanager:morrowpal/prod/mysql-root:SecretString:password}}'
 export JWT_SIGNING_SECRET='{{resolve:secretsmanager:morrowpal/prod/jwt:SecretString:value}}'
 export POSTMARK_SERVER_TOKEN='{{resolve:secretsmanager:morrowpal/prod/postmark:SecretString:serverToken}}'
+export STORE_REVIEW_VERIFICATION_CODE='{{resolve:secretsmanager:morrowpal/prod/store-review:SecretString:value}}'
 
 secrets_resolved=false
 for _ in {1..6}; do
@@ -190,7 +191,7 @@ done
     exit 1
 }
 
-unset MYSQL_APP_PASSWORD MYSQL_ROOT_PASSWORD JWT_SIGNING_SECRET POSTMARK_SERVER_TOKEN
+unset MYSQL_APP_PASSWORD MYSQL_ROOT_PASSWORD JWT_SIGNING_SECRET POSTMARK_SERVER_TOKEN STORE_REVIEW_VERIFICATION_CODE
 
 if [[ "$action" == refresh-secrets ]]; then
     exit 0

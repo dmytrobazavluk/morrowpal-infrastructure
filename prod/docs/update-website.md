@@ -70,6 +70,7 @@ recorded website tag.
 ansible 01 -b -m command -a '/usr/local/sbin/morrowpal-service status'
 curl --fail --show-error --silent https://morrowpal.com/ready
 curl --head https://morrowpal.com/
+curl --head https://morrowpal.com/privacy/
 curl --head https://morrowpal.com/robots.txt
 curl --head https://morrowpal.com/sitemap.xml
 curl --head https://www.morrowpal.com/

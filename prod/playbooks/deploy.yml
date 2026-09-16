@@ -6,8 +6,8 @@
 
   vars:
     morrowpal_root: /opt/morrowpal
-    asm_exec_version: fa92497351cca80bdd90f42845cbef6bd8c5175c
-    asm_exec_checksum: d55eb38ad33a5b76f584ca180f633ecc120cf39b8fd29427ffbe11a8fbf19556
+    asm_exec_version: 6d1de54ace0ba876d8c1d099fe5d7d8a7e8d384c
+    asm_exec_checksum: 05a9f8164b63b286bcf88bf4223c95b799e0ecaada45ddcd805567f57b20299f
     asm_exec_url: >-
       https://raw.githubusercontent.com/aws/agent-toolkit-for-aws/{{ asm_exec_version
       }}/plugins/aws-core/skills/aws-secrets-manager/references/asm-exec

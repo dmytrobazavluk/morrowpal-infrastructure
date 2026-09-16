@@ -1,8 +1,9 @@
 # Store-review Account Operations
 
 The application-store review account uses
-`store-revirew@morrowpal.com`. Flyway migration
-`V6__add_store_review_account.sql` creates the account and its dispatch state.
+`store-review@morrowpal.com`. Flyway migration
+`V6__add_store_review_account.sql` creates the account and its dispatch state,
+and `V7__correct_store_review_email.sql` corrects the original email typo.
 
 The account follows the normal sign-in API and client flow. Starting sign-in
 creates a rate-limited request with the normal 15-minute lifetime, but the

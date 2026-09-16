@@ -21,7 +21,7 @@ x-api-environment: &api-environment
   APP_API_DB_MIN_IDLE: "1"
   APP_AUTH_ACCESS_TOKEN_TTL_SECONDS: "900"
   APP_AUTH_REFRESH_TOKEN_TTL_DAYS: "365"
-  APP_AUTH_STORE_REVIEW_EMAIL: "store-revirew@morrowpal.com"
+  APP_AUTH_STORE_REVIEW_EMAIL: "store-review@morrowpal.com"
   APP_API_CORS_ALLOWED_ORIGIN_PATTERNS: "https://app.morrowpal.com"
   APP_EMAIL_PROVIDER: postmark
   APP_EMAIL_POSTMARK_FROM_ADDRESS: "MorrowPal <verification-code@morrowpal.com>"

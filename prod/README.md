@@ -12,6 +12,7 @@ otherwise.
 - [Update production infrastructure](./docs/update-infrastructure.md)
 - [Update the backend](./docs/update-backend.md)
 - [Postmark operations](./docs/postmark.md)
+- [Child safety incident response](./docs/child-safety-response.md)
 - [Update the app](./docs/update-app.md)
 - [Update the website](./docs/update-website.md)
 - [Production TLS](./docs/tls.md)

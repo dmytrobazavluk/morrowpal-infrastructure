@@ -8,6 +8,7 @@ COPY --chown=101:101 nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=website --chown=101:101 index.html robots.txt sitemap.xml styles.css /usr/share/nginx/html/
 COPY --from=website --chown=101:101 assets/ /usr/share/nginx/html/assets/
 COPY --from=website --chown=101:101 privacy/ /usr/share/nginx/html/privacy/
+COPY --from=website --chown=101:101 child-safety/ /usr/share/nginx/html/child-safety/
 
 USER 101:101
 

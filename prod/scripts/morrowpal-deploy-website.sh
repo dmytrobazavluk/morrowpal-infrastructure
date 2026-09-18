@@ -82,7 +82,10 @@ wait_for_website() {
                         https://morrowpal.com/ready >/dev/null 2>&1 && \
                     curl --fail --silent --show-error \
                         --resolve morrowpal.com:443:127.0.0.1 \
-                        https://morrowpal.com/ >/dev/null 2>&1; then
+                        https://morrowpal.com/ >/dev/null 2>&1 && \
+                    curl --fail --silent --show-error \
+                        --resolve morrowpal.com:443:127.0.0.1 \
+                        https://morrowpal.com/child-safety/ >/dev/null 2>&1; then
                 return 0
             fi
         fi

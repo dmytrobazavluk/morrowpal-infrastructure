@@ -461,3 +461,15 @@
       until: morrowpal_website_landing_page.status == 200
       check_mode: false
       when: not ansible_check_mode or morrowpal_website_tag_stat.stat.exists
+
+    - name: Verify the website child safety page
+      ansible.builtin.uri:
+        url: https://morrowpal.com/child-safety/
+        status_code: 200
+        return_content: false
+      register: morrowpal_website_child_safety_page
+      retries: 12
+      delay: 5
+      until: morrowpal_website_child_safety_page.status == 200
+      check_mode: false
+      when: not ansible_check_mode or morrowpal_website_tag_stat.stat.exists

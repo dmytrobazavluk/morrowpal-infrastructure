@@ -57,7 +57,7 @@ static_resources:
                         json_format:
                           duration_ms: "%DURATION%"
                           method: "%REQ(:METHOD)%"
-                          path: "%REQ(X-ENVOY-ORIGINAL-PATH?:PATH)%"
+                          path: "%PATH(NQ)%"
                           response_code: "%RESPONSE_CODE%"
                           response_flags: "%RESPONSE_FLAGS%"
                           upstream_host: "%UPSTREAM_HOST%"
@@ -229,7 +229,7 @@ static_resources:
                           authority: "%REQ(:AUTHORITY)%"
                           duration_ms: "%DURATION%"
                           method: "%REQ(:METHOD)%"
-                          path: "%REQ(X-ENVOY-ORIGINAL-PATH?:PATH)%"
+                          path: "%PATH(NQ)%"
                           response_code: "%RESPONSE_CODE%"
                           response_flags: "%RESPONSE_FLAGS%"
                           upstream_host: "%UPSTREAM_HOST%"

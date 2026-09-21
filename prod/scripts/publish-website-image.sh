@@ -162,7 +162,7 @@ require_command aws
 require_command docker
 require_command sha256sum
 
-for required_path in index.html robots.txt sitemap.xml styles.css assets privacy child-safety; do
+for required_path in index.html robots.txt sitemap.xml styles.css assets privacy child-safety notifications; do
     [[ -e "$website_dir/$required_path" ]] \
         || fail "Website source is missing: $website_dir/$required_path"
 done
@@ -171,7 +171,7 @@ source_sha="$(
     cd "$website_dir"
     {
         printf '%s\0' index.html robots.txt sitemap.xml styles.css
-        find assets privacy child-safety -type f -print0
+        find assets privacy child-safety notifications -type f -print0
     } | sort -z | xargs -0 sha256sum | sha256sum | cut -c1-7
 )"
 readonly source_sha

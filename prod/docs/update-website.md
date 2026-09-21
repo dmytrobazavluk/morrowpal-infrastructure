@@ -4,8 +4,8 @@ Run commands from `infrastructure/prod`.
 
 The production landing-page container is defined in `../website`. The publisher
 supplies the sibling `www` directory as a named Docker build context and copies
-only the deployable HTML, CSS, crawler files, and assets into the image. The
-Flutter app image remains separate.
+only the deployable HTML, CSS, crawler files, JavaScript, and assets into the
+image. The Flutter app image remains separate.
 
 ## 1. Preconditions
 
@@ -19,6 +19,10 @@ ansible production -m ping
 ```
 
 The AWS account must be `384078510608`.
+
+The dispatch email confirmation page also requires the API Compose setting to
+allow `https://morrowpal.com` as a CORS origin. Deploy the accompanying Compose
+change before enabling emails that link to this page.
 
 ## 2. Publish the Website Image
 
@@ -72,6 +76,7 @@ curl --fail --show-error --silent https://morrowpal.com/ready
 curl --head https://morrowpal.com/
 curl --head https://morrowpal.com/privacy/
 curl --head https://morrowpal.com/child-safety/
+curl --head https://morrowpal.com/notifications/disable/
 curl --head https://morrowpal.com/robots.txt
 curl --head https://morrowpal.com/sitemap.xml
 curl --head https://www.morrowpal.com/

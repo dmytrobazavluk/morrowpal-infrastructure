@@ -1,8 +1,8 @@
 # Postmark Operations
 
-Postmark delivers production verification codes for sign-up, sign-in, adding an
-email address, and changing an account email address. This document records the
-long-lived production configuration and its operational procedures.
+Postmark delivers production verification codes and delayed dispatch activity
+notifications. This document records the long-lived production configuration
+and its operational procedures.
 
 For a new production environment, follow
 [Install production from scratch](./install-from-scratch.md). For a routine
@@ -20,12 +20,12 @@ The `MorrowPal Production` Postmark server must have:
 Because the domain is verified, a separate sender signature for
 `verification-code@morrowpal.com` is not required. The application uses a
 Postmark Server API Token belonging to this server, not an Account API Token.
-Inbound and broadcast streams are not used for verification-code email.
+Inbound and broadcast streams are not used for application email.
 
 The non-secret sender, stream, and timeout settings live in
-`docker-compose.yml`. The backend owns the verification-code content and uses
-the same configured expiration interval when generating the code and rendering
-the email.
+`docker-compose.yml`. The backend owns verification-code and dispatch-notification
+content. Dispatch notifications are sent only after their configurable queue
+age has elapsed without a successful client synchronization.
 
 ## Secret ownership and runtime loading
 
@@ -37,7 +37,8 @@ The EC2 instance role has narrowly scoped access to that secret. At service
 startup, `asm-exec` resolves the dynamic reference
 `{{resolve:secretsmanager:morrowpal/prod/postmark:SecretString:serverToken}}`
 and writes a root-protected runtime file under `/run`. Docker mounts that file
-only into the API containers; the job containers do not receive the token.
+into the API containers and the dispatch job container. The cleanup job does
+not receive the token.
 
 Create the secret through the CloudFormation procedure in
 [Install production from scratch](./install-from-scratch.md). Enter or replace
@@ -65,11 +66,12 @@ their injected token until they are recreated.
 4. Deploy a fresh immutable backend tag using
    [Update the backend](./update-backend.md).
 5. Complete the verification checks below.
-6. Revoke the previous token in Postmark only after both API slots have been
-   recreated and delivery through the replacement token is confirmed.
+6. Revoke the previous token in Postmark only after both API slots and the
+   dispatch job have been recreated and delivery through the replacement token
+   is confirmed.
 
-Do not revoke the current token first. Doing so can interrupt verification-code
-delivery while existing API containers still use it.
+Do not revoke the current token first. Doing so can interrupt email delivery
+while existing API or dispatch job containers still use it.
 
 ## Verify delivery
 
@@ -89,6 +91,9 @@ After initial installation, token rotation, or a related backend change:
 4. Check Postmark Activity for the accepted message.
 5. When the change affects verification workflows, also exercise adding an
    email address and changing an account email address.
+6. When the change affects dispatch notifications, allow a dispatch containing
+   inbound activity to remain unsynchronized beyond the configured queue age
+   and confirm that its notification is accepted by Postmark.
 
 If Postmark rejects or cannot accept a message, the API returns `503`. The
 verification request has already committed, and a retry creates a fresh request

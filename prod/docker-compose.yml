@@ -201,7 +201,15 @@ services:
       APP_JOBS_DISPATCH_POLL_INTERVAL_MS: "30000"
       APP_JOBS_DISPATCH_BATCH_SIZE: "50"
       APP_JOBS_DISPATCH_LEASE_DURATION_MS: "600000"
+      APP_JOBS_DISPATCH_EMAIL_BATCH_SIZE: "50"
+      APP_JOBS_DISPATCH_EMAIL_MINIMUM_AGE_MS: "300000"
+      APP_JOBS_DISPATCH_EMAIL_LEASE_DURATION_MS: "600000"
       APP_JOBS_CLEANUP_ENABLED: "false"
+      APP_EMAIL_PROVIDER: postmark
+      APP_EMAIL_POSTMARK_FROM_ADDRESS: "MorrowPal <verification-code@morrowpal.com>"
+      APP_EMAIL_POSTMARK_MESSAGE_STREAM: outbound
+      APP_EMAIL_POSTMARK_CONNECT_TIMEOUT_MILLIS: "5000"
+      APP_EMAIL_POSTMARK_READ_TIMEOUT_MILLIS: "10000"
       APP_DISPATCH_DELAY_MINUTES: "240"
       APP_DISPATCH_GRANULARITY_MINUTES: "5"
       JAVA_TOOL_OPTIONS: >-
@@ -212,6 +220,7 @@ services:
       - |
         export DB_PASSWORD="$$(cat /run/secrets/mysql_app_password)"
         export APP_AUTH_JWT_SECRET="$$(cat /run/secrets/jwt_signing_secret)"
+        export APP_EMAIL_POSTMARK_SERVER_TOKEN="$$(cat /run/secrets/postmark_server_token)"
         exec java -jar /app/app.jar
     depends_on:
       mysql:
@@ -219,6 +228,7 @@ services:
     secrets:
       - mysql_app_password
       - jwt_signing_secret
+      - postmark_server_token
 
   backend-job-cleanup:
     <<: *backend-common

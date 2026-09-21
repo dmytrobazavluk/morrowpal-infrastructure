@@ -120,6 +120,9 @@ WHERE account_id = @account_id;
 DELETE FROM account_email_request
 WHERE account_id = @account_id;
 
+DELETE FROM dispatch_email_notification
+WHERE account_id = @account_id;
+
 DELETE FROM session_request
 WHERE account_id = @account_id;
 

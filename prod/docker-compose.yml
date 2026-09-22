@@ -24,7 +24,7 @@ x-api-environment: &api-environment
   APP_AUTH_STORE_REVIEW_EMAIL: "store-review@morrowpal.com"
   APP_API_CORS_ALLOWED_ORIGIN_PATTERNS: "https://app.morrowpal.com,https://morrowpal.com"
   APP_EMAIL_PROVIDER: postmark
-  APP_EMAIL_POSTMARK_FROM_ADDRESS: "MorrowPal <verification-code@morrowpal.com>"
+  APP_EMAIL_POSTMARK_OTP_FROM_ADDRESS: "MorrowPal <verification-code@morrowpal.com>"
   APP_EMAIL_POSTMARK_MESSAGE_STREAM: outbound
   APP_EMAIL_VERIFICATION_CODE_TTL_SECONDS: "900"
   APP_EMAIL_OTP_SEND_COOLDOWN_SECONDS: "1"
@@ -206,7 +206,7 @@ services:
       APP_JOBS_DISPATCH_EMAIL_LEASE_DURATION_MS: "600000"
       APP_JOBS_CLEANUP_ENABLED: "false"
       APP_EMAIL_PROVIDER: postmark
-      APP_EMAIL_POSTMARK_FROM_ADDRESS: "MorrowPal <verification-code@morrowpal.com>"
+      APP_EMAIL_POSTMARK_DISPATCH_FROM_ADDRESS: "MorrowPal <notifications@morrowpal.com>"
       APP_EMAIL_POSTMARK_MESSAGE_STREAM: outbound
       APP_EMAIL_DISPATCH_OPT_OUT_URL: https://morrowpal.com/notifications/disable/
       APP_EMAIL_POSTMARK_CONNECT_TIMEOUT_MILLIS: "5000"

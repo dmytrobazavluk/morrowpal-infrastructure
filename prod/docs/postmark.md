@@ -14,11 +14,12 @@ The `MorrowPal Production` Postmark server must have:
 
 - the `morrowpal.com` sending domain verified through DKIM
 - a verified custom Return-Path for `morrowpal.com`
-- `MorrowPal <verification-code@morrowpal.com>` as the application sender
+- `MorrowPal <verification-code@morrowpal.com>` for verification codes
+- `MorrowPal <notifications@morrowpal.com>` for dispatch notifications
 - the default transactional message stream id `outbound`
 
 Because the domain is verified, a separate sender signature for
-`verification-code@morrowpal.com` is not required. The application uses a
+either address is not required. The application uses a
 Postmark Server API Token belonging to this server, not an Account API Token.
 Inbound and broadcast streams are not used for application email.
 
@@ -93,7 +94,8 @@ After initial installation, token rotation, or a related backend change:
    email address and changing an account email address.
 6. When the change affects dispatch notifications, allow a dispatch containing
    inbound activity to remain unsynchronized beyond the configured queue age
-   and confirm that its notification is accepted by Postmark.
+   and confirm that its notification arrives from
+   `MorrowPal <notifications@morrowpal.com>` and is accepted by Postmark.
 
 If Postmark rejects or cannot accept a message, the API returns `503`. The
 verification request has already committed, and a retry creates a fresh request

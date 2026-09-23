@@ -31,6 +31,7 @@ services:
       DB_NAME: morrowpal
       DB_USER: morrowpal
       DB_PASSWORD: morrowpal
+      APP_AUTH_JWT_SECRET: change-me-local-development-secret
       APP_EMAIL_OTP_SEND_COOLDOWN_SECONDS: "1"
       APP_EMAIL_OTP_SENDS_PER_HOUR: "5"
       APP_EMAIL_OTP_FAILED_ATTEMPTS_PER_HOUR: "10"
@@ -54,6 +55,7 @@ services:
       DB_NAME: morrowpal
       DB_USER: morrowpal
       DB_PASSWORD: morrowpal
+      APP_AUTH_JWT_SECRET: change-me-local-development-secret
       APP_JOB_DB_MAX_POOL_SIZE: "4"
       APP_JOB_DB_MIN_IDLE: "1"
       APP_JOB_DB_CONNECTION_TIMEOUT_MS: "30000"
@@ -81,6 +83,7 @@ services:
       DB_NAME: morrowpal
       DB_USER: morrowpal
       DB_PASSWORD: morrowpal
+      APP_AUTH_JWT_SECRET: change-me-local-development-secret
       APP_JOB_DB_MAX_POOL_SIZE: "2"
       APP_JOB_DB_MIN_IDLE: "1"
       APP_JOB_DB_CONNECTION_TIMEOUT_MS: "30000"

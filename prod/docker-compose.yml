@@ -41,10 +41,15 @@ x-api-environment: &api-environment
 
 x-api-command: &api-command
   - |
-    export DB_PASSWORD="$$(cat /run/secrets/mysql_app_password)"
-    export APP_AUTH_JWT_SECRET="$$(cat /run/secrets/jwt_signing_secret)"
-    export APP_AUTH_STORE_REVIEW_VERIFICATION_CODE="$$(cat /run/secrets/store_review_verification_code)"
-    export APP_EMAIL_POSTMARK_SERVER_TOKEN="$$(cat /run/secrets/postmark_server_token)"
+    DB_PASSWORD="$$(cat /run/secrets/mysql_app_password)"
+    APP_AUTH_JWT_SECRET="$$(cat /run/secrets/jwt_signing_secret)"
+    APP_AUTH_STORE_REVIEW_VERIFICATION_CODE="$$(cat /run/secrets/store_review_verification_code)"
+    APP_EMAIL_POSTMARK_SERVER_TOKEN="$$(cat /run/secrets/postmark_server_token)"
+    : "$${DB_PASSWORD:?mysql_app_password is empty}"
+    : "$${APP_AUTH_JWT_SECRET:?jwt_signing_secret is empty}"
+    : "$${APP_AUTH_STORE_REVIEW_VERIFICATION_CODE:?store_review_verification_code is empty}"
+    : "$${APP_EMAIL_POSTMARK_SERVER_TOKEN:?postmark_server_token is empty}"
+    export DB_PASSWORD APP_AUTH_JWT_SECRET APP_AUTH_STORE_REVIEW_VERIFICATION_CODE APP_EMAIL_POSTMARK_SERVER_TOKEN
     exec java -jar /app/app.jar
 
 services:
@@ -219,9 +224,13 @@ services:
     entrypoint: ["/bin/sh", "-ec"]
     command:
       - |
-        export DB_PASSWORD="$$(cat /run/secrets/mysql_app_password)"
-        export APP_AUTH_JWT_SECRET="$$(cat /run/secrets/jwt_signing_secret)"
-        export APP_EMAIL_POSTMARK_SERVER_TOKEN="$$(cat /run/secrets/postmark_server_token)"
+        DB_PASSWORD="$$(cat /run/secrets/mysql_app_password)"
+        APP_AUTH_JWT_SECRET="$$(cat /run/secrets/jwt_signing_secret)"
+        APP_EMAIL_POSTMARK_SERVER_TOKEN="$$(cat /run/secrets/postmark_server_token)"
+        : "$${DB_PASSWORD:?mysql_app_password is empty}"
+        : "$${APP_AUTH_JWT_SECRET:?jwt_signing_secret is empty}"
+        : "$${APP_EMAIL_POSTMARK_SERVER_TOKEN:?postmark_server_token is empty}"
+        export DB_PASSWORD APP_AUTH_JWT_SECRET APP_EMAIL_POSTMARK_SERVER_TOKEN
         exec java -jar /app/app.jar
     depends_on:
       mysql:
@@ -252,8 +261,11 @@ services:
     entrypoint: ["/bin/sh", "-ec"]
     command:
       - |
-        export DB_PASSWORD="$$(cat /run/secrets/mysql_app_password)"
-        export APP_AUTH_JWT_SECRET="$$(cat /run/secrets/jwt_signing_secret)"
+        DB_PASSWORD="$$(cat /run/secrets/mysql_app_password)"
+        APP_AUTH_JWT_SECRET="$$(cat /run/secrets/jwt_signing_secret)"
+        : "$${DB_PASSWORD:?mysql_app_password is empty}"
+        : "$${APP_AUTH_JWT_SECRET:?jwt_signing_secret is empty}"
+        export DB_PASSWORD APP_AUTH_JWT_SECRET
         exec java -jar /app/app.jar
     depends_on:
       mysql:

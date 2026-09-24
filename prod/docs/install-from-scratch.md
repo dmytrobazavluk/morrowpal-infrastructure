@@ -48,7 +48,8 @@ cfn-lint --format json --regions us-east-2 \
   ./cloudformation/public-ip.yml \
   ./cloudformation/http-validation-ingress.yml \
   ./cloudformation/mysql-storage.yml \
-  ./cloudformation/runtime-secrets.yml
+  ./cloudformation/runtime-secrets.yml \
+  ./cloudformation/system-alerts.yml
 ```
 
 Validate each template with AWS before creating its change set:
@@ -61,7 +62,8 @@ for template in \
   public-ip.yml \
   http-validation-ingress.yml \
   mysql-storage.yml \
-  runtime-secrets.yml
+  runtime-secrets.yml \
+  system-alerts.yml
 do
   aws cloudformation validate-template \
     --template-body "file://./cloudformation/$template" \
@@ -344,6 +346,10 @@ aws cloudformation wait stack-create-complete \
 
 At runtime, `asm-exec` resolves dynamic references through the instance role
 and writes short-lived root-protected files under `/run` for Docker Compose.
+
+Before starting the backend, create the SNS topic and email subscriptions as
+described in [Internal system alerts](./system-alerts.md). Confirm every
+subscription and compare the topic ARN output with Docker Compose.
 
 Before starting the backend API, replace the generated `serverToken` value in
 `morrowpal/prod/postmark` with the production Postmark Server API Token using

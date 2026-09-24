@@ -1,0 +1,129 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: SNS topic, team email subscriptions, and scoped EC2 publish access for MorrowPal production system alerts.
+
+Metadata:
+  AWSToolsMetrics:
+    AWSAgentToolkit: aws-cloudformation@1
+
+Parameters:
+  Environment:
+    Type: String
+    Default: prod
+    AllowedValues:
+      - prod
+    Description: Deployment environment used in the topic name and tags.
+
+  ProductionEc2RoleName:
+    Type: String
+    MinLength: 1
+    MaxLength: 64
+    AllowedPattern: '[A-Za-z0-9+=,.@_-]+'
+    Description: Physical name of the IAM role attached to production instance 01.
+
+  PrimaryAlertEmail:
+    Type: String
+    MinLength: 3
+    AllowedPattern: '[^@\s]+@[^@\s]+\.[^@\s]+'
+    Description: First team email address for system alerts; the owner must confirm the SNS subscription.
+
+  SecondaryAlertEmail:
+    Type: String
+    Default: ''
+    AllowedPattern: '([^@\s]+@[^@\s]+\.[^@\s]+)?'
+    Description: Optional second team email address for system alerts.
+
+  TertiaryAlertEmail:
+    Type: String
+    Default: ''
+    AllowedPattern: '([^@\s]+@[^@\s]+\.[^@\s]+)?'
+    Description: Optional third team email address for system alerts.
+
+Conditions:
+  HasSecondaryAlertEmail: !Not [!Equals [!Ref SecondaryAlertEmail, '']]
+  HasTertiaryAlertEmail: !Not [!Equals [!Ref TertiaryAlertEmail, '']]
+
+Resources:
+  SystemAlertsTopic:
+    Type: AWS::SNS::Topic
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: Routes backend operational events to confirmed team email subscriptions.
+        must: Remain a standard topic and keep its name aligned with APP_SYSTEM_ALERTS_TOPIC_ARN in Docker Compose.
+    Properties:
+      TopicName: !Sub morrowpal-${Environment}-system-alerts
+      KmsMasterKeyId: alias/aws/sns
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: morrowpal
+
+  PrimarySubscription:
+    Type: AWS::SNS::Subscription
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: Sends every system alert to the primary team inbox after its owner confirms the subscription.
+        must: Use the email protocol on the standard system alerts topic.
+    Properties:
+      Protocol: email
+      Endpoint: !Ref PrimaryAlertEmail
+      TopicArn: !Ref SystemAlertsTopic
+
+  SecondarySubscription:
+    Type: AWS::SNS::Subscription
+    Condition: HasSecondaryAlertEmail
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: Sends every system alert to an optional second team inbox after confirmation.
+        must: Use the email protocol on the standard system alerts topic.
+    Properties:
+      Protocol: email
+      Endpoint: !Ref SecondaryAlertEmail
+      TopicArn: !Ref SystemAlertsTopic
+
+  TertiarySubscription:
+    Type: AWS::SNS::Subscription
+    Condition: HasTertiaryAlertEmail
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: Sends every system alert to an optional third team inbox after confirmation.
+        must: Use the email protocol on the standard system alerts topic.
+    Properties:
+      Protocol: email
+      Endpoint: !Ref TertiaryAlertEmail
+      TopicArn: !Ref SystemAlertsTopic
+
+  SystemAlertsPublishPolicy:
+    Type: AWS::IAM::Policy
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: Allows the backend containers on the production EC2 host to publish system alerts.
+        must: Grant sns:Publish only for SystemAlertsTopic.
+    Properties:
+      PolicyName: !Sub ${AWS::StackName}-publish
+      Roles:
+        - !Ref ProductionEc2RoleName
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: PublishSystemAlerts
+            Effect: Allow
+            Action: sns:Publish
+            Resource: !Ref SystemAlertsTopic
+          - Sid: EncryptSystemAlerts
+            Effect: Allow
+            Action:
+              - kms:GenerateDataKey*
+              - kms:Decrypt
+            Resource: !Sub arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/*
+            Condition:
+              ForAnyValue:StringEquals:
+                kms:ResourceAliases: alias/aws/sns
+              StringEquals:
+                kms:ViaService: !Sub sns.${AWS::Region}.amazonaws.com
+                kms:EncryptionContext:aws:sns:topicArn: !Ref SystemAlertsTopic
+
+Outputs:
+  SystemAlertsTopicArn:
+    Description: SNS topic ARN used by APP_SYSTEM_ALERTS_TOPIC_ARN in the backend deployment configuration.
+    Value: !Ref SystemAlertsTopic

@@ -13,6 +13,10 @@ x-backend-common: &backend-common
     - no-new-privileges:true
 
 x-api-environment: &api-environment
+  AWS_REGION: us-east-2
+  APP_SYSTEM_ALERTS_PROVIDER: sns
+  APP_SYSTEM_ALERTS_TOPIC_ARN: arn:aws:sns:us-east-2:384078510608:morrowpal-prod-system-alerts
+  APP_SYSTEM_ALERTS_PUBLISH_TIMEOUT_MILLIS: "3000"
   DB_HOST: mysql
   DB_PORT: "3306"
   DB_NAME: morrowpal
@@ -196,6 +200,10 @@ services:
     mem_limit: 256m
     image: 384078510608.dkr.ecr.us-east-2.amazonaws.com/morrowpal/prod/backend-job:${JOB_IMAGE_TAG:?JOB_IMAGE_TAG is required}
     environment:
+      AWS_REGION: us-east-2
+      APP_SYSTEM_ALERTS_PROVIDER: sns
+      APP_SYSTEM_ALERTS_TOPIC_ARN: arn:aws:sns:us-east-2:384078510608:morrowpal-prod-system-alerts
+      APP_SYSTEM_ALERTS_PUBLISH_TIMEOUT_MILLIS: "3000"
       DB_HOST: mysql
       DB_PORT: "3306"
       DB_NAME: morrowpal

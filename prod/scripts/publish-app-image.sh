@@ -214,6 +214,7 @@ readonly image="$registry/$repository:$image_tag"
         --build-number="$build_number" \
         --dart-define="API_BASE_URL=$api_base_url"
     docker build \
+        --no-cache \
         --pull \
         --platform linux/amd64 \
         --build-context "web=$app_dir/build/web" \

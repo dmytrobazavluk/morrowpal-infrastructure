@@ -227,6 +227,7 @@ printf 'Publishing backend commit %s as %s\n' "$GIT_SHA" "$IMAGE_TAG"
     ./gradlew test apiTest jobTest --no-daemon
 
     docker build \
+        --no-cache-filter runtime-base \
         --pull \
         --platform linux/amd64 \
         --target api-runtime \
@@ -236,6 +237,7 @@ printf 'Publishing backend commit %s as %s\n' "$GIT_SHA" "$IMAGE_TAG"
         .
 
     docker build \
+        --no-cache-filter runtime-base \
         --pull \
         --platform linux/amd64 \
         --target job-runtime \

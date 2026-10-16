@@ -206,6 +206,8 @@ registry="$expected_aws_account_id.dkr.ecr.$aws_region.amazonaws.com"
 readonly image="$registry/$repository:$image_tag"
 
 docker build \
+    --no-cache \
+    --pull \
     --platform linux/amd64 \
     --build-context "website=$website_dir" \
     --label "org.opencontainers.image.revision=$source_sha" \

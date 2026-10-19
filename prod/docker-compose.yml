@@ -1,10 +1,17 @@
 name: morrowpal
 
+x-default-logging: &default-logging
+  driver: local
+  options:
+    max-size: "20m"
+    max-file: "5"
+
 x-backend-common: &backend-common
   restart: unless-stopped
   read_only: true
   user: "10001:10001"
   pids_limit: 256
+  logging: *default-logging
   tmpfs:
     - /tmp:size=64m,mode=1777
   cap_drop:
@@ -68,6 +75,7 @@ services:
     restart: unless-stopped
     mem_limit: 384m
     pids_limit: 256
+    logging: *default-logging
     environment:
       MYSQL_DATABASE: morrowpal
       MYSQL_USER: morrowpal
@@ -134,6 +142,7 @@ services:
     user: "101:101"
     mem_limit: 64m
     pids_limit: 64
+    logging: *default-logging
     tmpfs:
       - /tmp:size=16m,mode=1777
     cap_drop:
@@ -156,6 +165,7 @@ services:
     user: "101:101"
     mem_limit: 64m
     pids_limit: 64
+    logging: *default-logging
     tmpfs:
       - /tmp:size=16m,mode=1777
     cap_drop:
@@ -180,6 +190,7 @@ services:
       - "1901"
     mem_limit: 128m
     pids_limit: 128
+    logging: *default-logging
     tmpfs:
       - /tmp:size=32m,mode=1777
     cap_drop:

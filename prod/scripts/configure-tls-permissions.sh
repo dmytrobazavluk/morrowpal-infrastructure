@@ -28,14 +28,27 @@ chown "root:$tls_group_gid" "$lineage" "$archive"
 chmod 0750 "$lineage" "$archive"
 
 shopt -s nullglob
+certificate_files=(
+    "$archive"/cert*.pem
+    "$archive"/chain*.pem
+    "$archive"/fullchain*.pem
+)
 private_keys=("$archive"/privkey*.pem)
+(( ${#certificate_files[@]} > 0 )) || {
+    printf 'No certificate files found for certificate lineage: %s\n' "$certificate_name" >&2
+    exit 1
+}
 (( ${#private_keys[@]} > 0 )) || {
     printf 'No private keys found for certificate lineage: %s\n' "$certificate_name" >&2
     exit 1
 }
 
-chown "root:$tls_group_gid" "${private_keys[@]}"
-chmod 0640 "${private_keys[@]}"
+# The renewal service uses UMask=0027, so newly issued certificate files are
+# root:root 0640. Envoy runs as an unprivileged user in tls_group_gid and must
+# be able to read both the certificate chain and its private key before SDS can
+# replace the active certificate.
+chown "root:$tls_group_gid" "${certificate_files[@]}" "${private_keys[@]}"
+chmod 0640 "${certificate_files[@]}" "${private_keys[@]}"
 
 # Certbot updates its live symlinks before running deploy hooks. Replacing the
 # two watched links after fixing permissions gives Envoy an atomic move event at

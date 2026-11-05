@@ -232,9 +232,17 @@ services:
       APP_JOBS_DISPATCH_BATCH_SIZE: "50"
       APP_JOBS_DISPATCH_LEASE_DURATION_MS: "600000"
       APP_JOBS_DISPATCH_EMAIL_BATCH_SIZE: "50"
-      APP_JOBS_DISPATCH_EMAIL_MINIMUM_AGE_MS: "300000"
+      APP_JOBS_DISPATCH_EMAIL_MINIMUM_AGE_MS: "120000"
       APP_JOBS_DISPATCH_EMAIL_LEASE_DURATION_MS: "600000"
+      APP_JOBS_DISPATCH_APP_NOTIFICATIONS_BATCH_SIZE: "100"
+      APP_JOBS_DISPATCH_APP_NOTIFICATIONS_MINIMUM_AGE_MS: "120000"
+      APP_JOBS_DISPATCH_APP_NOTIFICATIONS_LEASE_DURATION_MS: "600000"
       APP_JOBS_CLEANUP_ENABLED: "false"
+      APP_APP_NOTIFICATIONS_PROVIDER: firebase
+      APP_APP_NOTIFICATIONS_FIREBASE_PROJECT_ID: morrowpal
+      APP_APP_NOTIFICATIONS_FIREBASE_CONNECT_TIMEOUT_MILLIS: "5000"
+      APP_APP_NOTIFICATIONS_FIREBASE_READ_TIMEOUT_MILLIS: "10000"
+      GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/firebase_service_account
       APP_EMAIL_PROVIDER: postmark
       APP_EMAIL_POSTMARK_DISPATCH_FROM_ADDRESS: "MorrowPal <notifications@morrowpal.com>"
       APP_EMAIL_POSTMARK_MESSAGE_STREAM: outbound
@@ -264,6 +272,7 @@ services:
       - mysql_app_password
       - jwt_signing_secret
       - postmark_server_token
+      - firebase_service_account
 
   backend-job-cleanup:
     <<: *backend-common
@@ -308,5 +317,7 @@ secrets:
     file: /run/morrowpal/secrets/jwt-signing-secret
   postmark_server_token:
     file: /run/morrowpal/secrets/postmark-server-token
+  firebase_service_account:
+    file: /run/morrowpal/secrets/firebase-service-account.json
   store_review_verification_code:
     file: /run/morrowpal/secrets/store-review-verification-code

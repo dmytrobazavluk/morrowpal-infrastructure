@@ -12,6 +12,7 @@ otherwise.
 - [Update production infrastructure](./docs/update-infrastructure.md)
 - [Update the backend](./docs/update-backend.md)
 - [Postmark operations](./docs/postmark.md)
+- [Firebase app notification operations](./docs/firebase-app-notifications.md)
 - [Internal system alerts](./docs/system-alerts.md)
 - [Child safety incident response](./docs/child-safety-response.md)
 - [Update the app](./docs/update-app.md)
@@ -70,9 +71,9 @@ The remaining private services are:
 - `backend-job-cleanup`
 
 MySQL data lives on a separately retained, encrypted EBS volume. Runtime
-passwords, the JWT signing secret, the Postmark server token, and the
-store-review verification code live in AWS Secrets Manager and are resolved
-only at service startup.
+passwords, the JWT signing secret, the Postmark server token, the Firebase
+service account JSON, and the store-review verification code live in AWS
+Secrets Manager and are resolved only at service startup.
 
 ## Container Repositories
 

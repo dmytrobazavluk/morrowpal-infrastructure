@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: CloudFormation-managed EC2 host for MorrowPal production containers.
+Description: CloudFormation-managed EC2 host for MorrowPal containers.
 
 Parameters:
   Environment:
@@ -7,6 +7,7 @@ Parameters:
     Default: prod
     AllowedValues:
       - prod
+      - staging
     Description: Deployment environment used for resource tags.
 
   InstanceType:
@@ -15,7 +16,7 @@ Parameters:
     AllowedValues:
       - t3.small
       - t3.medium
-    Description: EC2 instance type for the production container host.
+    Description: EC2 instance type for the container host.
 
   LatestAmiId:
     Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
@@ -32,14 +33,14 @@ Parameters:
 
   SecurityGroupId:
     Type: AWS::EC2::SecurityGroup::Id
-    Description: Existing security group applied to the production container host.
+    Description: Existing security group applied to the container host.
 
   InstanceProfileName:
     Type: String
     MinLength: 1
     MaxLength: 128
     AllowedPattern: '[A-Za-z0-9+=,.@_-]+'
-    Description: Instance profile created by the MorrowPal production EC2 access stack.
+    Description: Instance profile created by the MorrowPal EC2 access stack.
 
   RootVolumeSizeGiB:
     Type: Number
@@ -89,7 +90,7 @@ Resources:
 
 Outputs:
   AvailabilityZone:
-    Description: Availability Zone of the production EC2 instance.
+    Description: Availability Zone of the EC2 instance.
     Value: !GetAtt ProductionInstance.AvailabilityZone
 
   InstanceId:
@@ -97,7 +98,7 @@ Outputs:
     Value: !Ref ProductionInstance
 
   PrivateIp:
-    Description: Private IPv4 address of the production EC2 instance.
+    Description: Private IPv4 address of the EC2 instance.
     Value: !GetAtt ProductionInstance.PrivateIp
 
   BootstrapPublicIp:

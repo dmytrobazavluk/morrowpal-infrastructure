@@ -5,7 +5,7 @@ set -Eeuo pipefail
 readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly PROD_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 readonly CLOUDFORMATION_DIR="$PROD_DIR/cloudformation"
-`readonly COMPOSE_BASELINE_FILE="$PROD_DIR/baselines/docker-compose-production.sha256"
+readonly COMPOSE_BASELINE_FILE="$PROD_DIR/baselines/docker-compose-production.sha256"
 readonly AWS_REGION="us-east-2"
 
 fail() {

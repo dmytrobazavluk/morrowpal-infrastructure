@@ -1,5 +1,5 @@
 [Unit]
-Description=Renew MorrowPal production TLS certificates
+Description=Renew MorrowPal TLS certificates
 After=network-online.target
 Wants=network-online.target
 

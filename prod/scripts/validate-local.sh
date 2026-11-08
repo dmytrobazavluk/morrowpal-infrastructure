@@ -78,6 +78,7 @@ main() {
     require_command sha256sum
 
     "$REPOSITORY_DIR/scripts/validate-environments.sh"
+    "$PROD_DIR/scripts/test-morrowpal-service.sh"
 
     docker compose version >/dev/null 2>&1 \
         || fail "Docker Compose plugin is not available"

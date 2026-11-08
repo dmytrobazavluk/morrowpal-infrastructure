@@ -2,9 +2,47 @@
 
 set -Eeuo pipefail
 
-readonly aws_region=us-east-2
-readonly registry=384078510608.dkr.ecr.us-east-2.amazonaws.com
-readonly deployment_root=/opt/morrowpal
+readonly environment_file=/etc/morrowpal/environment
+readonly runtime_config_library=/usr/local/libexec/morrowpal/runtime-config
+
+[[ -r "$environment_file" ]] || {
+    printf 'Environment configuration is missing: %s\n' "$environment_file" >&2
+    exit 1
+}
+[[ -r "$runtime_config_library" ]] || {
+    printf 'Runtime configuration library is missing: %s\n' "$runtime_config_library" >&2
+    exit 1
+}
+
+set -a
+# shellcheck source=/dev/null
+source "$environment_file"
+set +a
+# shellcheck source=morrowpal-runtime-config.sh
+source "$runtime_config_library"
+
+readonly -a required_environment_variables=(
+    MORROWPAL_AWS_REGION
+    MORROWPAL_ECR_REGISTRY
+    MORROWPAL_ECR_REPOSITORY_PREFIX
+    MORROWPAL_SECRETS_PREFIX
+    MORROWPAL_DEPLOYMENT_ROOT
+    MORROWPAL_APP_DOMAIN
+    MORROWPAL_WEBSITE_DOMAIN
+)
+for variable_name in "${required_environment_variables[@]}"; do
+    [[ -n "${!variable_name:-}" ]] || {
+        printf 'Required environment value is missing: %s\n' "$variable_name" >&2
+        exit 1
+    }
+done
+
+readonly aws_region="$MORROWPAL_AWS_REGION"
+readonly registry="$MORROWPAL_ECR_REGISTRY"
+readonly secrets_prefix="$MORROWPAL_SECRETS_PREFIX"
+readonly deployment_root="$MORROWPAL_DEPLOYMENT_ROOT"
+readonly app_domain="$MORROWPAL_APP_DOMAIN"
+readonly website_domain="$MORROWPAL_WEBSITE_DOMAIN"
 readonly compose_file="$deployment_root/docker-compose.yml"
 readonly blue_tag_file="$deployment_root/api-blue-image-tag"
 readonly green_tag_file="$deployment_root/api-green-image-tag"
@@ -38,6 +76,7 @@ compose() {
     APP_IMAGE_TAG="$app_tag" \
     WEBSITE_IMAGE_TAG="$website_tag" \
         docker compose \
+        --env-file "$environment_file" \
         --project-directory "$deployment_root" \
         --file "$compose_file" \
         "$@"
@@ -135,8 +174,8 @@ wait_for_api() {
 wait_for_app() {
     for _ in {1..30}; do
         if curl --fail --silent --show-error \
-                --resolve app.morrowpal.com:443:127.0.0.1 \
-                https://app.morrowpal.com/ready >/dev/null 2>&1; then
+                --resolve "${app_domain}:443:127.0.0.1" \
+                "https://${app_domain}/ready" >/dev/null 2>&1; then
             return 0
         fi
         sleep 2
@@ -149,11 +188,11 @@ wait_for_app() {
 wait_for_website() {
     for _ in {1..30}; do
         if curl --fail --silent --show-error \
-                --resolve morrowpal.com:443:127.0.0.1 \
-                https://morrowpal.com/ready >/dev/null 2>&1 && \
+                --resolve "${website_domain}:443:127.0.0.1" \
+                "https://${website_domain}/ready" >/dev/null 2>&1 && \
                 curl --fail --silent --show-error \
-                    --resolve morrowpal.com:443:127.0.0.1 \
-                    https://morrowpal.com/ >/dev/null 2>&1; then
+                    --resolve "${website_domain}:443:127.0.0.1" \
+                    "https://${website_domain}/" >/dev/null 2>&1; then
             return 0
         fi
         sleep 2
@@ -172,12 +211,12 @@ cleanup() {
 trap cleanup EXIT
 
 export AWS_REGION="$aws_region"
-export MYSQL_APP_PASSWORD='{{resolve:secretsmanager:morrowpal/prod/mysql:SecretString:password}}'
-export MYSQL_ROOT_PASSWORD='{{resolve:secretsmanager:morrowpal/prod/mysql-root:SecretString:password}}'
-export JWT_SIGNING_SECRET='{{resolve:secretsmanager:morrowpal/prod/jwt:SecretString:value}}'
-export POSTMARK_SERVER_TOKEN='{{resolve:secretsmanager:morrowpal/prod/postmark:SecretString:serverToken}}'
-export FIREBASE_SERVICE_ACCOUNT_JSON='{{resolve:secretsmanager:morrowpal/prod/firebase-service-account}}'
-export STORE_REVIEW_VERIFICATION_CODE='{{resolve:secretsmanager:morrowpal/prod/store-review:SecretString:value}}'
+export MYSQL_APP_PASSWORD="$(morrowpal_secret_reference "$secrets_prefix/mysql" password)"
+export MYSQL_ROOT_PASSWORD="$(morrowpal_secret_reference "$secrets_prefix/mysql-root" password)"
+export JWT_SIGNING_SECRET="$(morrowpal_secret_reference "$secrets_prefix/jwt" value)"
+export POSTMARK_SERVER_TOKEN="$(morrowpal_secret_reference "$secrets_prefix/postmark" serverToken)"
+export FIREBASE_SERVICE_ACCOUNT_JSON="$(morrowpal_secret_reference "$secrets_prefix/firebase-service-account")"
+export STORE_REVIEW_VERIFICATION_CODE="$(morrowpal_secret_reference "$secrets_prefix/store-review" value)"
 
 secrets_resolved=false
 for _ in {1..6}; do

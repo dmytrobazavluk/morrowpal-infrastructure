@@ -163,6 +163,31 @@
         group: root
         mode: "0755"
 
+    - name: Create the MorrowPal configuration directory
+      ansible.builtin.file:
+        path: /etc/morrowpal
+        state: directory
+        owner: root
+        group: root
+        mode: "0750"
+
+    - name: Install the selected environment configuration
+      ansible.builtin.template:
+        src: ../templates/compose.env.j2
+        dest: /etc/morrowpal/environment
+        owner: root
+        group: root
+        mode: "0640"
+      register: morrowpal_environment_config
+
+    - name: Install the runtime configuration library
+      ansible.builtin.copy:
+        src: ../scripts/morrowpal-runtime-config.sh
+        dest: /usr/local/libexec/morrowpal/runtime-config
+        owner: root
+        group: root
+        mode: "0644"
+
     - name: Create the Envoy configuration directory
       ansible.builtin.file:
         path: "{{ morrowpal_root }}/envoy"
@@ -291,6 +316,7 @@
             (not morrowpal_app_tag_stat.stat.exists) or
             (not morrowpal_website_tag_stat.stat.exists) or
             (morrowpal_compose_file is changed) or
+            (morrowpal_environment_config is changed) or
             (morrowpal_envoy_config is changed) or
             (morrowpal_envoy_tls_sds_config is changed)
           }}
@@ -353,7 +379,7 @@
           - "{{ morrowpal_image_tag }}"
       when:
         - morrowpal_blue_tag_stat.stat.exists
-        - morrowpal_compose_file is changed
+        - (morrowpal_compose_file is changed) or (morrowpal_environment_config is changed)
         - morrowpal_image_tag is defined
 
     - name: Roll changed API configuration with current releases
@@ -363,7 +389,7 @@
           - --force-recreate
       when:
         - morrowpal_blue_tag_stat.stat.exists
-        - morrowpal_compose_file is changed
+        - (morrowpal_compose_file is changed) or (morrowpal_environment_config is changed)
         - morrowpal_image_tag is not defined
 
     - name: Roll out the requested immutable release
@@ -374,6 +400,7 @@
       when:
         - morrowpal_blue_tag_stat.stat.exists
         - morrowpal_compose_file is not changed
+        - morrowpal_environment_config is not changed
         - morrowpal_image_tag is defined
 
     - name: Roll out the requested immutable app release

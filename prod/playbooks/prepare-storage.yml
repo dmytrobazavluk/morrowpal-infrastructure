@@ -1,12 +1,11 @@
 ---
-- name: Prepare the encrypted production data volume
-  hosts: production
+- name: Prepare the encrypted data volume
+  hosts: morrowpal_hosts
   become: true
   gather_facts: false
 
   vars:
-    morrowpal_data_root: /var/lib/morrowpal
-    morrowpal_swap_file: /var/lib/morrowpal/swapfile
+    morrowpal_swap_file: "{{ morrowpal_mysql_data_mount }}/swapfile"
 
   pre_tasks:
     - name: Require the EBS volume ID
@@ -83,7 +82,7 @@
 
     - name: Mount the encrypted data volume persistently
       ansible.posix.mount:
-        path: "{{ morrowpal_data_root }}"
+        path: "{{ morrowpal_mysql_data_mount }}"
         src: "UUID={{ morrowpal_mysql_uuid.stdout }}"
         fstype: xfs
         opts: defaults,nofail
@@ -91,7 +90,7 @@
 
     - name: Create the MySQL data directory
       ansible.builtin.file:
-        path: "{{ morrowpal_data_root }}/mysql"
+        path: "{{ morrowpal_mysql_data_mount }}/mysql"
         state: directory
         owner: root
         group: root

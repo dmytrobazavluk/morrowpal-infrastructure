@@ -13,6 +13,8 @@ readonly -a NEUTRAL_HOST_PLAYBOOKS=(
     "$REPOSITORY_DIR/prod/playbooks/install-docker.yml"
     "$REPOSITORY_DIR/prod/playbooks/install-docker-compose.yml"
     "$REPOSITORY_DIR/prod/playbooks/prepare-host.yml"
+    "$REPOSITORY_DIR/prod/playbooks/prepare-mysql.yml"
+    "$REPOSITORY_DIR/prod/playbooks/prepare-storage.yml"
 )
 
 fail() {
@@ -135,8 +137,11 @@ main() {
     for playbook in "${NEUTRAL_HOST_PLAYBOOKS[@]}"; do
         grep -Eq '^  hosts: morrowpal_hosts$' "$playbook" \
             || fail "Playbook does not target the neutral host group: ${playbook#$REPOSITORY_DIR/}"
-        if grep -Eq 'hosts: production|production EC2' "$playbook"; then
+        if grep -Eq '(^|[^[:alnum:]_])production([^[:alnum:]_]|$)' "$playbook"; then
             fail "Neutral playbook contains a production-only target: ${playbook#$REPOSITORY_DIR/}"
+        fi
+        if grep -Eq '/opt/morrowpal|/var/lib/morrowpal' "$playbook"; then
+            fail "Neutral playbook contains a hardcoded environment path: ${playbook#$REPOSITORY_DIR/}"
         fi
     done
 

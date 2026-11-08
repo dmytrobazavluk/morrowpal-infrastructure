@@ -1,11 +1,11 @@
-#!/usr/bin/env bash
+{% raw %}#!/usr/bin/env bash
 
 set -Eeuo pipefail
 
 readonly tls_group_gid=1901
 readonly letsencrypt_root=/etc/letsencrypt
 
-lineage="${RENEWED_LINEAGE:-$letsencrypt_root/live/morrowpal.com}"
+lineage="${RENEWED_LINEAGE:-$letsencrypt_root/live/{% endraw %}{{ morrowpal_tls_certificate_name }}{% raw %}}"
 case "$lineage" in
     "$letsencrypt_root"/live/*)
         ;;
@@ -63,4 +63,4 @@ for link_name in fullchain.pem privkey.pem; do
     replacement_link="$lineage/.$link_name.morrowpal-new"
     ln -sfn -- "$link_target" "$replacement_link"
     mv -Tf -- "$replacement_link" "$link_path"
-done
+done{% endraw %}

@@ -7,7 +7,7 @@ backend, app, or website image. Examples include changes to:
 
 - `docker-compose.yml`
 - `templates/envoy.yaml.j2`
-- `envoy/tls-certificate-sds.yaml`
+- `templates/tls-certificate-sds.yaml.j2`
 - the MorrowPal systemd unit or service scripts
 
 Use the component-specific update procedures when deploying a new application

@@ -1,21 +1,19 @@
 ---
-- name: Prepare automated production TLS certificates
+- name: Prepare automated TLS certificates
   hosts: production
   become: true
   gather_facts: false
 
   vars:
-    morrowpal_tls_certificate_name: morrowpal.com
-    morrowpal_tls_expected_ipv4: 3.12.65.199
     morrowpal_tls_group: morrowpal-tls
     morrowpal_tls_group_gid: 1901
     morrowpal_tls_domains:
-      - morrowpal.com
-      - api.morrowpal.com
-      - admin.morrowpal.com
-      - app.morrowpal.com
-      - www.morrowpal.com
-      - back.morrowpal.com
+      - "{{ morrowpal_domains.apex }}"
+      - "{{ morrowpal_domains.api }}"
+      - "{{ morrowpal_domains.admin }}"
+      - "{{ morrowpal_domains.app }}"
+      - "{{ morrowpal_domains.www }}"
+      - "{{ morrowpal_domains.back }}"
 
   pre_tasks:
     - name: Require a Certbot registration email
@@ -40,7 +38,7 @@
         system: true
         state: present
 
-    - name: Resolve production IPv4 records
+    - name: Resolve certificate IPv4 records
       ansible.builtin.command:
         argv:
           - dig
@@ -62,7 +60,7 @@
       loop_control:
         label: "{{ item.item }}"
 
-    - name: Resolve production IPv6 records
+    - name: Resolve certificate IPv6 records
       ansible.builtin.command:
         argv:
           - dig
@@ -78,7 +76,7 @@
         that:
           - item.stdout_lines | select('search', ':') | list | length == 0
         fail_msg: >-
-          {{ item.item }} has an IPv6 answer but the production endpoint does not
+          {{ item.item }} has an IPv6 answer but the selected endpoint does not
           support IPv6. Remove its AAAA record before requesting the certificate.
       loop: "{{ morrowpal_tls_ipv6_results.results }}"
       loop_control:
@@ -182,8 +180,8 @@
         mode: "0755"
 
     - name: Install the certificate permission hook
-      ansible.builtin.copy:
-        src: ../scripts/configure-tls-permissions.sh
+      ansible.builtin.template:
+        src: ../templates/configure-tls-permissions.sh.j2
         dest: /etc/letsencrypt/renewal-hooks/deploy/10-morrowpal-permissions
         owner: root
         group: root

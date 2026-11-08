@@ -111,15 +111,15 @@
           - (morrowpal_data_mount.stdout | default('')) == 'xfs'
         fail_msg: Run prepare-storage.yml before deploy.yml.
 
-    - name: Inspect the production TLS certificate files
+    - name: Inspect the selected environment TLS certificate files
       ansible.builtin.stat:
         path: "{{ item }}"
       loop:
-        - /etc/letsencrypt/live/morrowpal.com/fullchain.pem
-        - /etc/letsencrypt/live/morrowpal.com/privkey.pem
+        - "/etc/letsencrypt/live/{{ morrowpal_tls_certificate_name }}/fullchain.pem"
+        - "/etc/letsencrypt/live/{{ morrowpal_tls_certificate_name }}/privkey.pem"
       register: morrowpal_tls_files
 
-    - name: Require the prepared production TLS certificate
+    - name: Require the prepared TLS certificate
       ansible.builtin.assert:
         that:
           - morrowpal_tls_files.results | map(attribute='stat.exists') | min
@@ -245,9 +245,9 @@
         mode: "0644"
       register: morrowpal_envoy_config
 
-    - name: Install the Envoy TLS certificate SDS configuration
-      ansible.builtin.copy:
-        src: ../envoy/tls-certificate-sds.yaml
+    - name: Install the selected environment Envoy TLS certificate SDS configuration
+      ansible.builtin.template:
+        src: ../templates/tls-certificate-sds.yaml.j2
         dest: "{{ morrowpal_root }}/envoy/tls-certificate-sds.yaml"
         owner: root
         group: root

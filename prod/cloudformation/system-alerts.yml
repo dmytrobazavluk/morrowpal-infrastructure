@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: SNS topic, team email subscriptions, and scoped EC2 publish access for MorrowPal production system alerts.
+Description: SNS topic, team email subscriptions, and scoped EC2 publish access for MorrowPal system alerts.
 
 Metadata:
   AWSToolsMetrics:
@@ -11,14 +11,15 @@ Parameters:
     Default: prod
     AllowedValues:
       - prod
+      - staging
     Description: Deployment environment used in the topic name and tags.
 
-  ProductionEc2RoleName:
+  Ec2RoleName:
     Type: String
     MinLength: 1
     MaxLength: 64
     AllowedPattern: '[A-Za-z0-9+=,.@_-]+'
-    Description: Physical name of the IAM role attached to production instance 01.
+    Description: Physical name of the IAM role attached to the environment's EC2 instance 01.
 
   PrimaryAlertEmail:
     Type: String
@@ -97,12 +98,12 @@ Resources:
     Type: AWS::IAM::Policy
     Metadata:
       com.aws.cloudformation.Context:
-        why: Allows the backend containers on the production EC2 host to publish system alerts.
+        why: Allows the backend containers on the environment's EC2 host to publish system alerts.
         must: Grant sns:Publish only for SystemAlertsTopic.
     Properties:
       PolicyName: !Sub ${AWS::StackName}-publish
       Roles:
-        - !Ref ProductionEc2RoleName
+        - !Ref Ec2RoleName
       PolicyDocument:
         Version: '2012-10-17'
         Statement:

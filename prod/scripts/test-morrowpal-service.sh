@@ -8,6 +8,7 @@ readonly repository_directory="$(cd -- "$prod_directory/.." && pwd)"
 readonly service_script="$script_directory/morrowpal-service.sh"
 readonly runtime_config_library="$script_directory/morrowpal-runtime-config.sh"
 readonly environment_template="$prod_directory/templates/compose.env.j2"
+readonly compose_file="$prod_directory/docker-compose.yml"
 
 fail() {
     printf 'Error: %s\n' "$*" >&2
@@ -36,6 +37,8 @@ assert_environment() {
     local expected_secrets_prefix="$5"
     local expected_app_domain="$6"
     local expected_website_domain="$7"
+    local expected_deployment_root="$8"
+    local expected_mysql_data_mount="$9"
 
     set -a
     # shellcheck source=/dev/null
@@ -51,6 +54,10 @@ assert_environment() {
     [[ "$MORROWPAL_APP_DOMAIN" == "$expected_app_domain" ]] || fail "Unexpected app domain"
     [[ "$MORROWPAL_WEBSITE_DOMAIN" == "$expected_website_domain" ]] \
         || fail "Unexpected website domain"
+    [[ "$MORROWPAL_DEPLOYMENT_ROOT" == "$expected_deployment_root" ]] \
+        || fail "Unexpected deployment root"
+    [[ "$MORROWPAL_MYSQL_DATA_MOUNT" == "$expected_mysql_data_mount" ]] \
+        || fail "Unexpected MySQL data mount"
     [[ "$(morrowpal_secret_reference "$MORROWPAL_SECRETS_PREFIX/mysql" password)" == \
         "{{resolve:secretsmanager:${expected_secrets_prefix}/mysql:SecretString:password}}" ]] \
         || fail "Unexpected MySQL application secret reference"
@@ -87,6 +94,9 @@ main() {
         || fail "Service helper must derive all six runtime secret references from the selected prefix"
     grep -Fq -- '--env-file "$environment_file"' "$service_script" \
         || fail "Service helper must pass the selected environment file to Docker Compose"
+    if grep -Eq '/opt/morrowpal|/var/lib/morrowpal' "$compose_file"; then
+        fail "Compose file contains a hardcoded host deployment path"
+    fi
     for recreate_option in --recreate-envoy --recreate-app --recreate-website; do
         grep -Fq -- "$recreate_option" "$service_script" \
             || fail "Service helper does not support $recreate_option"
@@ -113,7 +123,9 @@ main() {
         morrowpal/prod \
         morrowpal/prod \
         app.morrowpal.com \
-        morrowpal.com
+        morrowpal.com \
+        /opt/morrowpal \
+        /var/lib/morrowpal
     assert_environment \
         "$staging_environment" \
         us-east-2 \
@@ -121,7 +133,9 @@ main() {
         morrowpal/staging \
         morrowpal/staging \
         app.staging.morrowpal.com \
-        staging.morrowpal.com
+        staging.morrowpal.com \
+        /opt/morrowpal \
+        /var/lib/morrowpal
 
     printf 'MorrowPal service helper validation passed.\n'
 }

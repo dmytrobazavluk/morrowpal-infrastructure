@@ -82,8 +82,8 @@ services:
       MYSQL_PASSWORD_FILE: /run/secrets/mysql_app_password
       MYSQL_ROOT_PASSWORD_FILE: /run/secrets/mysql_root_password
     volumes:
-      - /var/lib/morrowpal/mysql:/var/lib/mysql
-      - /opt/morrowpal/mysql-migration-ready.cnf:/etc/mysql/conf.d/migration-ready.cnf:ro
+      - ${MORROWPAL_MYSQL_DATA_MOUNT:?MORROWPAL_MYSQL_DATA_MOUNT is required}/mysql:/var/lib/mysql
+      - ${MORROWPAL_DEPLOYMENT_ROOT:?MORROWPAL_DEPLOYMENT_ROOT is required}/mysql-migration-ready.cnf:/etc/mysql/conf.d/migration-ready.cnf:ro
     secrets:
       - mysql_app_password
       - mysql_root_password
@@ -207,8 +207,8 @@ services:
       - app
       - website
     volumes:
-      - /opt/morrowpal/envoy/envoy.yaml:/etc/envoy/envoy.yaml:ro
-      - /opt/morrowpal/envoy/tls-certificate-sds.yaml:/etc/envoy/tls-certificate-sds.yaml:ro
+      - ${MORROWPAL_DEPLOYMENT_ROOT:?MORROWPAL_DEPLOYMENT_ROOT is required}/envoy/envoy.yaml:/etc/envoy/envoy.yaml:ro
+      - ${MORROWPAL_DEPLOYMENT_ROOT:?MORROWPAL_DEPLOYMENT_ROOT is required}/envoy/tls-certificate-sds.yaml:/etc/envoy/tls-certificate-sds.yaml:ro
       - /etc/letsencrypt/live/${MORROWPAL_TLS_CERTIFICATE_NAME:?MORROWPAL_TLS_CERTIFICATE_NAME is required}:/etc/letsencrypt/live/${MORROWPAL_TLS_CERTIFICATE_NAME:?MORROWPAL_TLS_CERTIFICATE_NAME is required}:ro
       - /etc/letsencrypt/archive/${MORROWPAL_TLS_CERTIFICATE_NAME:?MORROWPAL_TLS_CERTIFICATE_NAME is required}:/etc/letsencrypt/archive/${MORROWPAL_TLS_CERTIFICATE_NAME:?MORROWPAL_TLS_CERTIFICATE_NAME is required}:ro
     ports:

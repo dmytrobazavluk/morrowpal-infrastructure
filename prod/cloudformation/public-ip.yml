@@ -1,10 +1,18 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Stable public IPv4 address for the MorrowPal production EC2 instance.
+Description: Stable public IPv4 address for the MorrowPal EC2 instance.
 
 Parameters:
+  Environment:
+    Type: String
+    Default: prod
+    AllowedValues:
+      - prod
+      - staging
+    Description: Deployment environment used for resource tags.
+
   InstanceId:
     Type: AWS::EC2::Instance::Id
-    Description: Production EC2 instance that receives the Elastic IP address.
+    Description: EC2 instance that receives the Elastic IP address.
 
 Resources:
   ProductionElasticIp:
@@ -15,7 +23,7 @@ Resources:
         - Key: Name
           Value: !Sub ${AWS::StackName}-public-ip
         - Key: Environment
-          Value: prod
+          Value: !Ref Environment
         - Key: Application
           Value: morrowpal
 
@@ -27,9 +35,9 @@ Resources:
 
 Outputs:
   AllocationId:
-    Description: Allocation ID of the production Elastic IP address.
+    Description: Allocation ID of the Elastic IP address.
     Value: !GetAtt ProductionElasticIp.AllocationId
 
   PublicIp:
-    Description: Stable public IPv4 address assigned to the production EC2 instance.
+    Description: Stable public IPv4 address assigned to the EC2 instance.
     Value: !Ref ProductionElasticIp

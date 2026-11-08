@@ -1,15 +1,23 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Encrypted EBS data volume for MorrowPal production MySQL.
+Description: Encrypted EBS data volume for MorrowPal MySQL.
 
 Parameters:
+  Environment:
+    Type: String
+    Default: prod
+    AllowedValues:
+      - prod
+      - staging
+    Description: Deployment environment used for resource tags.
+
   AvailabilityZone:
     Type: AWS::EC2::AvailabilityZone::Name
     Default: us-east-2c
-    Description: Availability Zone containing the production EC2 instance.
+    Description: Availability Zone containing the EC2 instance.
 
   InstanceId:
     Type: AWS::EC2::Instance::Id
-    Description: Production EC2 instance that receives the retained data volume.
+    Description: EC2 instance that receives the retained data volume.
 
   AttachVolume:
     Type: String
@@ -43,7 +51,7 @@ Resources:
         - Key: Name
           Value: !Sub ${AWS::StackName}-mysql-data
         - Key: Environment
-          Value: prod
+          Value: !Ref Environment
         - Key: Application
           Value: morrowpal
 

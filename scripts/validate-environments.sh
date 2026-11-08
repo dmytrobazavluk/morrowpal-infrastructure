@@ -9,6 +9,11 @@ readonly STAGING_VARS="$REPOSITORY_DIR/environments/staging/vars.yml"
 readonly PROD_INVENTORY="$REPOSITORY_DIR/environments/prod/inventory.ini"
 readonly STAGING_INVENTORY="$REPOSITORY_DIR/environments/staging/inventory.ini"
 readonly ANSIBLE_CONFIG_FILE="$REPOSITORY_DIR/ansible.cfg"
+readonly -a NEUTRAL_HOST_PLAYBOOKS=(
+    "$REPOSITORY_DIR/prod/playbooks/install-docker.yml"
+    "$REPOSITORY_DIR/prod/playbooks/install-docker-compose.yml"
+    "$REPOSITORY_DIR/prod/playbooks/prepare-host.yml"
+)
 
 fail() {
     printf 'Error: %s\n' "$*" >&2
@@ -83,6 +88,10 @@ validate_vars_file() {
 }
 
 main() {
+    local inventory
+    local playbook
+    local vars_file
+
     command -v ansible >/dev/null 2>&1 \
         || fail 'Required command not found: ansible'
     command -v ansible-inventory >/dev/null 2>&1 \
@@ -122,6 +131,30 @@ main() {
         ansible-inventory -i "$PROD_INVENTORY" --list >/dev/null
     ANSIBLE_CONFIG="$ANSIBLE_CONFIG_FILE" \
         ansible-inventory -i "$STAGING_INVENTORY" --list >/dev/null
+
+    for playbook in "${NEUTRAL_HOST_PLAYBOOKS[@]}"; do
+        grep -Eq '^  hosts: morrowpal_hosts$' "$playbook" \
+            || fail "Playbook does not target the neutral host group: ${playbook#$REPOSITORY_DIR/}"
+        if grep -Eq 'hosts: production|production EC2' "$playbook"; then
+            fail "Neutral playbook contains a production-only target: ${playbook#$REPOSITORY_DIR/}"
+        fi
+    done
+
+    for inventory in "$PROD_INVENTORY" "$STAGING_INVENTORY"; do
+        if [[ "$inventory" == "$PROD_INVENTORY" ]]; then
+            vars_file="$PROD_VARS"
+        else
+            vars_file="$STAGING_VARS"
+        fi
+        for playbook in "${NEUTRAL_HOST_PLAYBOOKS[@]}"; do
+            ANSIBLE_CONFIG="$ANSIBLE_CONFIG_FILE" \
+                ansible-playbook \
+                    -i "$inventory" \
+                    --syntax-check \
+                    "$playbook" \
+                    --extra-vars "@$vars_file" >/dev/null
+        done
+    done
 
     printf 'Environment overlay validation passed.\n'
 }

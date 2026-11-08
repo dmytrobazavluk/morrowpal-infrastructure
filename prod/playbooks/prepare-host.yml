@@ -1,11 +1,8 @@
 ---
-- name: Prepare production EC2 hosts for MorrowPal
-  hosts: production
+- name: Prepare EC2 hosts for MorrowPal
+  hosts: morrowpal_hosts
   become: true
   gather_facts: true
-
-  vars:
-    morrowpal_root: /opt/morrowpal
 
   pre_tasks:
     - name: Require Amazon Linux 2023
@@ -20,7 +17,7 @@
   tasks:
     - name: Create the protected MorrowPal deployment directory
       ansible.builtin.file:
-        path: "{{ morrowpal_root }}"
+        path: "{{ morrowpal_deployment_root }}"
         state: directory
         owner: root
         group: root
@@ -35,7 +32,7 @@
 
     - name: Read the deployment directory metadata
       ansible.builtin.stat:
-        path: "{{ morrowpal_root }}"
+        path: "{{ morrowpal_deployment_root }}"
       register: morrowpal_root_stat
       when: not ansible_check_mode
 

@@ -1,6 +1,6 @@
 ---
-- name: Install Docker on production EC2 instances
-  hosts: production
+- name: Install Docker on MorrowPal EC2 instances
+  hosts: morrowpal_hosts
   become: true
   gather_facts: true
 

@@ -3,9 +3,9 @@
 set -Eeuo pipefail
 
 readonly script_directory="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-readonly prod_directory="$(cd -- "$script_directory/.." && pwd)"
-readonly repository_directory="$(cd -- "$prod_directory/.." && pwd)"
-readonly shared_directory="$repository_directory/shared"
+readonly shared_directory="$(cd -- "$script_directory/.." && pwd)"
+readonly repository_directory="$(cd -- "$shared_directory/.." && pwd)"
+readonly prod_directory="$repository_directory/prod"
 readonly app_template="$shared_directory/runtime/app/nginx.conf.j2"
 readonly website_template="$shared_directory/runtime/website/nginx.conf.j2"
 readonly app_baseline="$prod_directory/baselines/app-nginx-production.sha256"
@@ -118,15 +118,15 @@ main() {
     grep -Fq '${MORROWPAL_DEPLOYMENT_ROOT:?MORROWPAL_DEPLOYMENT_ROOT is required}/website/nginx.conf:/etc/nginx/conf.d/default.conf:ro' \
         "$shared_directory/docker-compose.yml" \
         || fail "Compose does not mount the website Nginx configuration read-only"
-    grep -Fq 'src: ../../shared/runtime/app/nginx.conf.j2' "$prod_directory/playbooks/deploy.yml" \
+    grep -Fq 'src: ../runtime/app/nginx.conf.j2' "$shared_directory/playbooks/deploy.yml" \
         || fail "Deployment does not render the app Nginx configuration"
-    grep -Fq 'src: ../../shared/runtime/website/nginx.conf.j2' "$prod_directory/playbooks/deploy.yml" \
+    grep -Fq 'src: ../runtime/website/nginx.conf.j2' "$shared_directory/playbooks/deploy.yml" \
         || fail "Deployment does not render the website Nginx configuration"
     grep -Fq "(['--recreate-app'] if morrowpal_app_recreation_required else [])" \
-        "$prod_directory/playbooks/deploy.yml" \
+        "$shared_directory/playbooks/deploy.yml" \
         || fail "Deployment does not recreate the app after its Nginx configuration changes"
     grep -Fq "(['--recreate-website'] if morrowpal_website_recreation_required else [])" \
-        "$prod_directory/playbooks/deploy.yml" \
+        "$shared_directory/playbooks/deploy.yml" \
         || fail "Deployment does not recreate the website after its Nginx configuration changes"
 
     printf 'MorrowPal Nginx template validation passed.\n'

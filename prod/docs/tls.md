@@ -39,7 +39,7 @@ supports IPv6.
 
 ## Replay and Renewal
 
-`playbooks/prepare-tls.yml` installs Certbot, validates DNS, obtains the initial
+`../shared/playbooks/prepare-tls.yml` installs Certbot, validates DNS, obtains the initial
 certificate when absent, applies least-privilege file permissions, and enables
 the `morrowpal-certbot-renew.timer` systemd timer. Running the playbook again is
 idempotent.
@@ -58,7 +58,7 @@ TLS playbook:
 
 ```bash
 cd infrastructure/prod
-ansible-playbook ./playbooks/prepare-tls.yml \
+ansible-playbook ../shared/playbooks/prepare-tls.yml \
   -e morrowpal_certbot_email=admin@example.com
 ```
 
@@ -117,9 +117,9 @@ certificate authority enforces rate limits.
 1. Wait until all six public DNS names pass the IPv4 and IPv6 preflight.
 2. Validate and deploy `../shared/cloudformation/http-validation-ingress.yml` through a
    reviewed CloudFormation change set.
-3. Run `playbooks/prepare-tls.yml` with the Certbot registration email.
+3. Run `../shared/playbooks/prepare-tls.yml` with the Certbot registration email.
 4. Validate the exact Envoy configuration using the pinned container image.
-5. Run `playbooks/deploy.yml` to enable public HTTPS.
+5. Run `../shared/playbooks/deploy.yml` to enable public HTTPS.
 6. Verify the certificate names, API and website readiness, the website
    redirect, reserved hostname behavior, container health, and local readiness.
 7. Run `certbot renew --dry-run --run-deploy-hooks`, confirm Envoy stays

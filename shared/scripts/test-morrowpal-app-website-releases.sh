@@ -3,8 +3,8 @@
 set -Eeuo pipefail
 
 readonly script_directory="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-readonly prod_directory="$(cd -- "$script_directory/.." && pwd)"
-readonly repository_directory="$(cd -- "$prod_directory/.." && pwd)"
+readonly shared_directory="$(cd -- "$script_directory/.." && pwd)"
+readonly repository_directory="$(cd -- "$shared_directory/.." && pwd)"
 readonly app_release_script="$script_directory/morrowpal-deploy-app.sh"
 readonly website_release_script="$script_directory/morrowpal-deploy-website.sh"
 readonly runtime_config_library="$script_directory/morrowpal-runtime-config.sh"

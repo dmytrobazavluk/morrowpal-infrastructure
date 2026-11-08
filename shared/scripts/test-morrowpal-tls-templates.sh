@@ -3,8 +3,9 @@
 set -Eeuo pipefail
 
 readonly script_directory="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-readonly prod_directory="$(cd -- "$script_directory/.." && pwd)"
-readonly repository_directory="$(cd -- "$prod_directory/.." && pwd)"
+readonly shared_directory="$(cd -- "$script_directory/.." && pwd)"
+readonly repository_directory="$(cd -- "$shared_directory/.." && pwd)"
+readonly prod_directory="$repository_directory/prod"
 readonly sds_template="$repository_directory/shared/runtime/envoy/tls-certificate-sds.yaml.j2"
 readonly hook_template="$repository_directory/shared/runtime/envoy/configure-tls-permissions.sh.j2"
 readonly sds_baseline="$prod_directory/baselines/tls-certificate-sds-production.sha256"
@@ -89,10 +90,10 @@ main() {
         fail "Staging TLS rendering contains the production certificate lineage"
     fi
 
-    if grep -Eq '3\.12\.65\.199|(^|[^.])morrowpal\.com' "$prod_directory/playbooks/prepare-tls.yml"; then
+    if grep -Eq '3\.12\.65\.199|(^|[^.])morrowpal\.com' "$shared_directory/playbooks/prepare-tls.yml"; then
         fail "TLS preparation playbook contains a production-only IP address or domain"
     fi
-    grep -Eq '^  hosts: morrowpal_hosts$' "$prod_directory/playbooks/prepare-tls.yml" \
+    grep -Eq '^  hosts: morrowpal_hosts$' "$shared_directory/playbooks/prepare-tls.yml" \
         || fail "TLS preparation playbook does not target the neutral host group"
 
     for environment in prod staging; do
@@ -101,7 +102,7 @@ main() {
                 -i "$repository_directory/environments/$environment/inventory.ini" \
                 -e "@$repository_directory/environments/$environment/vars.yml" \
                 --syntax-check \
-                "$prod_directory/playbooks/prepare-tls.yml" >/dev/null
+                "$shared_directory/playbooks/prepare-tls.yml" >/dev/null
     done
 
     printf 'MorrowPal TLS template validation passed.\n'

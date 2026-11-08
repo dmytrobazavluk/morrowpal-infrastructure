@@ -10,13 +10,13 @@ readonly PROD_INVENTORY="$REPOSITORY_DIR/environments/prod/inventory.ini"
 readonly STAGING_INVENTORY="$REPOSITORY_DIR/environments/staging/inventory.ini"
 readonly ANSIBLE_CONFIG_FILE="$REPOSITORY_DIR/ansible.cfg"
 readonly -a NEUTRAL_HOST_PLAYBOOKS=(
-    "$REPOSITORY_DIR/prod/playbooks/install-docker.yml"
-    "$REPOSITORY_DIR/prod/playbooks/install-docker-compose.yml"
-    "$REPOSITORY_DIR/prod/playbooks/prepare-host.yml"
-    "$REPOSITORY_DIR/prod/playbooks/prepare-mysql.yml"
-    "$REPOSITORY_DIR/prod/playbooks/prepare-storage.yml"
-    "$REPOSITORY_DIR/prod/playbooks/prepare-tls.yml"
-    "$REPOSITORY_DIR/prod/playbooks/deploy.yml"
+    "$REPOSITORY_DIR/shared/playbooks/install-docker.yml"
+    "$REPOSITORY_DIR/shared/playbooks/install-docker-compose.yml"
+    "$REPOSITORY_DIR/shared/playbooks/prepare-host.yml"
+    "$REPOSITORY_DIR/shared/playbooks/prepare-mysql.yml"
+    "$REPOSITORY_DIR/shared/playbooks/prepare-storage.yml"
+    "$REPOSITORY_DIR/shared/playbooks/prepare-tls.yml"
+    "$REPOSITORY_DIR/shared/playbooks/deploy.yml"
 )
 
 fail() {

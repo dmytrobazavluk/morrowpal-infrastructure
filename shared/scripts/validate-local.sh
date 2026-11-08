@@ -3,9 +3,9 @@
 set -Eeuo pipefail
 
 readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-readonly PROD_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd)"
-readonly REPOSITORY_DIR="$(cd -- "$PROD_DIR/.." && pwd)"
-readonly SHARED_DIR="$REPOSITORY_DIR/shared"
+readonly SHARED_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd)"
+readonly REPOSITORY_DIR="$(cd -- "$SHARED_DIR/.." && pwd)"
+readonly PROD_DIR="$REPOSITORY_DIR/prod"
 readonly CLOUDFORMATION_DIR="$REPOSITORY_DIR/shared/cloudformation"
 readonly COMPOSE_BASELINE_FILE="$PROD_DIR/baselines/docker-compose-production.sha256"
 readonly COMPOSE_ENV_TEMPLATE="$SHARED_DIR/runtime/compose.env.j2"
@@ -101,13 +101,13 @@ main() {
     require_command sha256sum
 
     "$REPOSITORY_DIR/scripts/validate-environments.sh"
-    "$PROD_DIR/scripts/test-morrowpal-service.sh"
-    "$PROD_DIR/scripts/test-morrowpal-deploy-release.sh"
-    "$PROD_DIR/scripts/test-morrowpal-app-website-releases.sh"
-    "$PROD_DIR/scripts/test-morrowpal-publishers.sh"
-    "$PROD_DIR/scripts/test-morrowpal-rate-limit-verifiers.sh"
-    "$PROD_DIR/scripts/test-morrowpal-tls-templates.sh"
-    "$PROD_DIR/scripts/test-morrowpal-nginx-templates.sh"
+    "$SCRIPT_DIR/test-morrowpal-service.sh"
+    "$SCRIPT_DIR/test-morrowpal-deploy-release.sh"
+    "$SCRIPT_DIR/test-morrowpal-app-website-releases.sh"
+    "$SCRIPT_DIR/test-morrowpal-publishers.sh"
+    "$SCRIPT_DIR/test-morrowpal-rate-limit-verifiers.sh"
+    "$SCRIPT_DIR/test-morrowpal-tls-templates.sh"
+    "$SCRIPT_DIR/test-morrowpal-nginx-templates.sh"
 
     docker compose version >/dev/null 2>&1 \
         || fail "Docker Compose plugin is not available"

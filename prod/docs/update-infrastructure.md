@@ -50,7 +50,7 @@ The AWS account must be `384078510608`.
 ## 2. Preview the Deployment
 
 ```bash
-ansible-playbook ./playbooks/deploy.yml \
+ansible-playbook ../shared/playbooks/deploy.yml \
   --check \
   --diff
 ```
@@ -74,7 +74,7 @@ public edge interruption.
 ## 3. Deploy
 
 ```bash
-ansible-playbook ./playbooks/deploy.yml
+ansible-playbook ../shared/playbooks/deploy.yml
 ```
 
 Do not run `docker compose down` during routine deployment. The playbook copies
@@ -103,7 +103,7 @@ Exercise the routes affected by the change before declaring the deployment
 complete. For a rate-limit change, run the guarded verification script:
 
 ```bash
-./scripts/verify-rate-limit.sh \
+../shared/scripts/verify-rate-limit.sh \
   prod \
   https://api.morrowpal.com/ready \
   --confirm-production
@@ -112,7 +112,7 @@ complete. For a rate-limit change, run the guarded verification script:
 Run the same check against staging without the production confirmation:
 
 ```bash
-./scripts/verify-rate-limit.sh \
+../shared/scripts/verify-rate-limit.sh \
   staging \
   https://api.staging.morrowpal.com/ready
 ```
@@ -131,7 +131,7 @@ For a change to the anonymous account-creation limit, run its guarded
 verification script instead:
 
 ```bash
-./scripts/verify-account-creation-rate-limit.sh \
+../shared/scripts/verify-account-creation-rate-limit.sh \
   prod \
   https://api.morrowpal.com/accounts \
   --confirm-production
@@ -140,7 +140,7 @@ verification script instead:
 For staging:
 
 ```bash
-./scripts/verify-account-creation-rate-limit.sh \
+../shared/scripts/verify-account-creation-rate-limit.sh \
   staging \
   https://api.staging.morrowpal.com/accounts
 ```
@@ -164,11 +164,11 @@ the reversal, and deploy it through the same playbook:
 git diff --check
 git diff
 
-ansible-playbook ./playbooks/deploy.yml \
+ansible-playbook ../shared/playbooks/deploy.yml \
   --check \
   --diff
 
-ansible-playbook ./playbooks/deploy.yml
+ansible-playbook ../shared/playbooks/deploy.yml
 ```
 
 Verify service status and all three public readiness endpoints after rollback.

@@ -223,16 +223,16 @@ BOOTSTRAP_PUBLIC_IP="$(aws cloudformation describe-stacks \
 Use the temporary address until the stable Elastic IP is associated:
 
 ```bash
-ansible-playbook ./playbooks/install-docker.yml \
+ansible-playbook ../shared/playbooks/install-docker.yml \
   -e "ansible_host=$BOOTSTRAP_PUBLIC_IP"
 
-ansible-playbook ./playbooks/install-docker-compose.yml \
+ansible-playbook ../shared/playbooks/install-docker-compose.yml \
   -e "ansible_host=$BOOTSTRAP_PUBLIC_IP"
 
-ansible-playbook ./playbooks/prepare-host.yml \
+ansible-playbook ../shared/playbooks/prepare-host.yml \
   -e "ansible_host=$BOOTSTRAP_PUBLIC_IP"
 
-ansible-playbook ./playbooks/prepare-mysql.yml \
+ansible-playbook ../shared/playbooks/prepare-mysql.yml \
   -e "ansible_host=$BOOTSTRAP_PUBLIC_IP"
 ```
 
@@ -286,7 +286,7 @@ MYSQL_VOLUME_ID="$(aws cloudformation describe-stacks \
   --output text \
   --region us-east-2)"
 
-ansible-playbook ./playbooks/prepare-storage.yml \
+ansible-playbook ../shared/playbooks/prepare-storage.yml \
   -e "ansible_host=$BOOTSTRAP_PUBLIC_IP" \
   -e "morrowpal_mysql_volume_id=$MYSQL_VOLUME_ID"
 ```
@@ -449,7 +449,7 @@ aws cloudformation wait stack-create-complete \
 Obtain the certificate and enable renewal, replacing the example email:
 
 ```bash
-ansible-playbook ./playbooks/prepare-tls.yml \
+ansible-playbook ../shared/playbooks/prepare-tls.yml \
   -e morrowpal_certbot_email=admin@example.com
 ```
 
@@ -475,14 +475,14 @@ WEBSITE_TAG='build-N-SOURCESHA'
 ## 12. Deploy the production containers
 
 ```bash
-ansible-playbook ./playbooks/deploy.yml \
+ansible-playbook ../shared/playbooks/deploy.yml \
   --check \
   --diff \
   -e "morrowpal_image_tag=$BACKEND_TAG" \
   -e "morrowpal_app_image_tag=$APP_TAG" \
   -e "morrowpal_website_image_tag=$WEBSITE_TAG"
 
-ansible-playbook ./playbooks/deploy.yml \
+ansible-playbook ../shared/playbooks/deploy.yml \
   -e "morrowpal_image_tag=$BACKEND_TAG" \
   -e "morrowpal_app_image_tag=$APP_TAG" \
   -e "morrowpal_website_image_tag=$WEBSITE_TAG"

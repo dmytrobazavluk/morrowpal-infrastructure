@@ -143,7 +143,7 @@ aws cloudformation wait stack-update-complete \
 Mount the existing filesystem on the replacement host:
 
 ```bash
-ansible-playbook ./playbooks/prepare-storage.yml \
+ansible-playbook ../shared/playbooks/prepare-storage.yml \
   -e "ansible_host=$BOOTSTRAP_PUBLIC_IP" \
   -e "morrowpal_mysql_volume_id=$MYSQL_VOLUME_ID"
 ```

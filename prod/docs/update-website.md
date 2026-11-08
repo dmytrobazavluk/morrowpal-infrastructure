@@ -29,13 +29,13 @@ change before enabling emails that link to this page.
 Choose a positive build number greater than the latest published website build:
 
 ```bash
-source ./scripts/publish-website-image.sh prod BUILD_NUMBER
+source ../shared/scripts/publish-website-image.sh prod BUILD_NUMBER
 ```
 
 For example:
 
 ```bash
-source ./scripts/publish-website-image.sh prod 1
+source ../shared/scripts/publish-website-image.sh prod 1
 ```
 
 The publisher computes a stable seven-character digest from the deployable
@@ -47,7 +47,7 @@ published tag as `WEBSITE_TAG` in the current shell.
 ## 3. Preview the Deployment
 
 ```bash
-ansible-playbook ./playbooks/deploy.yml \
+ansible-playbook ../shared/playbooks/deploy.yml \
   --check \
   --diff \
   -e "morrowpal_website_image_tag=$WEBSITE_TAG"
@@ -60,7 +60,7 @@ interruption. Later website-only releases replace only the website container.
 ## 4. Deploy
 
 ```bash
-ansible-playbook ./playbooks/deploy.yml \
+ansible-playbook ../shared/playbooks/deploy.yml \
   -e "morrowpal_website_image_tag=$WEBSITE_TAG"
 ```
 
@@ -93,7 +93,7 @@ Deploy a previously retained website tag:
 ```bash
 PREVIOUS_WEBSITE_TAG='build-N-SOURCESHA'
 
-ansible-playbook ./playbooks/deploy.yml \
+ansible-playbook ../shared/playbooks/deploy.yml \
   -e "morrowpal_website_image_tag=$PREVIOUS_WEBSITE_TAG"
 ```
 

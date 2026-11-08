@@ -65,7 +65,7 @@ Arguments:
   BUILD_NUMBER  Positive, increasing integer used in the immutable image tag.
 
 Example:
-  source ./infrastructure/prod/scripts/publish-app-image.sh staging 1.1.0 2
+  source ./infrastructure/shared/scripts/publish-app-image.sh staging 1.1.0 2
 
 Set APP_DIR to override the default sibling frontend repository location.
 When sourced, the script exports APP_TAG in the current shell.

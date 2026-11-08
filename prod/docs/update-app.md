@@ -36,13 +36,13 @@ Choose a semantic app version and a positive build number greater than the
 latest published app build:
 
 ```bash
-source ./scripts/publish-app-image.sh prod APP_VERSION BUILD_NUMBER
+source ../shared/scripts/publish-app-image.sh prod APP_VERSION BUILD_NUMBER
 ```
 
 For example:
 
 ```bash
-source ./scripts/publish-app-image.sh prod 1.1.0 2
+source ../shared/scripts/publish-app-image.sh prod 1.1.0 2
 ```
 
 `APP_VERSION` becomes the packaged Flutter version and the
@@ -62,7 +62,7 @@ The publisher:
 ## 3. Preview the deployment
 
 ```bash
-ansible-playbook ./playbooks/deploy.yml \
+ansible-playbook ../shared/playbooks/deploy.yml \
   --check \
   --diff \
   -e "morrowpal_app_image_tag=$APP_TAG"
@@ -79,7 +79,7 @@ the new read-only host configuration is loaded.
 ## 4. Deploy
 
 ```bash
-ansible-playbook ./playbooks/deploy.yml \
+ansible-playbook ../shared/playbooks/deploy.yml \
   -e "morrowpal_app_image_tag=$APP_TAG"
 ```
 
@@ -124,7 +124,7 @@ Deploy a previously retained app tag:
 ```bash
 PREVIOUS_APP_TAG='build-N-GITSHA'
 
-ansible-playbook ./playbooks/deploy.yml \
+ansible-playbook ../shared/playbooks/deploy.yml \
   -e "morrowpal_app_image_tag=$PREVIOUS_APP_TAG"
 ```
 

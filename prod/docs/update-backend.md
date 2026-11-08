@@ -36,7 +36,7 @@ The AWS account must be `384078510608`.
 Choose a positive build number greater than the latest published backend build:
 
 ```bash
-source ./scripts/publish-images.sh prod BUILD_NUMBER
+source ../shared/scripts/publish-images.sh prod BUILD_NUMBER
 ```
 
 The publisher:
@@ -53,7 +53,7 @@ The publisher:
 ## 3. Preview the deployment
 
 ```bash
-ansible-playbook ./playbooks/deploy.yml \
+ansible-playbook ../shared/playbooks/deploy.yml \
   --check \
   --diff \
   -e "morrowpal_image_tag=$BACKEND_TAG"
@@ -71,7 +71,7 @@ brief edge interruption.
 ## 4. Deploy
 
 ```bash
-ansible-playbook ./playbooks/deploy.yml \
+ansible-playbook ../shared/playbooks/deploy.yml \
   -e "morrowpal_image_tag=$BACKEND_TAG"
 ```
 
@@ -111,7 +111,7 @@ playbook:
 ```bash
 PREVIOUS_BACKEND_TAG='build-N-GITSHA'
 
-ansible-playbook ./playbooks/deploy.yml \
+ansible-playbook ../shared/playbooks/deploy.yml \
   -e "morrowpal_image_tag=$PREVIOUS_BACKEND_TAG"
 ```
 

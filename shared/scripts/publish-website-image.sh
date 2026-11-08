@@ -64,7 +64,7 @@ Arguments:
   BUILD_NUMBER  Positive, increasing integer used in the immutable image tag.
 
 Example:
-  source ./infrastructure/prod/scripts/publish-website-image.sh staging 1
+  source ./infrastructure/shared/scripts/publish-website-image.sh staging 1
 
 Set WEBSITE_DIR to override the default sibling www source directory.
 When sourced, the script exports WEBSITE_TAG in the current shell.

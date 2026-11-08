@@ -64,7 +64,7 @@ Arguments:
   BUILD_NUMBER  Positive, increasing integer used in the immutable image tag.
 
 Example:
-  source ./infrastructure/prod/scripts/publish-images.sh staging 2
+  source ./infrastructure/shared/scripts/publish-images.sh staging 2
 
 Set BACKEND_DIR to override the default sibling backend repository location.
 When sourced, the script exports BACKEND_TAG in the current shell.

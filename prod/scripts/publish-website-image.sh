@@ -39,9 +39,6 @@ fi
 
 set -Eeuo pipefail
 
-readonly aws_region="us-east-2"
-readonly expected_aws_account_id="384078510608"
-readonly repository="morrowpal/prod/website"
 readonly scan_attempts=30
 readonly scan_wait_seconds=10
 
@@ -49,20 +46,25 @@ script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 infrastructure_dir="$(cd -- "$script_dir/../.." && pwd)"
 website_dir="${WEBSITE_DIR:-$infrastructure_dir/../www}"
 website_container_dir="$script_dir/../website"
+# shellcheck source=morrowpal-runtime-config.sh
+source "$script_dir/morrowpal-runtime-config.sh"
+# shellcheck source=morrowpal-publish-config.sh
+source "$script_dir/morrowpal-publish-config.sh"
 logged_in=false
 registry=""
 
 usage() {
     cat <<'EOF'
-Usage: publish-website-image.sh BUILD_NUMBER
+Usage: publish-website-image.sh ENVIRONMENT BUILD_NUMBER
 
-Build, publish, and scan the production landing-page image.
+Build, publish, and scan a landing-page image.
 
 Arguments:
+  ENVIRONMENT   Target environment: prod or staging.
   BUILD_NUMBER  Positive, increasing integer used in the immutable image tag.
 
 Example:
-  source ./infrastructure/prod/scripts/publish-website-image.sh 1
+  source ./infrastructure/prod/scripts/publish-website-image.sh staging 1
 
 Set WEBSITE_DIR to override the default sibling www source directory.
 When sourced, the script exports WEBSITE_TAG in the current shell.
@@ -150,15 +152,40 @@ if (($# == 1)) && [[ "$1" == "-h" || "$1" == "--help" ]]; then
     exit 0
 fi
 
-if (($# != 1)); then
+if (($# != 2)); then
     usage >&2
     exit 2
 fi
 
-readonly build_number="$1"
+readonly environment="$1"
+readonly build_number="$2"
 [[ "$build_number" =~ ^[1-9][0-9]*$ ]] || fail "BUILD_NUMBER must be a positive integer"
 
 require_command aws
+morrowpal_load_publish_environment "$environment" "$infrastructure_dir"
+
+readonly aws_region="$MORROWPAL_AWS_REGION"
+readonly expected_aws_account_id="$MORROWPAL_AWS_ACCOUNT_ID"
+readonly repository="$MORROWPAL_ECR_REPOSITORY_PREFIX/website"
+registry="$MORROWPAL_ECR_REGISTRY"
+
+actual_account_id="$(aws sts get-caller-identity --query Account --output text --region "$aws_region")"
+[[ "$actual_account_id" == "$expected_aws_account_id" ]] \
+    || fail "AWS account $actual_account_id does not match $environment account $expected_aws_account_id"
+
+case "${MORROWPAL_PUBLISH_DRY_RUN:-false}" in
+    true)
+        printf 'Dry run: website image would publish to %s/%s in %s.\n' \
+            "$registry" "$repository" "$aws_region"
+        exit 0
+        ;;
+    false)
+        ;;
+    *)
+        fail "MORROWPAL_PUBLISH_DRY_RUN must be true or false"
+        ;;
+esac
+
 require_command docker
 require_command sha256sum
 
@@ -176,10 +203,6 @@ source_sha="$(
 )"
 readonly source_sha
 readonly image_tag="build-$build_number-$source_sha"
-
-actual_account_id="$(aws sts get-caller-identity --query Account --output text --region "$aws_region")"
-[[ "$actual_account_id" == "$expected_aws_account_id" ]] \
-    || fail "AWS account $actual_account_id does not match production account $expected_aws_account_id"
 
 existing_tags="$(aws ecr list-images \
     --repository-name "$repository" \
@@ -202,7 +225,6 @@ done
 ((build_number > latest_build_number)) \
     || fail "BUILD_NUMBER must be greater than the latest published build number ($latest_build_number)"
 
-registry="$expected_aws_account_id.dkr.ecr.$aws_region.amazonaws.com"
 readonly image="$registry/$repository:$image_tag"
 
 docker build \

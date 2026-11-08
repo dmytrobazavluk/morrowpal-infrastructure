@@ -81,6 +81,7 @@ main() {
     "$PROD_DIR/scripts/test-morrowpal-service.sh"
     "$PROD_DIR/scripts/test-morrowpal-deploy-release.sh"
     "$PROD_DIR/scripts/test-morrowpal-app-website-releases.sh"
+    "$PROD_DIR/scripts/test-morrowpal-publishers.sh"
 
     docker compose version >/dev/null 2>&1 \
         || fail "Docker Compose plugin is not available"

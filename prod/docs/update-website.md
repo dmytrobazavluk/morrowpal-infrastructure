@@ -29,13 +29,13 @@ change before enabling emails that link to this page.
 Choose a positive build number greater than the latest published website build:
 
 ```bash
-source ./scripts/publish-website-image.sh BUILD_NUMBER
+source ./scripts/publish-website-image.sh prod BUILD_NUMBER
 ```
 
 For example:
 
 ```bash
-source ./scripts/publish-website-image.sh 1
+source ./scripts/publish-website-image.sh prod 1
 ```
 
 The publisher computes a stable seven-character digest from the deployable

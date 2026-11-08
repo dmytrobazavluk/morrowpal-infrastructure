@@ -39,31 +39,32 @@ fi
 
 set -Eeuo pipefail
 
-readonly AWS_REGION="us-east-2"
-readonly EXPECTED_AWS_ACCOUNT_ID="384078510608"
-readonly API_REPOSITORY="morrowpal/prod/backend-api"
-readonly JOB_REPOSITORY="morrowpal/prod/backend-job"
 readonly SCAN_ATTEMPTS=30
 readonly SCAN_WAIT_SECONDS=10
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 INFRASTRUCTURE_DIR="$(cd -- "$SCRIPT_DIR/../.." && pwd)"
 BACKEND_DIR="${BACKEND_DIR:-$INFRASTRUCTURE_DIR/../backend}"
+# shellcheck source=morrowpal-runtime-config.sh
+source "$SCRIPT_DIR/morrowpal-runtime-config.sh"
+# shellcheck source=morrowpal-publish-config.sh
+source "$SCRIPT_DIR/morrowpal-publish-config.sh"
 
 logged_in=false
 registry=""
 
 usage() {
     cat <<'EOF'
-Usage: publish-images.sh BUILD_NUMBER
+Usage: publish-images.sh ENVIRONMENT BUILD_NUMBER
 
-Build, test, publish, and scan the production backend API and job images.
+Build, test, publish, and scan backend API and job images.
 
 Arguments:
+  ENVIRONMENT   Target environment: prod or staging.
   BUILD_NUMBER  Positive, increasing integer used in the immutable image tag.
 
 Example:
-  source ./infrastructure/prod/scripts/publish-images.sh 2
+  source ./infrastructure/prod/scripts/publish-images.sh staging 2
 
 Set BACKEND_DIR to override the default sibling backend repository location.
 When sourced, the script exports BACKEND_TAG in the current shell.
@@ -160,20 +161,46 @@ wait_for_scan() {
 
 trap cleanup EXIT
 
-if (($# != 1)); then
-    usage >&2
-    exit 2
-fi
-
-if [[ "$1" == "-h" || "$1" == "--help" ]]; then
+if (($# == 1)) && [[ "$1" == "-h" || "$1" == "--help" ]]; then
     usage
     exit 0
 fi
 
-readonly BUILD_NUMBER="$1"
+if (($# != 2)); then
+    usage >&2
+    exit 2
+fi
+
+readonly ENVIRONMENT="$1"
+readonly BUILD_NUMBER="$2"
 [[ "$BUILD_NUMBER" =~ ^[1-9][0-9]*$ ]] || fail "BUILD_NUMBER must be a positive integer"
 
 require_command aws
+morrowpal_load_publish_environment "$ENVIRONMENT" "$INFRASTRUCTURE_DIR"
+
+readonly AWS_REGION="$MORROWPAL_AWS_REGION"
+readonly EXPECTED_AWS_ACCOUNT_ID="$MORROWPAL_AWS_ACCOUNT_ID"
+readonly API_REPOSITORY="$MORROWPAL_ECR_REPOSITORY_PREFIX/backend-api"
+readonly JOB_REPOSITORY="$MORROWPAL_ECR_REPOSITORY_PREFIX/backend-job"
+registry="$MORROWPAL_ECR_REGISTRY"
+
+actual_account_id="$(aws sts get-caller-identity --query Account --output text --region "$AWS_REGION")"
+[[ "$actual_account_id" == "$EXPECTED_AWS_ACCOUNT_ID" ]] \
+    || fail "AWS account $actual_account_id does not match $ENVIRONMENT account $EXPECTED_AWS_ACCOUNT_ID"
+
+case "${MORROWPAL_PUBLISH_DRY_RUN:-false}" in
+    true)
+        printf 'Dry run: backend images would publish to %s/%s and %s/%s in %s.\n' \
+            "$registry" "$API_REPOSITORY" "$registry" "$JOB_REPOSITORY" "$AWS_REGION"
+        exit 0
+        ;;
+    false)
+        ;;
+    *)
+        fail "MORROWPAL_PUBLISH_DRY_RUN must be true or false"
+        ;;
+esac
+
 require_command docker
 require_command git
 
@@ -190,11 +217,6 @@ fi
 readonly GIT_SHA="$(git -C "$BACKEND_DIR" rev-parse --short=7 HEAD)"
 readonly IMAGE_TAG="build-$BUILD_NUMBER-$GIT_SHA"
 
-actual_account_id="$(aws sts get-caller-identity --query Account --output text --region "$AWS_REGION")"
-[[ "$actual_account_id" == "$EXPECTED_AWS_ACCOUNT_ID" ]] \
-    || fail "AWS account $actual_account_id does not match production account $EXPECTED_AWS_ACCOUNT_ID"
-
-registry="$EXPECTED_AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"
 readonly API_IMAGE="$registry/$API_REPOSITORY:$IMAGE_TAG"
 readonly JOB_IMAGE="$registry/$JOB_REPOSITORY:$IMAGE_TAG"
 

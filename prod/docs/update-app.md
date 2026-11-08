@@ -35,13 +35,13 @@ Choose a semantic app version and a positive build number greater than the
 latest published app build:
 
 ```bash
-source ./scripts/publish-app-image.sh APP_VERSION BUILD_NUMBER
+source ./scripts/publish-app-image.sh prod APP_VERSION BUILD_NUMBER
 ```
 
 For example:
 
 ```bash
-source ./scripts/publish-app-image.sh 1.1.0 2
+source ./scripts/publish-app-image.sh prod 1.1.0 2
 ```
 
 `APP_VERSION` becomes the packaged Flutter version and the

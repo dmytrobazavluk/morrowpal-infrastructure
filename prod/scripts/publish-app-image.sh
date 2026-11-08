@@ -39,10 +39,6 @@ fi
 
 set -Eeuo pipefail
 
-readonly aws_region="us-east-2"
-readonly expected_aws_account_id="384078510608"
-readonly repository="morrowpal/prod/app"
-readonly api_base_url="https://api.morrowpal.com"
 readonly scan_attempts=30
 readonly scan_wait_seconds=10
 
@@ -50,21 +46,26 @@ script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 infrastructure_dir="$(cd -- "$script_dir/../.." && pwd)"
 app_dir="${APP_DIR:-$infrastructure_dir/../frontend}"
 app_container_dir="$script_dir/../app"
+# shellcheck source=morrowpal-runtime-config.sh
+source "$script_dir/morrowpal-runtime-config.sh"
+# shellcheck source=morrowpal-publish-config.sh
+source "$script_dir/morrowpal-publish-config.sh"
 logged_in=false
 registry=""
 
 usage() {
     cat <<'EOF'
-Usage: publish-app-image.sh APP_VERSION BUILD_NUMBER
+Usage: publish-app-image.sh ENVIRONMENT APP_VERSION BUILD_NUMBER
 
-Build, publish, and scan the production Flutter web app image.
+Build, publish, and scan a Flutter web app image.
 
 Arguments:
+  ENVIRONMENT   Target environment: prod or staging.
   APP_VERSION   Semantic app version used in X-MorrowPal-Build, for example 1.1.0.
   BUILD_NUMBER  Positive, increasing integer used in the immutable image tag.
 
 Example:
-  source ./infrastructure/prod/scripts/publish-app-image.sh 1.1.0 2
+  source ./infrastructure/prod/scripts/publish-app-image.sh staging 1.1.0 2
 
 Set APP_DIR to override the default sibling frontend repository location.
 When sourced, the script exports APP_TAG in the current shell.
@@ -152,18 +153,44 @@ if (($# == 1)) && [[ "$1" == "-h" || "$1" == "--help" ]]; then
     exit 0
 fi
 
-if (($# != 2)); then
+if (($# != 3)); then
     usage >&2
     exit 2
 fi
 
-readonly app_version="$1"
-readonly build_number="$2"
+readonly environment="$1"
+readonly app_version="$2"
+readonly build_number="$3"
 [[ "$app_version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] \
     || fail "APP_VERSION must use major.minor.patch with non-negative integers"
 [[ "$build_number" =~ ^[1-9][0-9]*$ ]] || fail "BUILD_NUMBER must be a positive integer"
 
 require_command aws
+morrowpal_load_publish_environment "$environment" "$infrastructure_dir"
+
+readonly aws_region="$MORROWPAL_AWS_REGION"
+readonly expected_aws_account_id="$MORROWPAL_AWS_ACCOUNT_ID"
+readonly repository="$MORROWPAL_ECR_REPOSITORY_PREFIX/app"
+readonly api_base_url="$MORROWPAL_API_URL"
+registry="$MORROWPAL_ECR_REGISTRY"
+
+actual_account_id="$(aws sts get-caller-identity --query Account --output text --region "$aws_region")"
+[[ "$actual_account_id" == "$expected_aws_account_id" ]] \
+    || fail "AWS account $actual_account_id does not match $environment account $expected_aws_account_id"
+
+case "${MORROWPAL_PUBLISH_DRY_RUN:-false}" in
+    true)
+        printf 'Dry run: app image would publish to %s/%s in %s with API URL %s.\n' \
+            "$registry" "$repository" "$aws_region" "$api_base_url"
+        exit 0
+        ;;
+    false)
+        ;;
+    *)
+        fail "MORROWPAL_PUBLISH_DRY_RUN must be true or false"
+        ;;
+esac
+
 require_command docker
 require_command flutter
 require_command git
@@ -177,10 +204,6 @@ fi
 
 readonly git_sha="$(git -C "$app_dir" rev-parse --short=7 HEAD)"
 readonly image_tag="build-$build_number-$git_sha"
-
-actual_account_id="$(aws sts get-caller-identity --query Account --output text --region "$aws_region")"
-[[ "$actual_account_id" == "$expected_aws_account_id" ]] \
-    || fail "AWS account $actual_account_id does not match production account $expected_aws_account_id"
 
 existing_tags="$(aws ecr list-images \
     --repository-name "$repository" \
@@ -202,7 +225,6 @@ done
 ((build_number > latest_build_number)) \
     || fail "BUILD_NUMBER must be greater than the latest published build number ($latest_build_number)"
 
-registry="$expected_aws_account_id.dkr.ecr.$aws_region.amazonaws.com"
 readonly image="$registry/$repository:$image_tag"
 
 (

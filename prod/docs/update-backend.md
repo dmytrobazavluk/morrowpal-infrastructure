@@ -36,7 +36,7 @@ The AWS account must be `384078510608`.
 Choose a positive build number greater than the latest published backend build:
 
 ```bash
-source ./scripts/publish-images.sh BUILD_NUMBER
+source ./scripts/publish-images.sh prod BUILD_NUMBER
 ```
 
 The publisher:

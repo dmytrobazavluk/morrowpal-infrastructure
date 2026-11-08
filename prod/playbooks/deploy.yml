@@ -236,9 +236,9 @@
         group: root
         mode: "0755"
 
-    - name: Install the production Envoy configuration
-      ansible.builtin.copy:
-        src: ../envoy/envoy.yaml
+    - name: Install the selected environment Envoy configuration
+      ansible.builtin.template:
+        src: ../templates/envoy.yaml.j2
         dest: "{{ morrowpal_root }}/envoy/envoy.yaml"
         owner: root
         group: root

@@ -8,6 +8,8 @@ readonly REPOSITORY_DIR="$(cd -- "$PROD_DIR/.." && pwd)"
 readonly CLOUDFORMATION_DIR="$PROD_DIR/cloudformation"
 readonly COMPOSE_BASELINE_FILE="$PROD_DIR/baselines/docker-compose-production.sha256"
 readonly COMPOSE_ENV_TEMPLATE="$PROD_DIR/templates/compose.env.j2"
+readonly ENVOY_BASELINE_FILE="$PROD_DIR/baselines/envoy-production.sha256"
+readonly ENVOY_TEMPLATE="$PROD_DIR/templates/envoy.yaml.j2"
 readonly AWS_REGION="us-east-2"
 
 fail() {
@@ -50,16 +52,36 @@ render_compose_environment() {
             --extra-vars "@$vars_file" >/dev/null
 }
 
+render_envoy_environment() {
+    local environment="$1"
+    local destination="$2"
+    local vars_file="$REPOSITORY_DIR/environments/$environment/vars.yml"
+
+    ANSIBLE_CONFIG="$REPOSITORY_DIR/ansible.cfg" \
+    ANSIBLE_REMOTE_TEMP="/tmp/morrowpal-ansible-remote" \
+        ansible localhost \
+            -i localhost, \
+            --connection local \
+            --module-name ansible.builtin.template \
+            --args "src=$ENVOY_TEMPLATE dest=$destination mode=0600" \
+            --extra-vars "@$vars_file" >/dev/null
+}
+
 main() {
     local actual_digest
     local cleanup_command
     local digest_output
     local expected_digest
+    local envoy_actual_digest
+    local envoy_expected_digest
+    local expected_staging_value
+    local prod_envoy_file
     local forbidden_value
     local prod_compose_env_file
     local prod_render
     local staging_compose_env_file
     local staging_render
+    local staging_envoy_file
     local -a templates=(
         "$CLOUDFORMATION_DIR/ecr.yml"
         "$CLOUDFORMATION_DIR/ec2-access.yml"
@@ -100,16 +122,60 @@ main() {
     [[ "$expected_digest" =~ ^[0-9a-f]{64}$ ]] \
         || fail "Compose baseline must contain one lowercase SHA-256 digest"
 
+    [[ -f "$ENVOY_BASELINE_FILE" ]] \
+        || fail "Envoy baseline not found: $ENVOY_BASELINE_FILE"
+    IFS= read -r envoy_expected_digest <"$ENVOY_BASELINE_FILE" \
+        || fail "Could not read Envoy baseline: $ENVOY_BASELINE_FILE"
+    [[ "$envoy_expected_digest" =~ ^[0-9a-f]{64}$ ]] \
+        || fail "Envoy baseline must contain one lowercase SHA-256 digest"
+
     prod_compose_env_file="$(mktemp)"
     staging_compose_env_file="$(mktemp)"
+    prod_envoy_file="$(mktemp)"
+    staging_envoy_file="$(mktemp)"
     printf -v cleanup_command \
-        'rm -f -- %q %q' \
+        'rm -f -- %q %q %q %q' \
         "$prod_compose_env_file" \
-        "$staging_compose_env_file"
+        "$staging_compose_env_file" \
+        "$prod_envoy_file" \
+        "$staging_envoy_file"
     trap "$cleanup_command" EXIT
 
     render_compose_environment prod "$prod_compose_env_file"
     render_compose_environment staging "$staging_compose_env_file"
+    render_envoy_environment prod "$prod_envoy_file"
+    render_envoy_environment staging "$staging_envoy_file"
+
+    printf 'Comparing rendered production Envoy configuration to its baseline...\n'
+    digest_output="$(sha256sum "$prod_envoy_file")"
+    envoy_actual_digest="${digest_output%% *}"
+    [[ "$envoy_actual_digest" == "$envoy_expected_digest" ]] \
+        || fail "Rendered production Envoy configuration changed"
+
+    grep -Fqx '  id: morrowpal-staging-envoy' "$staging_envoy_file" \
+        || fail "Staging Envoy node ID is incorrect"
+    grep -Fqx '  cluster: morrowpal-staging' "$staging_envoy_file" \
+        || fail "Staging Envoy cluster is incorrect"
+    for expected_staging_value in \
+        '                    - name: staging_api' \
+        '                        - api.staging.morrowpal.com' \
+        '                    - name: staging_app' \
+        '                        - app.staging.morrowpal.com' \
+        '                    - name: staging_website' \
+        '                        - staging.morrowpal.com' \
+        '                    - name: staging_website_redirect' \
+        '                        - www.staging.morrowpal.com' \
+        '                            host_redirect: staging.morrowpal.com' \
+        '                    - name: reserved_staging_names' \
+        '                        - admin.staging.morrowpal.com' \
+        '                        - back.staging.morrowpal.com'; do
+        grep -Fqx "$expected_staging_value" "$staging_envoy_file" \
+            || fail "Staging Envoy rendering is missing: $expected_staging_value"
+    done
+    if grep -Eq 'morrowpal-prod|(^|[[:space:]])(api\.|app\.|www\.|admin\.|back\.)?morrowpal\.com([[:space:]]|$)' \
+            "$staging_envoy_file"; then
+        fail "Staging Envoy rendering contains a production identity or hostname"
+    fi
 
     printf 'Rendering production and staging Compose configurations...\n'
     prod_render="$(render_compose "$prod_compose_env_file")"

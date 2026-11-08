@@ -1,6 +1,6 @@
 node:
-  id: morrowpal-prod-envoy
-  cluster: morrowpal-prod
+  id: {{ morrowpal_stack_prefix }}-envoy
+  cluster: {{ morrowpal_stack_prefix }}
 
 layered_runtime:
   layers:
@@ -168,42 +168,42 @@ static_resources:
                 route_config:
                   name: public_https_routes
                   virtual_hosts:
-                    - name: production_api
+                    - name: {{ 'production' if morrowpal_environment == 'prod' else morrowpal_environment }}_api
                       domains:
-                        - api.morrowpal.com
+                        - {{ morrowpal_domains.api }}
                       routes: *backend_api_routes
-                    - name: production_app
+                    - name: {{ 'production' if morrowpal_environment == 'prod' else morrowpal_environment }}_app
                       domains:
-                        - app.morrowpal.com
+                        - {{ morrowpal_domains.app }}
                       routes:
                         - match:
                             prefix: "/"
                           route:
                             cluster: app
                             timeout: 30s
-                    - name: production_website
+                    - name: {{ 'production' if morrowpal_environment == 'prod' else morrowpal_environment }}_website
                       domains:
-                        - morrowpal.com
+                        - {{ morrowpal_domains.apex }}
                       routes:
                         - match:
                             prefix: "/"
                           route:
                             cluster: website
                             timeout: 30s
-                    - name: production_website_redirect
+                    - name: {{ 'production' if morrowpal_environment == 'prod' else morrowpal_environment }}_website_redirect
                       domains:
-                        - www.morrowpal.com
+                        - {{ morrowpal_domains.www }}
                       routes:
                         - match:
                             prefix: "/"
                           redirect:
-                            host_redirect: morrowpal.com
+                            host_redirect: {{ morrowpal_domains.apex }}
                             https_redirect: true
                             response_code: MOVED_PERMANENTLY
-                    - name: reserved_production_names
+                    - name: reserved_{{ 'production' if morrowpal_environment == 'prod' else morrowpal_environment }}_names
                       domains:
-                        - admin.morrowpal.com
-                        - back.morrowpal.com
+                        - {{ morrowpal_domains.admin }}
+                        - {{ morrowpal_domains.back }}
                       routes:
                         - match:
                             prefix: "/"

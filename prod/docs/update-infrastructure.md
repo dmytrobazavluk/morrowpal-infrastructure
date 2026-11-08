@@ -6,7 +6,7 @@ Use this procedure for infrastructure-only changes that do not publish a new
 backend, app, or website image. Examples include changes to:
 
 - `docker-compose.yml`
-- `envoy/envoy.yaml`
+- `templates/envoy.yaml.j2`
 - `envoy/tls-certificate-sds.yaml`
 - the MorrowPal systemd unit or service scripts
 

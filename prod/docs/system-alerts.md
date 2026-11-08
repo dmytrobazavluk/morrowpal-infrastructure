@@ -28,9 +28,9 @@ CloudFormation parameters. Do not put recipient addresses into the template or
 Docker Compose file.
 
 ```bash
-cfn-lint --regions us-east-2 -t ./cloudformation/system-alerts.yml
+cfn-lint --regions us-east-2 -t ../shared/cloudformation/system-alerts.yml
 aws cloudformation validate-template \
-  --template-body file://./cloudformation/system-alerts.yml \
+  --template-body file://../shared/cloudformation/system-alerts.yml \
   --region us-east-2
 
 PRODUCTION_EC2_ROLE_ARN="$(aws cloudformation describe-stacks \
@@ -43,7 +43,7 @@ aws cloudformation create-change-set \
   --stack-name morrowpal-prod-system-alerts \
   --change-set-name initial-system-alerts \
   --change-set-type CREATE \
-  --template-body file://./cloudformation/system-alerts.yml \
+  --template-body file://../shared/cloudformation/system-alerts.yml \
   --parameters \
     "ParameterKey=ProductionEc2RoleName,ParameterValue=$PRODUCTION_EC2_ROLE_NAME" \
     "ParameterKey=PrimaryAlertEmail,ParameterValue=$PRIMARY_ALERT_EMAIL" \

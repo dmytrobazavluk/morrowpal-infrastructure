@@ -42,14 +42,14 @@ The account must be `384078510608`; all AWS resources in this runbook use
 
 ```bash
 cfn-lint --format json --regions us-east-2 \
-  -t ./cloudformation/ecr.yml \
-  ./cloudformation/ec2-access.yml \
-  ./cloudformation/ec2.yml \
-  ./cloudformation/public-ip.yml \
-  ./cloudformation/http-validation-ingress.yml \
-  ./cloudformation/mysql-storage.yml \
-  ./cloudformation/runtime-secrets.yml \
-  ./cloudformation/system-alerts.yml
+  -t ../shared/cloudformation/ecr.yml \
+  ../shared/cloudformation/ec2-access.yml \
+  ../shared/cloudformation/ec2.yml \
+  ../shared/cloudformation/public-ip.yml \
+  ../shared/cloudformation/http-validation-ingress.yml \
+  ../shared/cloudformation/mysql-storage.yml \
+  ../shared/cloudformation/runtime-secrets.yml \
+  ../shared/cloudformation/system-alerts.yml
 ```
 
 Validate each template with AWS before creating its change set:
@@ -66,7 +66,7 @@ for template in \
   system-alerts.yml
 do
   aws cloudformation validate-template \
-    --template-body "file://./cloudformation/$template" \
+    --template-body "file://../shared/cloudformation/$template" \
     --region us-east-2 >/dev/null
 done
 ```
@@ -78,7 +78,7 @@ aws cloudformation create-change-set \
   --stack-name morrowpal-prod-ecr \
   --change-set-name initial-ecr \
   --change-set-type CREATE \
-  --template-body file://./cloudformation/ecr.yml \
+  --template-body file://../shared/cloudformation/ecr.yml \
   --parameters \
     ParameterKey=Environment,ParameterValue=prod \
     ParameterKey=TaggedImageRetentionCount,ParameterValue=5 \
@@ -117,7 +117,7 @@ aws cloudformation create-change-set \
   --stack-name morrowpal-prod-ec2-access \
   --change-set-name initial-ec2-access \
   --change-set-type CREATE \
-  --template-body file://./cloudformation/ec2-access.yml \
+  --template-body file://../shared/cloudformation/ec2-access.yml \
   --capabilities CAPABILITY_IAM \
   --region us-east-2
 
@@ -168,7 +168,7 @@ aws cloudformation create-change-set \
   --stack-name morrowpal-prod-ec2 \
   --change-set-name initial-ec2 \
   --change-set-type CREATE \
-  --template-body file://./cloudformation/ec2.yml \
+  --template-body file://../shared/cloudformation/ec2.yml \
   --parameters \
     ParameterKey=KeyName,ParameterValue=01 \
     ParameterKey=SubnetId,ParameterValue=subnet-098ab1625c79adf3d \
@@ -247,7 +247,7 @@ aws cloudformation create-change-set \
   --stack-name morrowpal-prod-mysql-storage \
   --change-set-name initial-mysql-storage \
   --change-set-type CREATE \
-  --template-body file://./cloudformation/mysql-storage.yml \
+  --template-body file://../shared/cloudformation/mysql-storage.yml \
   --parameters ParameterKey=InstanceId,ParameterValue="$PRODUCTION_INSTANCE_ID" \
   --region us-east-2
 
@@ -313,7 +313,7 @@ aws cloudformation create-change-set \
   --stack-name morrowpal-prod-runtime-secrets \
   --change-set-name initial-runtime-secrets \
   --change-set-type CREATE \
-  --template-body file://./cloudformation/runtime-secrets.yml \
+  --template-body file://../shared/cloudformation/runtime-secrets.yml \
   --parameters "ParameterKey=ProductionEc2RoleName,ParameterValue=$PRODUCTION_EC2_ROLE_NAME" \
   --capabilities CAPABILITY_IAM \
   --region us-east-2
@@ -367,7 +367,7 @@ aws cloudformation create-change-set \
   --stack-name morrowpal-prod-public-ip \
   --change-set-name initial-public-ip \
   --change-set-type CREATE \
-  --template-body file://./cloudformation/public-ip.yml \
+  --template-body file://../shared/cloudformation/public-ip.yml \
   --parameters ParameterKey=InstanceId,ParameterValue="$PRODUCTION_INSTANCE_ID" \
   --region us-east-2
 
@@ -417,7 +417,7 @@ aws cloudformation create-change-set \
   --stack-name morrowpal-prod-http-validation-ingress \
   --change-set-name initial-http-validation-ingress \
   --change-set-type CREATE \
-  --template-body file://./cloudformation/http-validation-ingress.yml \
+  --template-body file://../shared/cloudformation/http-validation-ingress.yml \
   --parameters ParameterKey=SecurityGroupId,ParameterValue=sg-0103b42f143676fda \
   --region us-east-2
 

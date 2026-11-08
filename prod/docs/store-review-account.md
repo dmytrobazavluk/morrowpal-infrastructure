@@ -30,7 +30,7 @@ it in a migration, repository file, Ansible variable, or deployment log.
 ## First production rollout
 
 1. Validate and update `morrowpal-prod-runtime-secrets` from
-   `cloudformation/runtime-secrets.yml`. Review the change set and confirm that
+   `../shared/cloudformation/runtime-secrets.yml`. Review the change set and confirm that
    it adds only the retained store-review secret, its IAM policy reference,
    and its output.
 2. In the AWS Secrets Manager console, replace the generated `value` in

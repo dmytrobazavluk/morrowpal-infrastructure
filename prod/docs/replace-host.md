@@ -11,7 +11,7 @@ creation and preparation commands. Do not format the retained MySQL volume.
 
 ## 1. Create and prepare the replacement host
 
-Create the replacement through `cloudformation/ec2.yml` with the same subnet,
+Create the replacement through `../shared/cloudformation/ec2.yml` with the same subnet,
 security group, key pair, and EC2 instance profile. The subnet must remain in
 `us-east-2c`, the Availability Zone of the retained volume.
 
@@ -63,7 +63,7 @@ aws cloudformation create-change-set \
   --stack-name morrowpal-prod-mysql-storage \
   --change-set-name detach-mysql-volume \
   --change-set-type UPDATE \
-  --template-body file://./cloudformation/mysql-storage.yml \
+  --template-body file://../shared/cloudformation/mysql-storage.yml \
   --parameters \
     ParameterKey=InstanceId,ParameterValue="$PRODUCTION_INSTANCE_ID" \
     ParameterKey=AttachVolume,ParameterValue=false \
@@ -107,7 +107,7 @@ aws cloudformation create-change-set \
   --stack-name morrowpal-prod-mysql-storage \
   --change-set-name attach-mysql-volume \
   --change-set-type UPDATE \
-  --template-body file://./cloudformation/mysql-storage.yml \
+  --template-body file://../shared/cloudformation/mysql-storage.yml \
   --parameters \
     ParameterKey=InstanceId,ParameterValue="$PRODUCTION_INSTANCE_ID" \
     ParameterKey=AttachVolume,ParameterValue=true \
@@ -162,7 +162,7 @@ aws cloudformation create-change-set \
   --stack-name morrowpal-prod-public-ip \
   --change-set-name move-production-public-ip \
   --change-set-type UPDATE \
-  --template-body file://./cloudformation/public-ip.yml \
+  --template-body file://../shared/cloudformation/public-ip.yml \
   --parameters ParameterKey=InstanceId,ParameterValue="$PRODUCTION_INSTANCE_ID" \
   --region us-east-2
 

@@ -115,7 +115,7 @@ certificate authority enforces rate limits.
 ## Rollout Sequence
 
 1. Wait until all six public DNS names pass the IPv4 and IPv6 preflight.
-2. Validate and deploy `cloudformation/http-validation-ingress.yml` through a
+2. Validate and deploy `../shared/cloudformation/http-validation-ingress.yml` through a
    reviewed CloudFormation change set.
 3. Run `playbooks/prepare-tls.yml` with the Certbot registration email.
 4. Validate the exact Envoy configuration using the pinned container image.

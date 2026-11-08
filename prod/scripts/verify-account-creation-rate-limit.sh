@@ -2,23 +2,25 @@
 
 set -Eeuo pipefail
 
-readonly target_url="https://api.morrowpal.com/accounts"
 readonly request_count=30
 
 usage() {
     cat <<'EOF'
-Usage: verify-production-account-creation-rate-limit.sh --confirm-production
+Usage: verify-account-creation-rate-limit.sh ENVIRONMENT TARGET_URL [--confirm-production] [--dry-run]
 
-Send 30 deliberately invalid account-creation requests to the production API
+Send 30 deliberately invalid account-creation requests to the selected API
 and verify that Envoy allows some requests to reach backend validation before
 returning Envoy-generated HTTP 429 responses.
+
+ENVIRONMENT must be prod or staging. TARGET_URL must be that environment's
+exact account-creation URL. Production requires --confirm-production.
 
 The '{}' request body fails backend validation and does not create an account.
 The test consumes the caller's 25-token account-creation bucket and part of the
 general API bucket. Wait at least 60 seconds before retrying from the same
 public IP.
 
-This test verifies the production per-client-IP account-creation bucket. A
+This test verifies the selected environment's per-client-IP account-creation bucket. A
 single runner cannot independently exhaust the 50-token global bucket without
 first exhausting its own 25-token bucket.
 EOF
@@ -29,9 +31,53 @@ fail() {
     exit 1
 }
 
-if (($# != 1)) || [[ "$1" != "--confirm-production" ]]; then
+if (($# < 2)); then
     usage >&2
     exit 2
+fi
+
+readonly environment="$1"
+readonly target_url="$2"
+shift 2
+confirm_production=false
+dry_run=false
+for option in "$@"; do
+    case "$option" in
+        --confirm-production)
+            confirm_production=true
+            ;;
+        --dry-run)
+            dry_run=true
+            ;;
+        *)
+            usage >&2
+            exit 2
+            ;;
+    esac
+done
+
+case "$environment" in
+    prod)
+        [[ "$target_url" == "https://api.morrowpal.com/accounts" ]] \
+            || fail "Production target must be https://api.morrowpal.com/accounts"
+        [[ "$confirm_production" == true ]] \
+            || fail "Production verification requires --confirm-production"
+        ;;
+    staging)
+        [[ "$target_url" == "https://api.staging.morrowpal.com/accounts" ]] \
+            || fail "Staging target must be https://api.staging.morrowpal.com/accounts"
+        [[ "$confirm_production" == false ]] \
+            || fail "--confirm-production cannot be used with staging"
+        ;;
+    *)
+        fail "ENVIRONMENT must be prod or staging"
+        ;;
+esac
+
+if [[ "$dry_run" == true ]]; then
+    printf 'Dry run: would test the %s account-creation rate limit at %s with %d invalid requests.\n' \
+        "$environment" "$target_url" "$request_count"
+    exit 0
 fi
 
 command -v curl >/dev/null 2>&1 || fail "Required command not found: curl"
@@ -96,4 +142,5 @@ printf 'Results: backend_rejected=%d, envoy_rate_limited=%d, unexpected=%d, tran
 ((backend_rejected > 0)) || fail "No request reached backend validation; wait at least 60 seconds and retry"
 ((envoy_rate_limited > 0)) || fail "Envoy did not enforce the account-creation limit"
 
-printf 'PASS: the production account-creation per-client-IP limit is enforced by Envoy.\n'
+printf 'PASS: the %s account-creation per-client-IP limit is enforced by Envoy.\n' \
+    "$environment"

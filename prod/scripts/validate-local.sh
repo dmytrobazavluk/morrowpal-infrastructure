@@ -104,6 +104,7 @@ main() {
     "$PROD_DIR/scripts/test-morrowpal-deploy-release.sh"
     "$PROD_DIR/scripts/test-morrowpal-app-website-releases.sh"
     "$PROD_DIR/scripts/test-morrowpal-publishers.sh"
+    "$PROD_DIR/scripts/test-morrowpal-rate-limit-verifiers.sh"
     "$PROD_DIR/scripts/test-morrowpal-tls-templates.sh"
     "$PROD_DIR/scripts/test-morrowpal-nginx-templates.sh"
 

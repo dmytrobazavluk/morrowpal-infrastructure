@@ -103,7 +103,18 @@ Exercise the routes affected by the change before declaring the deployment
 complete. For a rate-limit change, run the guarded verification script:
 
 ```bash
-./scripts/verify-production-rate-limit.sh --confirm-production
+./scripts/verify-rate-limit.sh \
+  prod \
+  https://api.morrowpal.com/ready \
+  --confirm-production
+```
+
+Run the same check against staging without the production confirmation:
+
+```bash
+./scripts/verify-rate-limit.sh \
+  staging \
+  https://api.staging.morrowpal.com/ready
 ```
 
 The script sends 160 requests to the API readiness endpoint in controlled
@@ -117,10 +128,21 @@ test consumes the caller's client-IP bucket, so wait at least 60 seconds before
 repeating it from the same public IP.
 
 For a change to the anonymous account-creation limit, run its guarded
-production verification script instead:
+verification script instead:
 
 ```bash
-./scripts/verify-production-account-creation-rate-limit.sh --confirm-production
+./scripts/verify-account-creation-rate-limit.sh \
+  prod \
+  https://api.morrowpal.com/accounts \
+  --confirm-production
+```
+
+For staging:
+
+```bash
+./scripts/verify-account-creation-rate-limit.sh \
+  staging \
+  https://api.staging.morrowpal.com/accounts
 ```
 
 This script sends 30 deliberately invalid `POST /accounts` requests. The first
@@ -129,8 +151,9 @@ accounts; requests beyond the 25-token per-client-IP burst return an
 Envoy-generated HTTP 429. The invalid payload is rejected by backend validation
 with HTTP 400 before business logic runs, so the script can distinguish allowed
 requests from Envoy-rejected requests without depending on an optional response
-header. It verifies the production per-client-IP bucket only; the isolated
-development test covers the global bucket across multiple simulated client IPs.
+header. It verifies the selected environment's per-client-IP bucket only; the
+isolated development test covers the global bucket across multiple simulated
+client IPs.
 
 ## Rollback
 

@@ -186,12 +186,10 @@ read that secret and cannot read `morrowpal/prod/postmark`. The prod role has
 the inverse restriction. Token values are resolved only at service startup
 through `asm-exec`.
 
-Staging email remains enabled. Before the live staging server is used, the
-backend must enforce an exact-address recipient allowlist configured from
-non-secret staging settings. A staging send to any other address fails before
-calling Postmark. Prod does not enable this staging restriction. Staging also
-uses synthetic accounts, so the allowlist is a second safety boundary rather
-than the only boundary.
+Staging email remains enabled and does not add an application-level recipient
+restriction. Staging data and accounts must therefore use controlled test
+addresses. Isolation from production is provided by the dedicated Postmark
+server, Server API token, sender identities, and environment-specific secret.
 
 AWS SNS is an environment-specific AWS integration for internal system alerts.
 It is not a third-party provider, but its topic, IAM permissions, and

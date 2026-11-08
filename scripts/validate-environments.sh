@@ -71,8 +71,6 @@ validate_vars_file() {
         morrowpal_email_otp_from_address
         morrowpal_email_notification_from_address
         morrowpal_email_dispatch_opt_out_url
-        morrowpal_email_recipient_allowlist_enabled
-        morrowpal_email_recipient_allowlist
         morrowpal_app_notifications_provider
         morrowpal_firebase_project_id
     )

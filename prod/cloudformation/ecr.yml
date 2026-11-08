@@ -1,12 +1,14 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: Private ECR repositories for MorrowPal production container images.
+Description: Private ECR repositories for MorrowPal container images.
 
 Parameters:
   Environment:
     Type: String
     Default: prod
-    AllowedPattern: "^[a-z0-9-]+$"
-    ConstraintDescription: Use lowercase letters, numbers, and hyphens only.
+    AllowedValues:
+      - prod
+      - staging
+    Description: Deployment environment used in repository names and tags.
 
   TaggedImageRetentionCount:
     Type: Number

@@ -33,6 +33,8 @@ morrowpal_public_urls:
   website_www: https://www.staging.morrowpal.com
   api: https://api.staging.morrowpal.com
   app: https://app.staging.morrowpal.com
+morrowpal_cors_allowed_origin_patterns: https://app.staging.morrowpal.com,https://staging.morrowpal.com
+morrowpal_store_review_email: store-review@staging.morrowpal.com
 
 morrowpal_tls_certificate_name: staging.morrowpal.com
 morrowpal_tls_expected_ipv4: STAGING_PUBLIC_IP
@@ -52,5 +54,5 @@ morrowpal_email_dispatch_opt_out_url: https://staging.morrowpal.com/notification
 morrowpal_email_recipient_allowlist_enabled: true
 morrowpal_email_recipient_allowlist: []
 
-morrowpal_firebase_mode: disabled
+morrowpal_app_notifications_provider: stub
 morrowpal_firebase_project_id: STAGING_FIREBASE_PROJECT_ID

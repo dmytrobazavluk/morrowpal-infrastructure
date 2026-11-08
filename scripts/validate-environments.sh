@@ -56,6 +56,8 @@ validate_vars_file() {
         morrowpal_public_ipv4
         morrowpal_domains
         morrowpal_public_urls
+        morrowpal_cors_allowed_origin_patterns
+        morrowpal_store_review_email
         morrowpal_tls_certificate_name
         morrowpal_tls_expected_ipv4
         morrowpal_ssh_host_alias
@@ -71,7 +73,7 @@ validate_vars_file() {
         morrowpal_email_dispatch_opt_out_url
         morrowpal_email_recipient_allowlist_enabled
         morrowpal_email_recipient_allowlist
-        morrowpal_firebase_mode
+        morrowpal_app_notifications_provider
         morrowpal_firebase_project_id
     )
     local key

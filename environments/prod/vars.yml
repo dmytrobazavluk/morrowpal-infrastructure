@@ -33,6 +33,8 @@ morrowpal_public_urls:
   website_www: https://www.morrowpal.com
   api: https://api.morrowpal.com
   app: https://app.morrowpal.com
+morrowpal_cors_allowed_origin_patterns: https://app.morrowpal.com,https://morrowpal.com
+morrowpal_store_review_email: store-review@morrowpal.com
 
 morrowpal_tls_certificate_name: morrowpal.com
 morrowpal_tls_expected_ipv4: 3.12.65.199
@@ -52,5 +54,5 @@ morrowpal_email_dispatch_opt_out_url: https://morrowpal.com/notifications/disabl
 morrowpal_email_recipient_allowlist_enabled: false
 morrowpal_email_recipient_allowlist: []
 
-morrowpal_firebase_mode: live
+morrowpal_app_notifications_provider: firebase
 morrowpal_firebase_project_id: morrowpal

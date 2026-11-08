@@ -20,9 +20,9 @@ x-backend-common: &backend-common
     - no-new-privileges:true
 
 x-api-environment: &api-environment
-  AWS_REGION: us-east-2
-  APP_SYSTEM_ALERTS_PROVIDER: sns
-  APP_SYSTEM_ALERTS_TOPIC_ARN: arn:aws:sns:us-east-2:384078510608:morrowpal-prod-system-alerts
+  AWS_REGION: ${MORROWPAL_AWS_REGION:?MORROWPAL_AWS_REGION is required}
+  APP_SYSTEM_ALERTS_PROVIDER: ${MORROWPAL_SYSTEM_ALERTS_PROVIDER:?MORROWPAL_SYSTEM_ALERTS_PROVIDER is required}
+  APP_SYSTEM_ALERTS_TOPIC_ARN: ${MORROWPAL_SYSTEM_ALERTS_TOPIC_ARN:?MORROWPAL_SYSTEM_ALERTS_TOPIC_ARN is required}
   APP_SYSTEM_ALERTS_PUBLISH_TIMEOUT_MILLIS: "3000"
   DB_HOST: mysql
   DB_PORT: "3306"
@@ -32,17 +32,17 @@ x-api-environment: &api-environment
   APP_API_DB_MIN_IDLE: "1"
   APP_AUTH_ACCESS_TOKEN_TTL_SECONDS: "900"
   APP_AUTH_REFRESH_TOKEN_TTL_DAYS: "365"
-  APP_AUTH_STORE_REVIEW_EMAIL: "store-review@morrowpal.com"
-  APP_API_CORS_ALLOWED_ORIGIN_PATTERNS: "https://app.morrowpal.com,https://morrowpal.com"
+  APP_AUTH_STORE_REVIEW_EMAIL: ${MORROWPAL_STORE_REVIEW_EMAIL:?MORROWPAL_STORE_REVIEW_EMAIL is required}
+  APP_API_CORS_ALLOWED_ORIGIN_PATTERNS: ${MORROWPAL_CORS_ALLOWED_ORIGIN_PATTERNS:?MORROWPAL_CORS_ALLOWED_ORIGIN_PATTERNS is required}
   APP_CLIENT_COMPATIBILITY_ANDROID_MINIMUM_BUILD: "1.0.2"
   APP_CLIENT_COMPATIBILITY_ANDROID_UPDATE_URL: "https://play.google.com/store/apps/details?id=com.morrowpal.app"
   APP_CLIENT_COMPATIBILITY_IOS_MINIMUM_BUILD: "1.0.2"
   APP_CLIENT_COMPATIBILITY_IOS_UPDATE_URL: "https://apps.apple.com/us/search?term=MorrowPal"
   APP_CLIENT_COMPATIBILITY_WEB_MINIMUM_BUILD: "1.0.2"
-  APP_CLIENT_COMPATIBILITY_WEB_UPDATE_URL: "https://app.morrowpal.com/"
-  APP_EMAIL_PROVIDER: postmark
-  APP_EMAIL_POSTMARK_OTP_FROM_ADDRESS: "MorrowPal <verification-code@morrowpal.com>"
-  APP_EMAIL_POSTMARK_MESSAGE_STREAM: outbound
+  APP_CLIENT_COMPATIBILITY_WEB_UPDATE_URL: "${MORROWPAL_APP_URL:?MORROWPAL_APP_URL is required}/"
+  APP_EMAIL_PROVIDER: ${MORROWPAL_EMAIL_PROVIDER:?MORROWPAL_EMAIL_PROVIDER is required}
+  APP_EMAIL_POSTMARK_OTP_FROM_ADDRESS: ${MORROWPAL_EMAIL_OTP_FROM_ADDRESS:?MORROWPAL_EMAIL_OTP_FROM_ADDRESS is required}
+  APP_EMAIL_POSTMARK_MESSAGE_STREAM: ${MORROWPAL_POSTMARK_MESSAGE_STREAM:?MORROWPAL_POSTMARK_MESSAGE_STREAM is required}
   APP_EMAIL_VERIFICATION_CODE_TTL_SECONDS: "900"
   APP_EMAIL_OTP_SEND_COOLDOWN_SECONDS: "1"
   APP_EMAIL_OTP_SENDS_PER_HOUR: "5"
@@ -99,7 +99,7 @@ services:
 
   backend-api-blue:
     <<: *backend-common
-    image: 384078510608.dkr.ecr.us-east-2.amazonaws.com/morrowpal/prod/backend-api:${API_BLUE_IMAGE_TAG:?API_BLUE_IMAGE_TAG is required}
+    image: ${MORROWPAL_ECR_REGISTRY:?MORROWPAL_ECR_REGISTRY is required}/${MORROWPAL_ECR_REPOSITORY_PREFIX:?MORROWPAL_ECR_REPOSITORY_PREFIX is required}/backend-api:${API_BLUE_IMAGE_TAG:?API_BLUE_IMAGE_TAG is required}
     mem_limit: 288m
     environment: *api-environment
     entrypoint: ["/bin/sh", "-ec"]
@@ -118,7 +118,7 @@ services:
 
   backend-api-green:
     <<: *backend-common
-    image: 384078510608.dkr.ecr.us-east-2.amazonaws.com/morrowpal/prod/backend-api:${API_GREEN_IMAGE_TAG:?API_GREEN_IMAGE_TAG is required}
+    image: ${MORROWPAL_ECR_REGISTRY:?MORROWPAL_ECR_REGISTRY is required}/${MORROWPAL_ECR_REPOSITORY_PREFIX:?MORROWPAL_ECR_REPOSITORY_PREFIX is required}/backend-api:${API_GREEN_IMAGE_TAG:?API_GREEN_IMAGE_TAG is required}
     mem_limit: 288m
     environment: *api-environment
     entrypoint: ["/bin/sh", "-ec"]
@@ -136,7 +136,7 @@ services:
       - store_review_verification_code
 
   app:
-    image: 384078510608.dkr.ecr.us-east-2.amazonaws.com/morrowpal/prod/app:${APP_IMAGE_TAG:?APP_IMAGE_TAG is required}
+    image: ${MORROWPAL_ECR_REGISTRY:?MORROWPAL_ECR_REGISTRY is required}/${MORROWPAL_ECR_REPOSITORY_PREFIX:?MORROWPAL_ECR_REPOSITORY_PREFIX is required}/app:${APP_IMAGE_TAG:?APP_IMAGE_TAG is required}
     restart: unless-stopped
     read_only: true
     user: "101:101"
@@ -159,7 +159,7 @@ services:
       start_period: 5s
 
   website:
-    image: 384078510608.dkr.ecr.us-east-2.amazonaws.com/morrowpal/prod/website:${WEBSITE_IMAGE_TAG:?WEBSITE_IMAGE_TAG is required}
+    image: ${MORROWPAL_ECR_REGISTRY:?MORROWPAL_ECR_REGISTRY is required}/${MORROWPAL_ECR_REPOSITORY_PREFIX:?MORROWPAL_ECR_REPOSITORY_PREFIX is required}/website:${WEBSITE_IMAGE_TAG:?WEBSITE_IMAGE_TAG is required}
     restart: unless-stopped
     read_only: true
     user: "101:101"
@@ -205,8 +205,8 @@ services:
     volumes:
       - /opt/morrowpal/envoy/envoy.yaml:/etc/envoy/envoy.yaml:ro
       - /opt/morrowpal/envoy/tls-certificate-sds.yaml:/etc/envoy/tls-certificate-sds.yaml:ro
-      - /etc/letsencrypt/live/morrowpal.com:/etc/letsencrypt/live/morrowpal.com:ro
-      - /etc/letsencrypt/archive/morrowpal.com:/etc/letsencrypt/archive/morrowpal.com:ro
+      - /etc/letsencrypt/live/${MORROWPAL_TLS_CERTIFICATE_NAME:?MORROWPAL_TLS_CERTIFICATE_NAME is required}:/etc/letsencrypt/live/${MORROWPAL_TLS_CERTIFICATE_NAME:?MORROWPAL_TLS_CERTIFICATE_NAME is required}:ro
+      - /etc/letsencrypt/archive/${MORROWPAL_TLS_CERTIFICATE_NAME:?MORROWPAL_TLS_CERTIFICATE_NAME is required}:/etc/letsencrypt/archive/${MORROWPAL_TLS_CERTIFICATE_NAME:?MORROWPAL_TLS_CERTIFICATE_NAME is required}:ro
     ports:
       - "127.0.0.1:8080:8080"
       - "127.0.0.1:9901:9901"
@@ -215,11 +215,11 @@ services:
   backend-job-dispatch:
     <<: *backend-common
     mem_limit: 256m
-    image: 384078510608.dkr.ecr.us-east-2.amazonaws.com/morrowpal/prod/backend-job:${JOB_IMAGE_TAG:?JOB_IMAGE_TAG is required}
+    image: ${MORROWPAL_ECR_REGISTRY:?MORROWPAL_ECR_REGISTRY is required}/${MORROWPAL_ECR_REPOSITORY_PREFIX:?MORROWPAL_ECR_REPOSITORY_PREFIX is required}/backend-job:${JOB_IMAGE_TAG:?JOB_IMAGE_TAG is required}
     environment:
-      AWS_REGION: us-east-2
-      APP_SYSTEM_ALERTS_PROVIDER: sns
-      APP_SYSTEM_ALERTS_TOPIC_ARN: arn:aws:sns:us-east-2:384078510608:morrowpal-prod-system-alerts
+      AWS_REGION: ${MORROWPAL_AWS_REGION:?MORROWPAL_AWS_REGION is required}
+      APP_SYSTEM_ALERTS_PROVIDER: ${MORROWPAL_SYSTEM_ALERTS_PROVIDER:?MORROWPAL_SYSTEM_ALERTS_PROVIDER is required}
+      APP_SYSTEM_ALERTS_TOPIC_ARN: ${MORROWPAL_SYSTEM_ALERTS_TOPIC_ARN:?MORROWPAL_SYSTEM_ALERTS_TOPIC_ARN is required}
       APP_SYSTEM_ALERTS_PUBLISH_TIMEOUT_MILLIS: "3000"
       DB_HOST: mysql
       DB_PORT: "3306"
@@ -238,15 +238,15 @@ services:
       APP_JOBS_DISPATCH_APP_NOTIFICATIONS_MINIMUM_AGE_MS: "120000"
       APP_JOBS_DISPATCH_APP_NOTIFICATIONS_LEASE_DURATION_MS: "600000"
       APP_JOBS_CLEANUP_ENABLED: "false"
-      APP_APP_NOTIFICATIONS_PROVIDER: firebase
-      APP_APP_NOTIFICATIONS_FIREBASE_PROJECT_ID: morrowpal
+      APP_APP_NOTIFICATIONS_PROVIDER: ${MORROWPAL_APP_NOTIFICATIONS_PROVIDER:?MORROWPAL_APP_NOTIFICATIONS_PROVIDER is required}
+      APP_APP_NOTIFICATIONS_FIREBASE_PROJECT_ID: ${MORROWPAL_FIREBASE_PROJECT_ID:?MORROWPAL_FIREBASE_PROJECT_ID is required}
       APP_APP_NOTIFICATIONS_FIREBASE_CONNECT_TIMEOUT_MILLIS: "5000"
       APP_APP_NOTIFICATIONS_FIREBASE_READ_TIMEOUT_MILLIS: "10000"
       GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/firebase_service_account
-      APP_EMAIL_PROVIDER: postmark
-      APP_EMAIL_POSTMARK_DISPATCH_FROM_ADDRESS: "MorrowPal <notifications@morrowpal.com>"
-      APP_EMAIL_POSTMARK_MESSAGE_STREAM: outbound
-      APP_EMAIL_DISPATCH_OPT_OUT_URL: https://morrowpal.com/notifications/disable/
+      APP_EMAIL_PROVIDER: ${MORROWPAL_EMAIL_PROVIDER:?MORROWPAL_EMAIL_PROVIDER is required}
+      APP_EMAIL_POSTMARK_DISPATCH_FROM_ADDRESS: ${MORROWPAL_EMAIL_NOTIFICATION_FROM_ADDRESS:?MORROWPAL_EMAIL_NOTIFICATION_FROM_ADDRESS is required}
+      APP_EMAIL_POSTMARK_MESSAGE_STREAM: ${MORROWPAL_POSTMARK_MESSAGE_STREAM:?MORROWPAL_POSTMARK_MESSAGE_STREAM is required}
+      APP_EMAIL_DISPATCH_OPT_OUT_URL: ${MORROWPAL_EMAIL_DISPATCH_OPT_OUT_URL:?MORROWPAL_EMAIL_DISPATCH_OPT_OUT_URL is required}
       APP_EMAIL_POSTMARK_CONNECT_TIMEOUT_MILLIS: "5000"
       APP_EMAIL_POSTMARK_READ_TIMEOUT_MILLIS: "10000"
       APP_DISPATCH_DELAY_MINUTES: "240"
@@ -277,7 +277,7 @@ services:
   backend-job-cleanup:
     <<: *backend-common
     mem_limit: 256m
-    image: 384078510608.dkr.ecr.us-east-2.amazonaws.com/morrowpal/prod/backend-job:${JOB_IMAGE_TAG:?JOB_IMAGE_TAG is required}
+    image: ${MORROWPAL_ECR_REGISTRY:?MORROWPAL_ECR_REGISTRY is required}/${MORROWPAL_ECR_REPOSITORY_PREFIX:?MORROWPAL_ECR_REPOSITORY_PREFIX is required}/backend-job:${JOB_IMAGE_TAG:?JOB_IMAGE_TAG is required}
     environment:
       DB_HOST: mysql
       DB_PORT: "3306"

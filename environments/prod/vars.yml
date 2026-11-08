@@ -1,0 +1,56 @@
+---
+morrowpal_environment: prod
+morrowpal_aws_account_id: "384078510608"
+morrowpal_aws_region: us-east-2
+morrowpal_availability_zone: us-east-2c
+
+morrowpal_stack_prefix: morrowpal-prod
+morrowpal_ecr_registry: 384078510608.dkr.ecr.us-east-2.amazonaws.com
+morrowpal_ecr_repository_prefix: morrowpal/prod
+morrowpal_secrets_prefix: morrowpal/prod
+morrowpal_system_alerts_topic_name: morrowpal-prod-system-alerts
+morrowpal_system_alerts_topic_arn: arn:aws:sns:us-east-2:384078510608:morrowpal-prod-system-alerts
+morrowpal_system_alerts_provider: sns
+
+morrowpal_instance_name: morrowpal-prod-01
+morrowpal_instance_type: t3.small
+morrowpal_root_volume_size_gib: 8
+morrowpal_mysql_volume_size_gib: 10
+morrowpal_deployment_root: /opt/morrowpal
+morrowpal_mysql_data_mount: /var/lib/morrowpal
+morrowpal_public_ipv4: 3.12.65.199
+
+morrowpal_domains:
+  apex: morrowpal.com
+  www: www.morrowpal.com
+  api: api.morrowpal.com
+  app: app.morrowpal.com
+  admin: admin.morrowpal.com
+  back: back.morrowpal.com
+
+morrowpal_public_urls:
+  website: https://morrowpal.com
+  website_www: https://www.morrowpal.com
+  api: https://api.morrowpal.com
+  app: https://app.morrowpal.com
+
+morrowpal_tls_certificate_name: morrowpal.com
+morrowpal_tls_expected_ipv4: 3.12.65.199
+
+morrowpal_ssh_host_alias: "01"
+morrowpal_ssh_user: ec2-user
+morrowpal_ssh_private_key_file: ../morrowpal-prod-01.pem
+morrowpal_ssh_known_hosts_file: environments/prod/known_hosts
+
+morrowpal_postmark_mode: live
+morrowpal_email_provider: postmark
+morrowpal_postmark_server_name: MorrowPal Production
+morrowpal_postmark_message_stream: outbound
+morrowpal_email_otp_from_address: MorrowPal <verification-code@morrowpal.com>
+morrowpal_email_notification_from_address: MorrowPal <notifications@morrowpal.com>
+morrowpal_email_dispatch_opt_out_url: https://morrowpal.com/notifications/disable/
+morrowpal_email_recipient_allowlist_enabled: false
+morrowpal_email_recipient_allowlist: []
+
+morrowpal_firebase_mode: live
+morrowpal_firebase_project_id: morrowpal

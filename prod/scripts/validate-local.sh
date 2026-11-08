@@ -4,6 +4,7 @@ set -Eeuo pipefail
 
 readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly PROD_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd)"
+readonly REPOSITORY_DIR="$(cd -- "$PROD_DIR/.." && pwd)"
 readonly CLOUDFORMATION_DIR="$PROD_DIR/cloudformation"
 readonly COMPOSE_BASELINE_FILE="$PROD_DIR/baselines/docker-compose-production.sha256"
 readonly AWS_REGION="us-east-2"
@@ -49,6 +50,8 @@ main() {
     require_command docker
     require_command jq
     require_command sha256sum
+
+    "$REPOSITORY_DIR/scripts/validate-environments.sh"
 
     docker compose version >/dev/null 2>&1 \
         || fail "Docker Compose plugin is not available"

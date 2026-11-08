@@ -68,6 +68,28 @@ render_envoy_environment() {
             --extra-vars "@$vars_file" >/dev/null
 }
 
+reject_environment_default() {
+    local template="$1"
+
+    if awk '
+        /^  Environment:$/ {
+            in_environment = 1
+            next
+        }
+        in_environment && /^  [[:alnum:]_]+:$/ {
+            in_environment = 0
+        }
+        in_environment && /^[[:space:]]+Default:/ {
+            found_default = 1
+        }
+        END {
+            exit found_default ? 0 : 1
+        }
+    ' "$template"; then
+        fail "Environment parameter must not have a default: ${template#$REPOSITORY_DIR/}"
+    fi
+}
+
 main() {
     local actual_digest
     local cleanup_command
@@ -83,6 +105,7 @@ main() {
     local staging_compose_env_file
     local staging_render
     local staging_envoy_file
+    local template
     local -a templates=(
         "$CLOUDFORMATION_DIR/ecr.yml"
         "$CLOUDFORMATION_DIR/ec2-access.yml"
@@ -114,6 +137,9 @@ main() {
 
     printf 'Linting %d CloudFormation templates for %s...\n' \
         "${#templates[@]}" "$AWS_REGION"
+    for template in "${templates[@]}"; do
+        reject_environment_default "$template"
+    done
     cfn-lint \
         --format json \
         --regions "$AWS_REGION" \

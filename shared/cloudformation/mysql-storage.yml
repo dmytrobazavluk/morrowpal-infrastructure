@@ -4,7 +4,6 @@ Description: Encrypted EBS data volume for MorrowPal MySQL.
 Parameters:
   Environment:
     Type: String
-    Default: prod
     AllowedValues:
       - prod
       - staging

@@ -4,7 +4,6 @@ Description: Stable public IPv4 address for the MorrowPal EC2 instance.
 Parameters:
   Environment:
     Type: String
-    Default: prod
     AllowedValues:
       - prod
       - staging

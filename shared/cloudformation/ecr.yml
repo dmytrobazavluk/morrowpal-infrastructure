@@ -4,7 +4,6 @@ Description: Private ECR repositories for MorrowPal container images.
 Parameters:
   Environment:
     Type: String
-    Default: prod
     AllowedValues:
       - prod
       - staging

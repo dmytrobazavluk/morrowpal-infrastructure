@@ -4,7 +4,6 @@ Description: CloudFormation-managed EC2 host for MorrowPal containers.
 Parameters:
   Environment:
     Type: String
-    Default: prod
     AllowedValues:
       - prod
       - staging

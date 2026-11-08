@@ -4,7 +4,6 @@ Description: IAM instance profile for MorrowPal EC2 container access.
 Parameters:
   Environment:
     Type: String
-    Default: prod
     AllowedValues:
       - prod
       - staging

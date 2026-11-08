@@ -45,8 +45,7 @@ morrowpal_load_publish_environment() {
         MORROWPAL_AWS_ACCOUNT_ID \
         MORROWPAL_AWS_REGION \
         MORROWPAL_ECR_REGISTRY \
-        MORROWPAL_ECR_REPOSITORY_PREFIX \
-        MORROWPAL_API_URL
+        MORROWPAL_ECR_REPOSITORY_PREFIX
 
     expected_registry="${MORROWPAL_AWS_ACCOUNT_ID}.dkr.ecr.${MORROWPAL_AWS_REGION}.amazonaws.com"
     [[ "$MORROWPAL_ECR_REGISTRY" == "$expected_registry" ]] || {

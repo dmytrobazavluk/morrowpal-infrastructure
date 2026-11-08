@@ -79,6 +79,8 @@ compose() {
 
 action="${1:-start}"
 recreate_envoy=false
+recreate_app=false
+recreate_website=false
 
 case "$action" in
     stop)
@@ -110,17 +112,23 @@ case "$action" in
         }
         ;;
     reconcile)
-        case "${2:-}" in
-            "")
-                ;;
-            --recreate-envoy)
-                recreate_envoy=true
-                ;;
-            *)
-                printf 'Usage: %s reconcile [--recreate-envoy]\n' "$0" >&2
-                exit 2
-                ;;
-        esac
+        for option in "${@:2}"; do
+            case "$option" in
+                --recreate-envoy)
+                    recreate_envoy=true
+                    ;;
+                --recreate-app)
+                    recreate_app=true
+                    ;;
+                --recreate-website)
+                    recreate_website=true
+                    ;;
+                *)
+                    printf 'Usage: %s reconcile [--recreate-envoy] [--recreate-app] [--recreate-website]\n' "$0" >&2
+                    exit 2
+                    ;;
+            esac
+        done
         exec 9>/run/morrowpal-deploy.lock
         flock --exclusive --nonblock 9 || {
             printf 'Another MorrowPal deployment is already running.\n' >&2
@@ -132,7 +140,7 @@ case "$action" in
         }
         ;;
     *)
-        printf 'Usage: %s [start|stop|status|refresh-secrets|reconcile [--recreate-envoy]]\n' "$0" >&2
+        printf 'Usage: %s [start|stop|status|refresh-secrets|reconcile [--recreate-envoy] [--recreate-app] [--recreate-website]]\n' "$0" >&2
         exit 2
         ;;
 esac
@@ -254,6 +262,12 @@ if [[ "$action" == reconcile ]]; then
         envoy \
         backend-job-dispatch \
         backend-job-cleanup
+    if [[ "$recreate_app" == true ]]; then
+        compose up --detach --no-deps --force-recreate app
+    fi
+    if [[ "$recreate_website" == true ]]; then
+        compose up --detach --no-deps --force-recreate website
+    fi
     if [[ "$recreate_envoy" == true ]]; then
         compose up --detach --no-deps --force-recreate envoy
     fi

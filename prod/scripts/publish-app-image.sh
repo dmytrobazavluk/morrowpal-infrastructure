@@ -167,6 +167,7 @@ readonly build_number="$3"
 
 require_command aws
 morrowpal_load_publish_environment "$environment" "$infrastructure_dir"
+morrowpal_require_environment_values MORROWPAL_API_URL
 
 readonly aws_region="$MORROWPAL_AWS_REGION"
 readonly expected_aws_account_id="$MORROWPAL_AWS_ACCOUNT_ID"

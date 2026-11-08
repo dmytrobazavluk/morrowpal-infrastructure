@@ -2,10 +2,10 @@
 
 Run commands from `infrastructure/prod`.
 
-The production app image definition is in `../app/Dockerfile`, and its Nginx
-configuration is in `../app/nginx.conf`. The publisher builds the sibling
-`frontend` repository and supplies only `frontend/build/web` to the production
-container build.
+The app image definition is in `../app/Dockerfile`, and its environment-specific
+Nginx configuration is rendered from `../templates/app-nginx.conf.j2` onto the
+host. The publisher builds the sibling `frontend` repository and supplies only
+`frontend/build/web` to the container build.
 
 ## 1. Preconditions
 
@@ -72,7 +72,8 @@ replaces only the app container, and the backend release task is skipped. If
 the Compose file changed, both API slots are rolled one at a time so API
 configuration changes cannot recreate them together. An Envoy configuration
 change recreates the single Envoy container and can cause a brief edge
-interruption.
+interruption. An app Nginx configuration change recreates the app container so
+the new read-only host configuration is loaded.
 
 ## 4. Deploy
 

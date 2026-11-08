@@ -87,6 +87,14 @@ main() {
         || fail "Service helper must derive all six runtime secret references from the selected prefix"
     grep -Fq -- '--env-file "$environment_file"' "$service_script" \
         || fail "Service helper must pass the selected environment file to Docker Compose"
+    for recreate_option in --recreate-envoy --recreate-app --recreate-website; do
+        grep -Fq -- "$recreate_option" "$service_script" \
+            || fail "Service helper does not support $recreate_option"
+    done
+    grep -Fq 'compose up --detach --no-deps --force-recreate app' "$service_script" \
+        || fail "Service helper does not recreate the app after a configuration change"
+    grep -Fq 'compose up --detach --no-deps --force-recreate website' "$service_script" \
+        || fail "Service helper does not recreate the website after a configuration change"
 
     prod_environment="$(mktemp)"
     staging_environment="$(mktemp)"

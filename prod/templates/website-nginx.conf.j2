@@ -50,7 +50,7 @@ server {
         add_header Strict-Transport-Security "max-age=31536000" always;
         add_header X-Content-Type-Options "nosniff" always;
         add_header X-Frame-Options "DENY" always;
-        return 301 https://morrowpal.com/privacy/;
+        return 301 {{ morrowpal_public_urls.website }}/privacy/;
     }
 
     location = /privacy/ {
@@ -77,7 +77,7 @@ server {
         add_header Strict-Transport-Security "max-age=31536000" always;
         add_header X-Content-Type-Options "nosniff" always;
         add_header X-Frame-Options "DENY" always;
-        return 301 https://morrowpal.com/child-safety/;
+        return 301 {{ morrowpal_public_urls.website }}/child-safety/;
     }
 
     location = /child-safety/ {
@@ -103,7 +103,7 @@ server {
         add_header Cache-Control "no-store" always;
         add_header Referrer-Policy "no-referrer" always;
         add_header X-Robots-Tag "noindex, nofollow" always;
-        add_header Content-Security-Policy "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src https://api.morrowpal.com; base-uri 'none'; form-action 'none'" always;
+        add_header Content-Security-Policy "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src {{ morrowpal_public_urls.api }}; base-uri 'none'; form-action 'none'" always;
         add_header Strict-Transport-Security "max-age=31536000" always;
         add_header X-Content-Type-Options "nosniff" always;
         add_header X-Frame-Options "DENY" always;

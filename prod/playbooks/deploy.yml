@@ -196,6 +196,17 @@
         group: root
         mode: "0750"
 
+    - name: Create the web configuration directories
+      ansible.builtin.file:
+        path: "{{ morrowpal_root }}/{{ item }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0750"
+      loop:
+        - app
+        - website
+
     - name: Install the runtime secret writer
       ansible.builtin.copy:
         src: ../scripts/write-runtime-secrets.sh
@@ -253,6 +264,24 @@
         group: root
         mode: "0644"
       register: morrowpal_envoy_tls_sds_config
+
+    - name: Install the selected environment app Nginx configuration
+      ansible.builtin.template:
+        src: ../templates/app-nginx.conf.j2
+        dest: "{{ morrowpal_root }}/app/nginx.conf"
+        owner: root
+        group: root
+        mode: "0644"
+      register: morrowpal_app_nginx_config
+
+    - name: Install the selected environment website Nginx configuration
+      ansible.builtin.template:
+        src: ../templates/website-nginx.conf.j2
+        dest: "{{ morrowpal_root }}/website/nginx.conf"
+        owner: root
+        group: root
+        mode: "0644"
+      register: morrowpal_website_nginx_config
 
     - name: Install the production Compose file
       ansible.builtin.copy:
@@ -318,13 +347,19 @@
             (morrowpal_compose_file is changed) or
             (morrowpal_environment_config is changed) or
             (morrowpal_envoy_config is changed) or
-            (morrowpal_envoy_tls_sds_config is changed)
+            (morrowpal_envoy_tls_sds_config is changed) or
+            (morrowpal_app_nginx_config is changed) or
+            (morrowpal_website_nginx_config is changed)
           }}
         morrowpal_envoy_recreation_required: >-
           {{
             (morrowpal_envoy_config is changed) or
             (morrowpal_envoy_tls_sds_config is changed)
           }}
+        morrowpal_app_recreation_required: >-
+          {{ morrowpal_app_nginx_config is changed }}
+        morrowpal_website_recreation_required: >-
+          {{ morrowpal_website_nginx_config is changed }}
 
     - name: Enable and start MorrowPal
       ansible.builtin.systemd:
@@ -338,37 +373,29 @@
         msg: >-
           Non-API services with changed Compose definitions are reconciled in
           place. API services are recreated one at a time through the rolling
-          release path. Envoy recreation:
-          {{ morrowpal_envoy_recreation_required }}.
+          release path. Forced recreation: Envoy
+          {{ morrowpal_envoy_recreation_required }}, app
+          {{ morrowpal_app_recreation_required }}, website
+          {{ morrowpal_website_recreation_required }}.
       changed_when: true
       when:
         - ansible_check_mode
         - morrowpal_service_state.rc == 0
         - morrowpal_reconciliation_required
 
-    - name: Reconcile non-API containers and recreate Envoy
-      ansible.builtin.command:
-        argv:
-          - /usr/local/sbin/morrowpal-service
-          - reconcile
-          - --recreate-envoy
-      when:
-        - not ansible_check_mode
-        - morrowpal_service_state.rc == 0
-        - morrowpal_reconciliation_required
-        - morrowpal_envoy_recreation_required
-      no_log: true
-
     - name: Reconcile changed and new non-API containers in place
       ansible.builtin.command:
-        argv:
-          - /usr/local/sbin/morrowpal-service
-          - reconcile
+        argv: >-
+          {{
+            ['/usr/local/sbin/morrowpal-service', 'reconcile']
+            + (['--recreate-envoy'] if morrowpal_envoy_recreation_required else [])
+            + (['--recreate-app'] if morrowpal_app_recreation_required else [])
+            + (['--recreate-website'] if morrowpal_website_recreation_required else [])
+          }}
       when:
         - not ansible_check_mode
         - morrowpal_service_state.rc == 0
         - morrowpal_reconciliation_required
-        - not morrowpal_envoy_recreation_required
       no_log: true
 
     - name: Roll changed API configuration with a requested release

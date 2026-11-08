@@ -2,9 +2,9 @@ FROM nginxinc/nginx-unprivileged:1.30.4-alpine3.24-slim@sha256:7bbe8940bc478e561
 
 USER root
 
-RUN apk upgrade --no-cache
+RUN apk upgrade --no-cache \
+    && rm -f /etc/nginx/conf.d/default.conf
 
-COPY --chown=101:101 nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=web --chown=101:101 . /usr/share/nginx/html/
 
 USER 101:101

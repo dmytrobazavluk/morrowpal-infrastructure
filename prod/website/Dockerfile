@@ -2,9 +2,9 @@ FROM nginxinc/nginx-unprivileged:1.30.4-alpine3.24-slim@sha256:7bbe8940bc478e561
 
 USER root
 
-RUN apk upgrade --no-cache
+RUN apk upgrade --no-cache \
+    && rm -f /etc/nginx/conf.d/default.conf
 
-COPY --chown=101:101 nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=website --chown=101:101 index.html robots.txt sitemap.xml styles.css /usr/share/nginx/html/
 COPY --from=website --chown=101:101 assets/ /usr/share/nginx/html/assets/
 COPY --from=website --chown=101:101 privacy/ /usr/share/nginx/html/privacy/

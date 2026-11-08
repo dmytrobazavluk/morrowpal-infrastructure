@@ -17,3 +17,14 @@ morrowpal_secret_reference() {
         printf '{{resolve:secretsmanager:%s}}' "$secret_id"
     fi
 }
+
+morrowpal_require_environment_values() {
+    local variable_name
+
+    for variable_name in "$@"; do
+        [[ -n "${!variable_name:-}" ]] || {
+            printf 'Required environment value is missing: %s\n' "$variable_name" >&2
+            return 1
+        }
+    done
+}

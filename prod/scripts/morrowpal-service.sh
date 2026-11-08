@@ -30,12 +30,7 @@ readonly -a required_environment_variables=(
     MORROWPAL_APP_DOMAIN
     MORROWPAL_WEBSITE_DOMAIN
 )
-for variable_name in "${required_environment_variables[@]}"; do
-    [[ -n "${!variable_name:-}" ]] || {
-        printf 'Required environment value is missing: %s\n' "$variable_name" >&2
-        exit 1
-    }
-done
+morrowpal_require_environment_values "${required_environment_variables[@]}"
 
 readonly aws_region="$MORROWPAL_AWS_REGION"
 readonly registry="$MORROWPAL_ECR_REGISTRY"

@@ -2,9 +2,36 @@
 
 set -Eeuo pipefail
 
-readonly registry=384078510608.dkr.ecr.us-east-2.amazonaws.com
-readonly aws_region=us-east-2
-readonly deployment_root=/opt/morrowpal
+readonly environment_file="${MORROWPAL_ENVIRONMENT_FILE:-/etc/morrowpal/environment}"
+readonly runtime_config_library="${MORROWPAL_RUNTIME_CONFIG_LIBRARY:-/usr/local/libexec/morrowpal/runtime-config}"
+
+[[ -r "$environment_file" ]] || {
+    printf 'Environment configuration is missing: %s\n' "$environment_file" >&2
+    exit 1
+}
+[[ -r "$runtime_config_library" ]] || {
+    printf 'Runtime configuration library is missing: %s\n' "$runtime_config_library" >&2
+    exit 1
+}
+
+set -a
+# shellcheck source=/dev/null
+source "$environment_file"
+set +a
+# shellcheck source=morrowpal-runtime-config.sh
+source "$runtime_config_library"
+
+readonly -a required_environment_variables=(
+    MORROWPAL_AWS_REGION
+    MORROWPAL_ECR_REGISTRY
+    MORROWPAL_ECR_REPOSITORY_PREFIX
+    MORROWPAL_DEPLOYMENT_ROOT
+)
+morrowpal_require_environment_values "${required_environment_variables[@]}"
+
+readonly registry="$MORROWPAL_ECR_REGISTRY"
+readonly aws_region="$MORROWPAL_AWS_REGION"
+readonly deployment_root="$MORROWPAL_DEPLOYMENT_ROOT"
 readonly compose_file="$deployment_root/docker-compose.yml"
 readonly blue_tag_file="$deployment_root/api-blue-image-tag"
 readonly green_tag_file="$deployment_root/api-green-image-tag"
@@ -12,7 +39,9 @@ readonly job_tag_file="$deployment_root/job-image-tag"
 readonly app_tag_file="$deployment_root/app-image-tag"
 readonly website_tag_file="$deployment_root/website-image-tag"
 readonly envoy_admin=http://127.0.0.1:9901
-readonly deployment_lock=/run/morrowpal-deploy.lock
+readonly api_ready_url=http://127.0.0.1:8080/ready
+readonly backend_container_ready_port=8080
+readonly deployment_lock="${MORROWPAL_DEPLOYMENT_LOCK:-/run/morrowpal-deploy.lock}"
 
 force_recreate=false
 if [[ "${1:-}" == --force-recreate ]]; then
@@ -65,6 +94,7 @@ compose() {
     APP_IMAGE_TAG="$app_tag" \
     WEBSITE_IMAGE_TAG="$website_tag" \
         docker compose \
+            --env-file "$environment_file" \
             --project-directory "$deployment_root" \
             --file "$compose_file" \
             "$@"
@@ -102,7 +132,8 @@ wait_for_container_ready() {
         if [[ -n "$container_id" ]]; then
             container_ip="$(docker inspect --format '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$container_id")"
             if [[ -n "$container_ip" ]] && \
-                    curl --fail --silent --show-error "http://$container_ip:8080/ready" >/dev/null 2>&1; then
+                    curl --fail --silent --show-error \
+                        "http://$container_ip:$backend_container_ready_port/ready" >/dev/null 2>&1; then
                 return 0
             fi
         fi
@@ -148,7 +179,8 @@ deploy_api_slot() {
         printf 'Rolling blue API from %s to %s.\n' "$old_tag" "$target_tag"
         API_BLUE_IMAGE_TAG="$target_tag" API_GREEN_IMAGE_TAG="$green_tag" \
             JOB_IMAGE_TAG="$job_tag" APP_IMAGE_TAG="$app_tag" WEBSITE_IMAGE_TAG="$website_tag" \
-            docker compose --project-directory "$deployment_root" --file "$compose_file" pull "$service"
+            docker compose --env-file "$environment_file" \
+                --project-directory "$deployment_root" --file "$compose_file" pull "$service"
         set_weights 0 100
         if ! wait_for_cluster_drained "$drained_cluster"; then
             printf 'The blue API did not drain; restoring balanced traffic.\n' >&2
@@ -169,7 +201,8 @@ deploy_api_slot() {
         printf 'Rolling green API from %s to %s.\n' "$old_tag" "$target_tag"
         API_BLUE_IMAGE_TAG="$blue_tag" API_GREEN_IMAGE_TAG="$target_tag" \
             JOB_IMAGE_TAG="$job_tag" APP_IMAGE_TAG="$app_tag" WEBSITE_IMAGE_TAG="$website_tag" \
-            docker compose --project-directory "$deployment_root" --file "$compose_file" pull "$service"
+            docker compose --env-file "$environment_file" \
+                --project-directory "$deployment_root" --file "$compose_file" pull "$service"
         set_weights 100 0
         if ! wait_for_cluster_drained "$drained_cluster"; then
             printf 'The green API did not drain; restoring balanced traffic.\n' >&2
@@ -219,8 +252,9 @@ deploy_api_slot green
 if [[ -n "$requested_tag" && "$job_tag" != "$requested_tag" ]]; then
     API_BLUE_IMAGE_TAG="$blue_tag" API_GREEN_IMAGE_TAG="$green_tag" \
         JOB_IMAGE_TAG="$requested_tag" APP_IMAGE_TAG="$app_tag" WEBSITE_IMAGE_TAG="$website_tag" \
-        docker compose --project-directory "$deployment_root" --file "$compose_file" \
-        pull backend-job-dispatch backend-job-cleanup
+        docker compose --env-file "$environment_file" \
+            --project-directory "$deployment_root" --file "$compose_file" \
+            pull backend-job-dispatch backend-job-cleanup
     job_tag="$requested_tag"
     compose up --detach --no-deps backend-job-dispatch
     compose up --detach --no-deps backend-job-cleanup
@@ -230,5 +264,5 @@ fi
 docker logout "$registry" >/dev/null 2>&1
 logged_in=false
 
-curl --fail --silent --show-error http://127.0.0.1:8080/ready >/dev/null
+curl --fail --silent --show-error "$api_ready_url" >/dev/null
 compose ps

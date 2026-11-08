@@ -79,6 +79,7 @@ main() {
 
     "$REPOSITORY_DIR/scripts/validate-environments.sh"
     "$PROD_DIR/scripts/test-morrowpal-service.sh"
+    "$PROD_DIR/scripts/test-morrowpal-deploy-release.sh"
 
     docker compose version >/dev/null 2>&1 \
         || fail "Docker Compose plugin is not available"

@@ -1,10 +1,10 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Public HTTP ingress for MorrowPal production certificate validation.
+Description: Public HTTP ingress for MorrowPal certificate validation.
 
 Parameters:
   SecurityGroupId:
     Type: AWS::EC2::SecurityGroup::Id
-    Description: Security group attached to the MorrowPal production EC2 instance.
+    Description: Security group attached to the MorrowPal EC2 instance.
 
 Resources:
   CertbotHttpIngress:

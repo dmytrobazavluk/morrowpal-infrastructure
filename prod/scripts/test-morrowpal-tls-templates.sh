@@ -48,6 +48,7 @@ assert_digest() {
 
 main() {
     local cleanup_command
+    local environment
     local prod_hook
     local prod_sds
     local staging_hook
@@ -91,13 +92,17 @@ main() {
     if grep -Eq '3\.12\.65\.199|(^|[^.])morrowpal\.com' "$prod_directory/playbooks/prepare-tls.yml"; then
         fail "TLS preparation playbook contains a production-only IP address or domain"
     fi
+    grep -Eq '^  hosts: morrowpal_hosts$' "$prod_directory/playbooks/prepare-tls.yml" \
+        || fail "TLS preparation playbook does not target the neutral host group"
 
-    ANSIBLE_CONFIG="$repository_directory/ansible.cfg" \
-        ansible-playbook \
-            -i "$repository_directory/environments/prod/inventory.ini" \
-            -e "@$repository_directory/environments/prod/vars.yml" \
-            --syntax-check \
-            "$prod_directory/playbooks/prepare-tls.yml" >/dev/null
+    for environment in prod staging; do
+        ANSIBLE_CONFIG="$repository_directory/ansible.cfg" \
+            ansible-playbook \
+                -i "$repository_directory/environments/$environment/inventory.ini" \
+                -e "@$repository_directory/environments/$environment/vars.yml" \
+                --syntax-check \
+                "$prod_directory/playbooks/prepare-tls.yml" >/dev/null
+    done
 
     printf 'MorrowPal TLS template validation passed.\n'
 }

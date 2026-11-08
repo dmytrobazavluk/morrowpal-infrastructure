@@ -1,6 +1,6 @@
 ---
 - name: Prepare automated TLS certificates
-  hosts: production
+  hosts: morrowpal_hosts
   become: true
   gather_facts: false
 

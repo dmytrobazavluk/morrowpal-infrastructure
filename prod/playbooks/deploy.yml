@@ -172,7 +172,7 @@
 
     - name: Install the selected environment configuration
       ansible.builtin.template:
-        src: ../templates/compose.env.j2
+        src: ../../shared/runtime/compose.env.j2
         dest: /etc/morrowpal/environment
         owner: root
         group: root
@@ -248,7 +248,7 @@
 
     - name: Install the selected environment Envoy configuration
       ansible.builtin.template:
-        src: ../templates/envoy.yaml.j2
+        src: ../../shared/runtime/envoy/envoy.yaml.j2
         dest: "{{ morrowpal_deployment_root }}/envoy/envoy.yaml"
         owner: root
         group: root
@@ -257,7 +257,7 @@
 
     - name: Install the selected environment Envoy TLS certificate SDS configuration
       ansible.builtin.template:
-        src: ../templates/tls-certificate-sds.yaml.j2
+        src: ../../shared/runtime/envoy/tls-certificate-sds.yaml.j2
         dest: "{{ morrowpal_deployment_root }}/envoy/tls-certificate-sds.yaml"
         owner: root
         group: root
@@ -266,7 +266,7 @@
 
     - name: Install the selected environment app Nginx configuration
       ansible.builtin.template:
-        src: ../templates/app-nginx.conf.j2
+        src: ../../shared/runtime/app/nginx.conf.j2
         dest: "{{ morrowpal_deployment_root }}/app/nginx.conf"
         owner: root
         group: root
@@ -275,7 +275,7 @@
 
     - name: Install the selected environment website Nginx configuration
       ansible.builtin.template:
-        src: ../templates/website-nginx.conf.j2
+        src: ../../shared/runtime/website/nginx.conf.j2
         dest: "{{ morrowpal_deployment_root }}/website/nginx.conf"
         owner: root
         group: root
@@ -284,7 +284,7 @@
 
     - name: Install the MorrowPal Compose file
       ansible.builtin.copy:
-        src: ../docker-compose.yml
+        src: ../../shared/docker-compose.yml
         dest: "{{ morrowpal_deployment_root }}/docker-compose.yml"
         owner: root
         group: root
@@ -324,7 +324,7 @@
 
     - name: Install the MorrowPal systemd unit
       ansible.builtin.copy:
-        src: ../systemd/morrowpal.service
+        src: ../../shared/runtime/systemd/morrowpal.service
         dest: /etc/systemd/system/morrowpal.service
         owner: root
         group: root

@@ -45,7 +45,7 @@ readonly scan_wait_seconds=10
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 infrastructure_dir="$(cd -- "$script_dir/../.." && pwd)"
 app_dir="${APP_DIR:-$infrastructure_dir/../frontend}"
-app_container_dir="$script_dir/../app"
+app_container_dir="$infrastructure_dir/shared/runtime/app"
 # shellcheck source=morrowpal-runtime-config.sh
 source "$script_dir/morrowpal-runtime-config.sh"
 # shellcheck source=morrowpal-publish-config.sh

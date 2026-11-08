@@ -5,8 +5,9 @@ set -Eeuo pipefail
 readonly script_directory="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly prod_directory="$(cd -- "$script_directory/.." && pwd)"
 readonly repository_directory="$(cd -- "$prod_directory/.." && pwd)"
-readonly app_template="$prod_directory/templates/app-nginx.conf.j2"
-readonly website_template="$prod_directory/templates/website-nginx.conf.j2"
+readonly shared_directory="$repository_directory/shared"
+readonly app_template="$shared_directory/runtime/app/nginx.conf.j2"
+readonly website_template="$shared_directory/runtime/website/nginx.conf.j2"
 readonly app_baseline="$prod_directory/baselines/app-nginx-production.sha256"
 readonly website_baseline="$prod_directory/baselines/website-nginx-production.sha256"
 
@@ -102,7 +103,8 @@ main() {
     fi
 
     if grep -Eq 'MORROWPAL_(WEBSITE|API)_URL|morrowpal\.com' \
-            "$prod_directory/app/Dockerfile" "$prod_directory/website/Dockerfile"; then
+            "$shared_directory/runtime/app/Dockerfile" \
+            "$shared_directory/runtime/website/Dockerfile"; then
         fail "Nginx image definition contains environment-specific configuration"
     fi
     if grep -Eq -- '--build-arg.*MORROWPAL_(WEBSITE|API)_URL' \
@@ -111,14 +113,14 @@ main() {
         fail "Image publisher passes Nginx environment configuration at build time"
     fi
     grep -Fq '${MORROWPAL_DEPLOYMENT_ROOT:?MORROWPAL_DEPLOYMENT_ROOT is required}/app/nginx.conf:/etc/nginx/conf.d/default.conf:ro' \
-        "$prod_directory/docker-compose.yml" \
+        "$shared_directory/docker-compose.yml" \
         || fail "Compose does not mount the app Nginx configuration read-only"
     grep -Fq '${MORROWPAL_DEPLOYMENT_ROOT:?MORROWPAL_DEPLOYMENT_ROOT is required}/website/nginx.conf:/etc/nginx/conf.d/default.conf:ro' \
-        "$prod_directory/docker-compose.yml" \
+        "$shared_directory/docker-compose.yml" \
         || fail "Compose does not mount the website Nginx configuration read-only"
-    grep -Fq 'src: ../templates/app-nginx.conf.j2' "$prod_directory/playbooks/deploy.yml" \
+    grep -Fq 'src: ../../shared/runtime/app/nginx.conf.j2' "$prod_directory/playbooks/deploy.yml" \
         || fail "Deployment does not render the app Nginx configuration"
-    grep -Fq 'src: ../templates/website-nginx.conf.j2' "$prod_directory/playbooks/deploy.yml" \
+    grep -Fq 'src: ../../shared/runtime/website/nginx.conf.j2' "$prod_directory/playbooks/deploy.yml" \
         || fail "Deployment does not render the website Nginx configuration"
     grep -Fq "(['--recreate-app'] if morrowpal_app_recreation_required else [])" \
         "$prod_directory/playbooks/deploy.yml" \

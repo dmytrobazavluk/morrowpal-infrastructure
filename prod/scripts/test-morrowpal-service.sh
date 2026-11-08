@@ -7,8 +7,8 @@ readonly prod_directory="$(cd -- "$script_directory/.." && pwd)"
 readonly repository_directory="$(cd -- "$prod_directory/.." && pwd)"
 readonly service_script="$script_directory/morrowpal-service.sh"
 readonly runtime_config_library="$script_directory/morrowpal-runtime-config.sh"
-readonly environment_template="$prod_directory/templates/compose.env.j2"
-readonly compose_file="$prod_directory/docker-compose.yml"
+readonly environment_template="$repository_directory/shared/runtime/compose.env.j2"
+readonly compose_file="$repository_directory/shared/docker-compose.yml"
 
 fail() {
     printf 'Error: %s\n' "$*" >&2

@@ -18,7 +18,7 @@
 
     - name: Install the migration-ready MySQL configuration
       ansible.builtin.copy:
-        src: ../mysql/migration-ready.cnf
+        src: ../../shared/runtime/mysql/migration-ready.cnf
         dest: "{{ morrowpal_deployment_root }}/mysql-migration-ready.cnf"
         owner: root
         group: root

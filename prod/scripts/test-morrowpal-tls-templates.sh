@@ -5,8 +5,8 @@ set -Eeuo pipefail
 readonly script_directory="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly prod_directory="$(cd -- "$script_directory/.." && pwd)"
 readonly repository_directory="$(cd -- "$prod_directory/.." && pwd)"
-readonly sds_template="$prod_directory/templates/tls-certificate-sds.yaml.j2"
-readonly hook_template="$prod_directory/templates/configure-tls-permissions.sh.j2"
+readonly sds_template="$repository_directory/shared/runtime/envoy/tls-certificate-sds.yaml.j2"
+readonly hook_template="$repository_directory/shared/runtime/envoy/configure-tls-permissions.sh.j2"
 readonly sds_baseline="$prod_directory/baselines/tls-certificate-sds-production.sha256"
 readonly hook_baseline="$prod_directory/baselines/tls-permissions-production.sha256"
 

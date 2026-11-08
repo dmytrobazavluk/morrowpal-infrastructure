@@ -5,9 +5,9 @@ Run commands from `infrastructure/prod`.
 Use this procedure for infrastructure-only changes that do not publish a new
 backend, app, or website image. Examples include changes to:
 
-- `docker-compose.yml`
-- `templates/envoy.yaml.j2`
-- `templates/tls-certificate-sds.yaml.j2`
+- `../shared/docker-compose.yml`
+- `../shared/runtime/envoy/envoy.yaml.j2`
+- `../shared/runtime/envoy/tls-certificate-sds.yaml.j2`
 - the MorrowPal systemd unit or service scripts
 
 Use the component-specific update procedures when deploying a new application

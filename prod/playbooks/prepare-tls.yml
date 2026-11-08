@@ -181,7 +181,7 @@
 
     - name: Install the certificate permission hook
       ansible.builtin.template:
-        src: ../templates/configure-tls-permissions.sh.j2
+        src: ../../shared/runtime/envoy/configure-tls-permissions.sh.j2
         dest: /etc/letsencrypt/renewal-hooks/deploy/10-morrowpal-permissions
         owner: root
         group: root
@@ -197,7 +197,7 @@
 
     - name: Install the certificate renewal service
       ansible.builtin.copy:
-        src: ../systemd/morrowpal-certbot-renew.service
+        src: ../../shared/runtime/systemd/morrowpal-certbot-renew.service
         dest: /etc/systemd/system/morrowpal-certbot-renew.service
         owner: root
         group: root
@@ -206,7 +206,7 @@
 
     - name: Install the certificate renewal timer
       ansible.builtin.copy:
-        src: ../systemd/morrowpal-certbot-renew.timer
+        src: ../../shared/runtime/systemd/morrowpal-certbot-renew.timer
         dest: /etc/systemd/system/morrowpal-certbot-renew.timer
         owner: root
         group: root

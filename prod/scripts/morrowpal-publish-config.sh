@@ -29,7 +29,7 @@ morrowpal_load_publish_environment() {
                 -i localhost, \
                 --connection local \
                 --module-name ansible.builtin.template \
-                --args "src=$repository_directory/prod/templates/compose.env.j2 dest=$environment_file mode=0600" \
+                --args "src=$repository_directory/shared/runtime/compose.env.j2 dest=$environment_file mode=0600" \
                 --extra-vars "@$repository_directory/environments/$selected_environment/vars.yml" >/dev/null; then
         rm -f -- "$environment_file"
         return 1

@@ -57,7 +57,7 @@ Set `PRIMARY_ALERT_EMAIL` before running the change set. Set
 `SECONDARY_ALERT_EMAIL` and `TERTIARY_ALERT_EMAIL` to empty strings when unused.
 Review the change set before executing it. After it completes, compare the
 `SystemAlertsTopicArn` stack output with `APP_SYSTEM_ALERTS_TOPIC_ARN` in
-`docker-compose.yml`. Each recipient must confirm the SNS email subscription.
+`../shared/docker-compose.yml`. Each recipient must confirm the SNS email subscription.
 Check that each subscription is confirmed before enabling the backend image.
 The stack also grants the EC2 role KMS data-key and decrypt permissions scoped
 to this topic and the AWS-managed SNS key; encrypted-topic publishing requires

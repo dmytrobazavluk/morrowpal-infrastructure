@@ -24,7 +24,7 @@ Postmark Server API Token belonging to this server, not an Account API Token.
 Inbound and broadcast streams are not used for application email.
 
 The non-secret sender, stream, and timeout settings live in
-`docker-compose.yml`. The backend owns verification-code and dispatch-notification
+`../shared/docker-compose.yml`. The backend owns verification-code and dispatch-notification
 content. Dispatch notifications are sent only after their configurable queue
 age has elapsed without a successful client synchronization.
 

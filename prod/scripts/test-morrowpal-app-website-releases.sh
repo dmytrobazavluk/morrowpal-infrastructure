@@ -8,7 +8,7 @@ readonly repository_directory="$(cd -- "$prod_directory/.." && pwd)"
 readonly app_release_script="$script_directory/morrowpal-deploy-app.sh"
 readonly website_release_script="$script_directory/morrowpal-deploy-website.sh"
 readonly runtime_config_library="$script_directory/morrowpal-runtime-config.sh"
-readonly environment_template="$prod_directory/templates/compose.env.j2"
+readonly environment_template="$repository_directory/shared/runtime/compose.env.j2"
 
 fail() {
     printf 'Error: %s\n' "$*" >&2

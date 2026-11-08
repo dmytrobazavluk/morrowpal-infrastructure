@@ -2,7 +2,7 @@
 
 Run commands from `infrastructure/prod`.
 
-The production landing-page container is defined in `../website`. The publisher
+The landing-page container is defined in `../shared/runtime/website`. The publisher
 supplies the sibling `www` directory as a named Docker build context and copies
 only the deployable HTML, CSS, crawler files, JavaScript, and assets into the
 image. The Flutter app image remains separate.

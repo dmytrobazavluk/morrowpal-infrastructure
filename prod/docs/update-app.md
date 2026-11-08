@@ -2,8 +2,9 @@
 
 Run commands from `infrastructure/prod`.
 
-The app image definition is in `../app/Dockerfile`, and its environment-specific
-Nginx configuration is rendered from `../templates/app-nginx.conf.j2` onto the
+The app image definition is in `../shared/runtime/app/Dockerfile`, and its
+environment-specific Nginx configuration is rendered from
+`../shared/runtime/app/nginx.conf.j2` onto the
 host. The publisher builds the sibling `frontend` repository and supplies only
 `frontend/build/web` to the container build.
 

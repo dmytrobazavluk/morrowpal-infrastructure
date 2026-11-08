@@ -5,11 +5,12 @@ set -Eeuo pipefail
 readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly PROD_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 readonly REPOSITORY_DIR="$(cd -- "$PROD_DIR/.." && pwd)"
+readonly SHARED_DIR="$REPOSITORY_DIR/shared"
 readonly CLOUDFORMATION_DIR="$REPOSITORY_DIR/shared/cloudformation"
 readonly COMPOSE_BASELINE_FILE="$PROD_DIR/baselines/docker-compose-production.sha256"
-readonly COMPOSE_ENV_TEMPLATE="$PROD_DIR/templates/compose.env.j2"
+readonly COMPOSE_ENV_TEMPLATE="$SHARED_DIR/runtime/compose.env.j2"
 readonly ENVOY_BASELINE_FILE="$PROD_DIR/baselines/envoy-production.sha256"
-readonly ENVOY_TEMPLATE="$PROD_DIR/templates/envoy.yaml.j2"
+readonly ENVOY_TEMPLATE="$SHARED_DIR/runtime/envoy/envoy.yaml.j2"
 readonly AWS_REGION="us-east-2"
 
 fail() {
@@ -32,8 +33,8 @@ render_compose() {
         WEBSITE_IMAGE_TAG=validation \
         docker compose \
             --env-file "$compose_env_file" \
-            --project-directory "$PROD_DIR" \
-            --file "$PROD_DIR/docker-compose.yml" \
+            --project-directory "$SHARED_DIR" \
+            --file "$SHARED_DIR/docker-compose.yml" \
             config --format json
 }
 

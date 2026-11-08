@@ -16,6 +16,7 @@ readonly -a NEUTRAL_HOST_PLAYBOOKS=(
     "$REPOSITORY_DIR/prod/playbooks/prepare-mysql.yml"
     "$REPOSITORY_DIR/prod/playbooks/prepare-storage.yml"
     "$REPOSITORY_DIR/prod/playbooks/prepare-tls.yml"
+    "$REPOSITORY_DIR/prod/playbooks/deploy.yml"
 )
 
 fail() {

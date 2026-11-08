@@ -1,11 +1,10 @@
 ---
-- name: Deploy MorrowPal production containers
-  hosts: production
+- name: Deploy MorrowPal containers
+  hosts: morrowpal_hosts
   become: true
   gather_facts: false
 
   vars:
-    morrowpal_root: /opt/morrowpal
     asm_exec_version: 6d1de54ace0ba876d8c1d099fe5d7d8a7e8d384c
     asm_exec_checksum: 05a9f8164b63b286bcf88bf4223c95b799e0ecaada45ddcd805567f57b20299f
     asm_exec_url: >-
@@ -22,7 +21,7 @@
 
     - name: Require the prepared deployment directory
       ansible.builtin.stat:
-        path: "{{ morrowpal_root }}"
+        path: "{{ morrowpal_deployment_root }}"
       register: morrowpal_root_stat
 
     - name: Validate the deployment directory
@@ -33,7 +32,7 @@
 
     - name: Inspect the blue API image tag
       ansible.builtin.stat:
-        path: "{{ morrowpal_root }}/api-blue-image-tag"
+        path: "{{ morrowpal_deployment_root }}/api-blue-image-tag"
       register: morrowpal_blue_tag_stat
 
     - name: Require an initial immutable backend image tag
@@ -48,7 +47,7 @@
 
     - name: Inspect the app image tag
       ansible.builtin.stat:
-        path: "{{ morrowpal_root }}/app-image-tag"
+        path: "{{ morrowpal_deployment_root }}/app-image-tag"
       register: morrowpal_app_tag_stat
 
     - name: Require an initial immutable app image tag
@@ -71,7 +70,7 @@
 
     - name: Inspect the website image tag
       ansible.builtin.stat:
-        path: "{{ morrowpal_root }}/website-image-tag"
+        path: "{{ morrowpal_deployment_root }}/website-image-tag"
       register: morrowpal_website_tag_stat
 
     - name: Require an initial immutable website image tag
@@ -100,7 +99,7 @@
           - --output
           - FSTYPE
           - --target
-          - /var/lib/morrowpal
+          - "{{ morrowpal_mysql_data_mount }}"
       register: morrowpal_data_mount
       changed_when: false
       check_mode: false
@@ -190,7 +189,7 @@
 
     - name: Create the Envoy configuration directory
       ansible.builtin.file:
-        path: "{{ morrowpal_root }}/envoy"
+        path: "{{ morrowpal_deployment_root }}/envoy"
         state: directory
         owner: root
         group: root
@@ -198,7 +197,7 @@
 
     - name: Create the web configuration directories
       ansible.builtin.file:
-        path: "{{ morrowpal_root }}/{{ item }}"
+        path: "{{ morrowpal_deployment_root }}/{{ item }}"
         state: directory
         owner: root
         group: root
@@ -215,7 +214,7 @@
         group: root
         mode: "0755"
 
-    - name: Install the production service command
+    - name: Install the MorrowPal service command
       ansible.builtin.copy:
         src: ../scripts/morrowpal-service.sh
         dest: /usr/local/sbin/morrowpal-service
@@ -250,7 +249,7 @@
     - name: Install the selected environment Envoy configuration
       ansible.builtin.template:
         src: ../templates/envoy.yaml.j2
-        dest: "{{ morrowpal_root }}/envoy/envoy.yaml"
+        dest: "{{ morrowpal_deployment_root }}/envoy/envoy.yaml"
         owner: root
         group: root
         mode: "0644"
@@ -259,7 +258,7 @@
     - name: Install the selected environment Envoy TLS certificate SDS configuration
       ansible.builtin.template:
         src: ../templates/tls-certificate-sds.yaml.j2
-        dest: "{{ morrowpal_root }}/envoy/tls-certificate-sds.yaml"
+        dest: "{{ morrowpal_deployment_root }}/envoy/tls-certificate-sds.yaml"
         owner: root
         group: root
         mode: "0644"
@@ -268,7 +267,7 @@
     - name: Install the selected environment app Nginx configuration
       ansible.builtin.template:
         src: ../templates/app-nginx.conf.j2
-        dest: "{{ morrowpal_root }}/app/nginx.conf"
+        dest: "{{ morrowpal_deployment_root }}/app/nginx.conf"
         owner: root
         group: root
         mode: "0644"
@@ -277,16 +276,16 @@
     - name: Install the selected environment website Nginx configuration
       ansible.builtin.template:
         src: ../templates/website-nginx.conf.j2
-        dest: "{{ morrowpal_root }}/website/nginx.conf"
+        dest: "{{ morrowpal_deployment_root }}/website/nginx.conf"
         owner: root
         group: root
         mode: "0644"
       register: morrowpal_website_nginx_config
 
-    - name: Install the production Compose file
+    - name: Install the MorrowPal Compose file
       ansible.builtin.copy:
         src: ../docker-compose.yml
-        dest: "{{ morrowpal_root }}/docker-compose.yml"
+        dest: "{{ morrowpal_deployment_root }}/docker-compose.yml"
         owner: root
         group: root
         mode: "0640"
@@ -295,7 +294,7 @@
     - name: Initialize the blue-green image tags
       ansible.builtin.copy:
         content: "{{ morrowpal_image_tag }}\n"
-        dest: "{{ morrowpal_root }}/{{ item }}"
+        dest: "{{ morrowpal_deployment_root }}/{{ item }}"
         owner: root
         group: root
         mode: "0640"
@@ -308,7 +307,7 @@
     - name: Initialize the app image tag
       ansible.builtin.copy:
         content: "{{ morrowpal_app_image_tag }}\n"
-        dest: "{{ morrowpal_root }}/app-image-tag"
+        dest: "{{ morrowpal_deployment_root }}/app-image-tag"
         owner: root
         group: root
         mode: "0640"
@@ -317,7 +316,7 @@
     - name: Initialize the website image tag
       ansible.builtin.copy:
         content: "{{ morrowpal_website_image_tag }}\n"
-        dest: "{{ morrowpal_root }}/website-image-tag"
+        dest: "{{ morrowpal_deployment_root }}/website-image-tag"
         owner: root
         group: root
         mode: "0640"
@@ -463,7 +462,7 @@
 
     - name: Verify the app readiness endpoint
       ansible.builtin.uri:
-        url: https://app.morrowpal.com/ready
+        url: "{{ morrowpal_public_urls.app }}/ready"
         status_code: 200
         return_content: true
       register: morrowpal_app_readiness
@@ -477,7 +476,7 @@
 
     - name: Verify the website readiness endpoint
       ansible.builtin.uri:
-        url: https://morrowpal.com/ready
+        url: "{{ morrowpal_public_urls.website }}/ready"
         status_code: 200
         return_content: true
       register: morrowpal_website_readiness
@@ -491,7 +490,7 @@
 
     - name: Verify the website canonical redirect
       ansible.builtin.uri:
-        url: https://www.morrowpal.com/
+        url: "{{ morrowpal_public_urls.website_www }}/"
         follow_redirects: none
         status_code: 301
         return_content: false
@@ -500,13 +499,13 @@
       delay: 5
       until:
         - morrowpal_website_redirect.status == 301
-        - morrowpal_website_redirect.location == 'https://morrowpal.com/'
+        - morrowpal_website_redirect.location == (morrowpal_public_urls.website + '/')
       check_mode: false
       when: not ansible_check_mode or morrowpal_website_tag_stat.stat.exists
 
     - name: Verify the website landing page
       ansible.builtin.uri:
-        url: https://morrowpal.com/
+        url: "{{ morrowpal_public_urls.website }}/"
         status_code: 200
         return_content: false
       register: morrowpal_website_landing_page
@@ -518,7 +517,7 @@
 
     - name: Verify the website child safety page
       ansible.builtin.uri:
-        url: https://morrowpal.com/child-safety/
+        url: "{{ morrowpal_public_urls.website }}/child-safety/"
         status_code: 200
         return_content: false
       register: morrowpal_website_child_safety_page

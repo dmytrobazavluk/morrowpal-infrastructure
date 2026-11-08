@@ -2,16 +2,45 @@
 
 set -Eeuo pipefail
 
-readonly registry=384078510608.dkr.ecr.us-east-2.amazonaws.com
-readonly aws_region=us-east-2
-readonly deployment_root=/opt/morrowpal
+readonly environment_file="${MORROWPAL_ENVIRONMENT_FILE:-/etc/morrowpal/environment}"
+readonly runtime_config_library="${MORROWPAL_RUNTIME_CONFIG_LIBRARY:-/usr/local/libexec/morrowpal/runtime-config}"
+
+[[ -r "$environment_file" ]] || {
+    printf 'Environment configuration is missing: %s\n' "$environment_file" >&2
+    exit 1
+}
+[[ -r "$runtime_config_library" ]] || {
+    printf 'Runtime configuration library is missing: %s\n' "$runtime_config_library" >&2
+    exit 1
+}
+
+set -a
+# shellcheck source=/dev/null
+source "$environment_file"
+set +a
+# shellcheck source=morrowpal-runtime-config.sh
+source "$runtime_config_library"
+
+readonly -a required_environment_variables=(
+    MORROWPAL_AWS_REGION
+    MORROWPAL_ECR_REGISTRY
+    MORROWPAL_ECR_REPOSITORY_PREFIX
+    MORROWPAL_DEPLOYMENT_ROOT
+    MORROWPAL_WEBSITE_DOMAIN
+)
+morrowpal_require_environment_values "${required_environment_variables[@]}"
+
+readonly registry="$MORROWPAL_ECR_REGISTRY"
+readonly aws_region="$MORROWPAL_AWS_REGION"
+readonly deployment_root="$MORROWPAL_DEPLOYMENT_ROOT"
+readonly website_domain="$MORROWPAL_WEBSITE_DOMAIN"
 readonly compose_file="$deployment_root/docker-compose.yml"
 readonly blue_tag_file="$deployment_root/api-blue-image-tag"
 readonly green_tag_file="$deployment_root/api-green-image-tag"
 readonly job_tag_file="$deployment_root/job-image-tag"
 readonly app_tag_file="$deployment_root/app-image-tag"
 readonly website_tag_file="$deployment_root/website-image-tag"
-readonly deployment_lock=/run/morrowpal-deploy.lock
+readonly deployment_lock="${MORROWPAL_DEPLOYMENT_LOCK:-/run/morrowpal-deploy.lock}"
 
 new_tag="${1:-}"
 [[ "$new_tag" =~ ^build-[1-9][0-9]*-[0-9a-f]{7}$ ]] || {
@@ -51,6 +80,7 @@ compose() {
     APP_IMAGE_TAG="$app_tag" \
     WEBSITE_IMAGE_TAG="$website_tag" \
         docker compose \
+            --env-file "$environment_file" \
             --project-directory "$deployment_root" \
             --file "$compose_file" \
             "$@"
@@ -78,14 +108,14 @@ wait_for_website() {
             status="$(docker inspect --format '{{.State.Health.Status}}' "$container_id" 2>/dev/null || true)"
             if [[ "$status" == healthy ]] && \
                     curl --fail --silent --show-error \
-                        --resolve morrowpal.com:443:127.0.0.1 \
-                        https://morrowpal.com/ready >/dev/null 2>&1 && \
+                        --resolve "${website_domain}:443:127.0.0.1" \
+                        "https://${website_domain}/ready" >/dev/null 2>&1 && \
                     curl --fail --silent --show-error \
-                        --resolve morrowpal.com:443:127.0.0.1 \
-                        https://morrowpal.com/ >/dev/null 2>&1 && \
+                        --resolve "${website_domain}:443:127.0.0.1" \
+                        "https://${website_domain}/" >/dev/null 2>&1 && \
                     curl --fail --silent --show-error \
-                        --resolve morrowpal.com:443:127.0.0.1 \
-                        https://morrowpal.com/child-safety/ >/dev/null 2>&1; then
+                        --resolve "${website_domain}:443:127.0.0.1" \
+                        "https://${website_domain}/child-safety/" >/dev/null 2>&1; then
                 return 0
             fi
         fi

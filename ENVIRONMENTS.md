@@ -14,28 +14,33 @@ public endpoints, or external delivery destinations.
 
 ## Initial placement decision
 
-Both environments use:
+Both environments use AWS account `384078510608`, but use separate Regions and
+the existing default network in each Region:
 
-- AWS account `384078510608`
-- AWS Region `us-east-2`
-- Availability Zone `us-east-2c`
-- the existing account VPC and its internet-connected public subnet capability
+| Setting | Prod | Staging |
+|---|---|---|
+| AWS Region | `us-east-2` | `us-east-1` |
+| Availability Zone | `us-east-2c` | `us-east-1a` |
+| Default VPC | `vpc-07f1d3ea5b12e44b2` | `vpc-0d3057f78521c530d` |
+| Default public subnet | `subnet-098ab1625c79adf3d` | `subnet-06f9d6d89b1c17eeb` |
 
 Public DNS for `morrowpal.com` is hosted by IONOS on its `ui-dns` name servers.
 AWS account `384078510608` has no Route 53 hosted zones. DNS records are managed
 manually in IONOS and are outside the current CloudFormation implementation.
 
-Using one account keeps the first staging implementation small. Isolation is
-provided by distinct stacks, IAM resources, security groups, instances,
-volumes, public addresses, repository paths, secrets, topics, and DNS records.
-A separate staging account remains a possible later improvement, not part of
-this refactor.
+Using one account keeps the first staging implementation small. Regional
+placement prevents staging from sharing production's VPC, subnet, route table,
+or internet gateway. Further isolation is provided by distinct stacks, IAM
+resources, security groups, instances, volumes, public addresses, repository
+paths, secrets, topics, and DNS records. A separate staging account remains a
+possible later improvement, not part of this refactor.
 
-The VPC and public subnet are shared AWS platform prerequisites. The external
-IONOS zone is a shared DNS prerequisite. None is currently managed by the
-MorrowPal CloudFormation templates. The staging host initially uses the same
-public subnet pattern as prod, with its own security group and recovery key
-pair.
+Each Region's default VPC and public subnet are external AWS platform
+prerequisites. Neither environment's network is managed by the MorrowPal
+CloudFormation templates, so generic deployment code has no environment branch
+for network ownership. The external IONOS zone is a shared DNS prerequisite and
+also remains outside CloudFormation. Staging has its own security group and
+recovery key pair in `us-east-1`.
 
 The production apex, `www`, `api`, `app`, `admin`, and `back` A records point
 to production Elastic IP `3.12.65.199`. The corresponding staging names are
@@ -50,6 +55,8 @@ AAAA record exists.
 |---|---|---|
 | Environment value | `prod` | `staging` |
 | Stack prefix | `morrowpal-prod` | `morrowpal-staging` |
+| AWS Region | `us-east-2` | `us-east-1` |
+| Availability Zone | `us-east-2c` | `us-east-1a` |
 | ECR repository prefix | `morrowpal/prod` | `morrowpal/staging` |
 | Secrets Manager prefix | `morrowpal/prod` | `morrowpal/staging` |
 | EC2 Name tag | `morrowpal-prod-01` | `morrowpal-staging-01` |

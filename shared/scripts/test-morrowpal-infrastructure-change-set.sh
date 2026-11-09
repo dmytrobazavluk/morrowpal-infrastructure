@@ -28,6 +28,8 @@ install_mock_ansible() {
         '  subnet_id=subnet-prod' \
         '  security_group_id=sg-prod' \
         '  key_name=01' \
+        '  aws_region=us-east-2' \
+        '  availability_zone=us-east-2c' \
         'else' \
         '  environment=staging' \
         '  public_ip=STAGING_PUBLIC_IP' \
@@ -37,6 +39,8 @@ install_mock_ansible() {
         '  subnet_id=subnet-staging' \
         '  security_group_id=sg-staging' \
         '  key_name=morrowpal-staging-01' \
+        '  aws_region=us-east-1' \
+        '  availability_zone=us-east-1a' \
         'fi' \
         'instance_name="morrowpal-$environment-01"' \
         'if [[ "${MORROWPAL_MOCK_MISMATCH:-}" == other-environment ]]; then' \
@@ -56,8 +60,8 @@ install_mock_ansible() {
         'printf "%s\n" \' \
         '  "MORROWPAL_ENVIRONMENT=\"$overlay_environment\"" \' \
         '  "MORROWPAL_AWS_ACCOUNT_ID=\"384078510608\"" \' \
-        '  "MORROWPAL_AWS_REGION=\"us-east-2\"" \' \
-        '  "MORROWPAL_AVAILABILITY_ZONE=\"us-east-2c\"" \' \
+        '  "MORROWPAL_AWS_REGION=\"$aws_region\"" \' \
+        '  "MORROWPAL_AVAILABILITY_ZONE=\"$availability_zone\"" \' \
         '  "MORROWPAL_STACK_PREFIX=\"$stack_prefix\"" \' \
         '  "MORROWPAL_VPC_ID=\"$vpc_id\"" \' \
         '  "MORROWPAL_SUBNET_ID=\"$subnet_id\"" \' \
@@ -110,6 +114,7 @@ install_mock_aws() {
         'operation="${2:-}"' \
         'joined="$*"' \
         'environment="${MORROWPAL_MOCK_ENVIRONMENT:-staging}"' \
+        'if [[ "$environment" == prod ]]; then availability_zone=us-east-2c; else availability_zone=us-east-1a; fi' \
         'resource_environment="$environment"' \
         'if [[ "${MORROWPAL_MOCK_MISMATCH:-}" == other-environment ]]; then resource_environment=prod; fi' \
         'vpc_id="vpc-$resource_environment"' \
@@ -126,9 +131,9 @@ install_mock_aws() {
         '    ;;' \
         '  ec2:describe-subnets)' \
         '    [[ "${MORROWPAL_MOCK_MISMATCH:-}" == subnet-vpc ]] && vpc_id=vpc-other' \
-        '    availability_zone=us-east-2c' \
-        '    [[ "${MORROWPAL_MOCK_MISMATCH:-}" == subnet-az ]] && availability_zone=us-east-2b' \
-        '    printf "{\"Subnets\":[{\"OwnerId\":\"384078510608\",\"VpcId\":\"%s\",\"AvailabilityZone\":\"%s\",\"State\":\"available\"}]}\n" "$vpc_id" "$availability_zone"' \
+        '    resolved_availability_zone="$availability_zone"' \
+        '    [[ "${MORROWPAL_MOCK_MISMATCH:-}" == subnet-az ]] && resolved_availability_zone=us-west-2a' \
+        '    printf "{\"Subnets\":[{\"OwnerId\":\"384078510608\",\"VpcId\":\"%s\",\"AvailabilityZone\":\"%s\",\"State\":\"available\"}]}\n" "$vpc_id" "$resolved_availability_zone"' \
         '    ;;' \
         '  ec2:describe-security-groups)' \
         '    [[ "${MORROWPAL_MOCK_MISMATCH:-}" == security-group-vpc ]] && vpc_id=vpc-other' \
@@ -148,7 +153,7 @@ install_mock_aws() {
         '      [[ "${MORROWPAL_MOCK_MISMATCH:-}" == access-account ]] && output_role_arn="arn:aws:iam::000000000000:role/$role_name"' \
         '      printf "{\"Stacks\":[{\"Outputs\":[{\"OutputKey\":\"InstanceProfileName\",\"OutputValue\":\"%s\"},{\"OutputKey\":\"InstanceProfileArn\",\"OutputValue\":\"%s\"},{\"OutputKey\":\"RoleArn\",\"OutputValue\":\"%s\"}]}]}\n" "$profile_name" "$profile_arn" "$output_role_arn"' \
         '    elif [[ "$joined" == *"--stack-name morrowpal-$environment-ec2"* ]]; then' \
-        '      printf "{\"Stacks\":[{\"Outputs\":[{\"OutputKey\":\"InstanceId\",\"OutputValue\":\"%s\"},{\"OutputKey\":\"AvailabilityZone\",\"OutputValue\":\"us-east-2c\"}]}]}\n" "$instance_id"' \
+        '      printf "{\"Stacks\":[{\"Outputs\":[{\"OutputKey\":\"InstanceId\",\"OutputValue\":\"%s\"},{\"OutputKey\":\"AvailabilityZone\",\"OutputValue\":\"%s\"}]}]}\n" "$instance_id" "$availability_zone"' \
         '    else' \
         '      printf "ValidationError: Stack does not exist\n" >&2' \
         '      exit 255' \
@@ -168,7 +173,7 @@ install_mock_aws() {
         '    [[ "${MORROWPAL_MOCK_MISMATCH:-}" == instance-profile ]] && instance_profile_arn="arn:aws:iam::384078510608:instance-profile/wrong"' \
         '    [[ "${MORROWPAL_MOCK_MISMATCH:-}" == instance-subnet ]] && instance_subnet_id=subnet-other' \
         '    [[ "${MORROWPAL_MOCK_MISMATCH:-}" == instance-security-group ]] && instance_security_group_id=sg-other' \
-        '    printf "{\"Reservations\":[{\"Instances\":[{\"InstanceId\":\"%s\",\"SubnetId\":\"%s\",\"Placement\":{\"AvailabilityZone\":\"us-east-2c\"},\"IamInstanceProfile\":{\"Arn\":\"%s\"},\"SecurityGroups\":[{\"GroupId\":\"%s\"}],\"State\":{\"Name\":\"running\"},\"Tags\":[{\"Key\":\"Application\",\"Value\":\"morrowpal\"},{\"Key\":\"Environment\",\"Value\":\"%s\"},{\"Key\":\"Name\",\"Value\":\"morrowpal-%s-01\"},{\"Key\":\"aws:cloudformation:stack-name\",\"Value\":\"morrowpal-%s-ec2\"}]}]}]}\n" "$instance_id" "$instance_subnet_id" "$instance_profile_arn" "$instance_security_group_id" "$instance_environment" "$resource_environment" "$resource_environment"' \
+        '    printf "{\"Reservations\":[{\"Instances\":[{\"InstanceId\":\"%s\",\"SubnetId\":\"%s\",\"Placement\":{\"AvailabilityZone\":\"%s\"},\"IamInstanceProfile\":{\"Arn\":\"%s\"},\"SecurityGroups\":[{\"GroupId\":\"%s\"}],\"State\":{\"Name\":\"running\"},\"Tags\":[{\"Key\":\"Application\",\"Value\":\"morrowpal\"},{\"Key\":\"Environment\",\"Value\":\"%s\"},{\"Key\":\"Name\",\"Value\":\"morrowpal-%s-01\"},{\"Key\":\"aws:cloudformation:stack-name\",\"Value\":\"morrowpal-%s-ec2\"}]}]}]}\n" "$instance_id" "$instance_subnet_id" "$availability_zone" "$instance_profile_arn" "$instance_security_group_id" "$instance_environment" "$resource_environment" "$resource_environment"' \
         '    ;;' \
         '  cloudformation:create-change-set)' \
         '    printf "{\"Id\":\"mock-change-set\"}\n"' \
@@ -229,6 +234,8 @@ main() {
     run_wrapper staging '' runtime-secrets safe-runtime-secrets --dry-run >"$output_file"
     grep -Fq 'Dry run: validation passed' "$output_file" \
         || fail "A valid staging dry run did not pass"
+    grep -Fq 'AWS Region: us-east-1' "$output_file" \
+        || fail "Staging dry run did not select its configured Region"
     if grep -Fq 'aws:cloudformation create-change-set' "$mock_log"; then
         fail "Dry run created a CloudFormation change set"
     fi
@@ -284,6 +291,8 @@ main() {
         || fail "Change set targeted the wrong stack"
     grep -Fq 'ParameterKey=Environment,ParameterValue=staging' "$mock_log" \
         || fail "Change set omitted the selected environment parameter"
+    grep -Fq -- '--region us-east-1' "$mock_log" \
+        || fail "Staging change set targeted the wrong Region"
 
     : >"$mock_log"
     run_wrapper staging '' mysql-storage detach-staging-mysql \

@@ -128,8 +128,8 @@ main() {
         /var/lib/morrowpal
     assert_environment \
         "$staging_environment" \
-        us-east-2 \
-        384078510608.dkr.ecr.us-east-2.amazonaws.com \
+        us-east-1 \
+        384078510608.dkr.ecr.us-east-1.amazonaws.com \
         morrowpal/staging \
         morrowpal/staging \
         app.staging.morrowpal.com \

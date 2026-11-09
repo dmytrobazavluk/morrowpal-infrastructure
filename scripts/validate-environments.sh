@@ -42,6 +42,45 @@ reject_pattern() {
     fi
 }
 
+read_scalar() {
+    local file="$1"
+    local key="$2"
+
+    awk -v key="$key" '
+        $1 == key ":" {
+            sub(/^[^:]+:[[:space:]]*/, "")
+            gsub(/^"|"$/, "")
+            print
+            found = 1
+        }
+        END { exit found ? 0 : 1 }
+    ' "$file" || fail "Could not read '$key' from ${file#$REPOSITORY_DIR/}"
+}
+
+validate_regional_identity() {
+    local file="$1"
+    local account_id
+    local availability_zone
+    local environment
+    local expected_registry
+    local expected_topic_arn
+    local region
+
+    environment="$(read_scalar "$file" morrowpal_environment)"
+    account_id="$(read_scalar "$file" morrowpal_aws_account_id)"
+    region="$(read_scalar "$file" morrowpal_aws_region)"
+    availability_zone="$(read_scalar "$file" morrowpal_availability_zone)"
+    expected_registry="${account_id}.dkr.ecr.${region}.amazonaws.com"
+    expected_topic_arn="arn:aws:sns:${region}:${account_id}:morrowpal-${environment}-system-alerts"
+
+    [[ "$availability_zone" =~ ^${region}[a-z]$ ]] \
+        || fail "Availability Zone does not belong to the configured Region in ${file#$REPOSITORY_DIR/}"
+    [[ "$(read_scalar "$file" morrowpal_ecr_registry)" == "$expected_registry" ]] \
+        || fail "ECR registry does not match the configured account and Region in ${file#$REPOSITORY_DIR/}"
+    [[ "$(read_scalar "$file" morrowpal_system_alerts_topic_arn)" == "$expected_topic_arn" ]] \
+        || fail "SNS topic ARN does not match the configured environment, account, and Region in ${file#$REPOSITORY_DIR/}"
+}
+
 validate_vars_file() {
     local file="$1"
     local -a required_keys=(
@@ -107,6 +146,8 @@ main() {
 
     validate_vars_file "$PROD_VARS"
     validate_vars_file "$STAGING_VARS"
+    validate_regional_identity "$PROD_VARS"
+    validate_regional_identity "$STAGING_VARS"
 
     grep -qx 'morrowpal_environment: prod' "$PROD_VARS" \
         || fail 'Production variable file must select prod'

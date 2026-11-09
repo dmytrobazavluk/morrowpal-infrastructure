@@ -11,7 +11,6 @@ Parameters:
 
   AvailabilityZone:
     Type: AWS::EC2::AvailabilityZone::Name
-    Default: us-east-2c
     Description: Availability Zone containing the EC2 instance.
 
   InstanceId:

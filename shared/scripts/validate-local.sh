@@ -11,7 +11,6 @@ readonly COMPOSE_BASELINE_FILE="$PROD_DIR/baselines/docker-compose-production.sh
 readonly COMPOSE_ENV_TEMPLATE="$SHARED_DIR/runtime/compose.env.j2"
 readonly ENVOY_BASELINE_FILE="$PROD_DIR/baselines/envoy-production.sha256"
 readonly ENVOY_TEMPLATE="$SHARED_DIR/runtime/envoy/envoy.yaml.j2"
-readonly AWS_REGION="us-east-2"
 
 fail() {
     printf 'Error: %s\n' "$*" >&2
@@ -68,6 +67,17 @@ render_envoy_environment() {
             --extra-vars "@$vars_file" >/dev/null
 }
 
+read_rendered_environment_value() {
+    local environment_file="$1"
+    local variable_name="$2"
+
+    (
+        # shellcheck source=/dev/null
+        source "$environment_file"
+        printf '%s' "${!variable_name}"
+    )
+}
+
 reject_environment_default() {
     local template="$1"
 
@@ -103,9 +113,14 @@ main() {
     local prod_compose_env_file
     local prod_render
     local staging_compose_env_file
+    local staging_aws_region
+    local staging_ecr_registry
+    local staging_ecr_repository_prefix
     local staging_render
     local staging_envoy_file
+    local staging_system_alerts_topic_arn
     local template
+    local -a aws_regions=()
     local -a templates=(
         "$CLOUDFORMATION_DIR/ecr.yml"
         "$CLOUDFORMATION_DIR/ec2-access.yml"
@@ -136,14 +151,23 @@ main() {
     docker compose version >/dev/null 2>&1 \
         || fail "Docker Compose plugin is not available"
 
-    printf 'Linting %d CloudFormation templates for %s...\n' \
-        "${#templates[@]}" "$AWS_REGION"
+    mapfile -t aws_regions < <(
+        awk '$1 == "morrowpal_aws_region:" { print $2 }' \
+            "$REPOSITORY_DIR/environments/prod/vars.yml" \
+            "$REPOSITORY_DIR/environments/staging/vars.yml" \
+            | sort --unique
+    )
+    ((${#aws_regions[@]} > 0)) \
+        || fail "No environment AWS Regions were configured"
+
+    printf 'Linting %d CloudFormation templates for: %s...\n' \
+        "${#templates[@]}" "${aws_regions[*]}"
     for template in "${templates[@]}"; do
         reject_environment_default "$template"
     done
     cfn-lint \
         --format json \
-        --regions "$AWS_REGION" \
+        --regions "${aws_regions[@]}" \
         -t "${templates[@]}"
 
     [[ -f "$COMPOSE_BASELINE_FILE" ]] \
@@ -176,6 +200,14 @@ main() {
     render_compose_environment staging "$staging_compose_env_file"
     render_envoy_environment prod "$prod_envoy_file"
     render_envoy_environment staging "$staging_envoy_file"
+    staging_aws_region="$(read_rendered_environment_value \
+        "$staging_compose_env_file" MORROWPAL_AWS_REGION)"
+    staging_ecr_registry="$(read_rendered_environment_value \
+        "$staging_compose_env_file" MORROWPAL_ECR_REGISTRY)"
+    staging_ecr_repository_prefix="$(read_rendered_environment_value \
+        "$staging_compose_env_file" MORROWPAL_ECR_REPOSITORY_PREFIX)"
+    staging_system_alerts_topic_arn="$(read_rendered_environment_value \
+        "$staging_compose_env_file" MORROWPAL_SYSTEM_ALERTS_TOPIC_ARN)"
 
     printf 'Comparing rendered production Envoy configuration to its baseline...\n'
     digest_output="$(sha256sum "$prod_envoy_file")"
@@ -228,22 +260,26 @@ main() {
         "$(jq --compact-output '.services | keys' <<<"$staging_render")" ]] \
         || fail "Production and staging Compose service topology differs"
 
-    jq --exit-status '
+    jq --exit-status \
+        --arg aws_region "$staging_aws_region" \
+        --arg ecr_registry "$staging_ecr_registry" \
+        --arg ecr_repository_prefix "$staging_ecr_repository_prefix" \
+        --arg system_alerts_topic_arn "$staging_system_alerts_topic_arn" '
         ([
-            (.services["backend-api-blue"].image | startswith("384078510608.dkr.ecr.us-east-2.amazonaws.com/morrowpal/staging/backend-api:")),
-            (.services["backend-api-green"].image | startswith("384078510608.dkr.ecr.us-east-2.amazonaws.com/morrowpal/staging/backend-api:")),
-            (.services["backend-job-dispatch"].image | startswith("384078510608.dkr.ecr.us-east-2.amazonaws.com/morrowpal/staging/backend-job:")),
-            (.services["backend-job-cleanup"].image | startswith("384078510608.dkr.ecr.us-east-2.amazonaws.com/morrowpal/staging/backend-job:")),
-            (.services.app.image | startswith("384078510608.dkr.ecr.us-east-2.amazonaws.com/morrowpal/staging/app:")),
-            (.services.website.image | startswith("384078510608.dkr.ecr.us-east-2.amazonaws.com/morrowpal/staging/website:"))
+            (.services["backend-api-blue"].image | startswith($ecr_registry + "/" + $ecr_repository_prefix + "/backend-api:")),
+            (.services["backend-api-green"].image | startswith($ecr_registry + "/" + $ecr_repository_prefix + "/backend-api:")),
+            (.services["backend-job-dispatch"].image | startswith($ecr_registry + "/" + $ecr_repository_prefix + "/backend-job:")),
+            (.services["backend-job-cleanup"].image | startswith($ecr_registry + "/" + $ecr_repository_prefix + "/backend-job:")),
+            (.services.app.image | startswith($ecr_registry + "/" + $ecr_repository_prefix + "/app:")),
+            (.services.website.image | startswith($ecr_registry + "/" + $ecr_repository_prefix + "/website:"))
         ] | all) and
-        .services["backend-api-blue"].environment.AWS_REGION == "us-east-2" and
+        .services["backend-api-blue"].environment.AWS_REGION == $aws_region and
         .services["backend-api-blue"].environment.APP_AUTH_STORE_REVIEW_EMAIL == "store-review@staging.morrowpal.com" and
         .services["backend-api-blue"].environment.APP_API_CORS_ALLOWED_ORIGIN_PATTERNS == "https://app.staging.morrowpal.com,https://staging.morrowpal.com" and
         .services["backend-api-blue"].environment.APP_CLIENT_COMPATIBILITY_WEB_UPDATE_URL == "https://app.staging.morrowpal.com/" and
         .services["backend-job-dispatch"].environment.APP_APP_NOTIFICATIONS_PROVIDER == "stub" and
         .services["backend-job-dispatch"].environment.APP_APP_NOTIFICATIONS_FIREBASE_PROJECT_ID == "STAGING_FIREBASE_PROJECT_ID" and
-        .services["backend-job-dispatch"].environment.APP_SYSTEM_ALERTS_TOPIC_ARN == "arn:aws:sns:us-east-2:384078510608:morrowpal-staging-system-alerts" and
+        .services["backend-job-dispatch"].environment.APP_SYSTEM_ALERTS_TOPIC_ARN == $system_alerts_topic_arn and
         .services["backend-job-dispatch"].environment.APP_EMAIL_POSTMARK_DISPATCH_FROM_ADDRESS == "MorrowPal <notifications@staging.morrowpal.com>" and
         .services["backend-job-dispatch"].environment.APP_EMAIL_DISPATCH_OPT_OUT_URL == "https://staging.morrowpal.com/notifications/disable/" and
         .services["backend-api-blue"].environment.APP_EMAIL_POSTMARK_OTP_FROM_ADDRESS == "MorrowPal <verification-code@staging.morrowpal.com>" and

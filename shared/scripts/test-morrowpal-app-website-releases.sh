@@ -62,6 +62,17 @@ assert_log_contains() {
     grep -Fq -- "$expected" "$log_file" || fail "Missing mocked command: $expected"
 }
 
+read_environment_value() {
+    local environment_file="$1"
+    local variable_name="$2"
+
+    (
+        # shellcheck source=/dev/null
+        source "$environment_file"
+        printf '%s' "${!variable_name}"
+    )
+}
+
 run_environment_test() {
     local environment="$1"
     local expected_repository_prefix="$2"
@@ -72,10 +83,14 @@ run_environment_test() {
     local deployment_root="$test_root/deployment"
     local mock_directory="$test_root/bin"
     local mock_log="$test_root/commands.log"
+    local aws_region
+    local ecr_registry
     local tag_file
 
     install_mock_commands "$mock_directory"
     render_environment "$environment" "$environment_file"
+    aws_region="$(read_environment_value "$environment_file" MORROWPAL_AWS_REGION)"
+    ecr_registry="$(read_environment_value "$environment_file" MORROWPAL_ECR_REGISTRY)"
     sed -i "s|MORROWPAL_DEPLOYMENT_ROOT=\"/opt/morrowpal\"|MORROWPAL_DEPLOYMENT_ROOT=\"$deployment_root\"|" \
         "$environment_file"
 
@@ -101,9 +116,9 @@ run_environment_test() {
 
     grep -Fq "MORROWPAL_ECR_REPOSITORY_PREFIX=\"$expected_repository_prefix\"" "$environment_file" \
         || fail "$environment release configuration selected the wrong ECR repository prefix"
-    assert_log_contains "$mock_log" 'aws:ecr get-login-password --region us-east-2'
+    assert_log_contains "$mock_log" "aws:ecr get-login-password --region $aws_region"
     assert_log_contains "$mock_log" \
-        'docker:login --username AWS --password-stdin 384078510608.dkr.ecr.us-east-2.amazonaws.com'
+        "docker:login --username AWS --password-stdin $ecr_registry"
     assert_log_contains "$mock_log" \
         "docker:compose --env-file $environment_file --project-directory $deployment_root --file $deployment_root/docker-compose.yml pull app"
     assert_log_contains "$mock_log" \

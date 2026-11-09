@@ -129,6 +129,15 @@ install_mock_aws() {
         '  sts:get-caller-identity)' \
         '    if [[ "${MORROWPAL_MOCK_MISMATCH:-}" == account ]]; then printf "000000000000\n"; else printf "384078510608\n"; fi' \
         '    ;;' \
+        '  ec2:describe-vpcs)' \
+        '    owner_id=384078510608' \
+        '    vpc_state=available' \
+        '    resolved_vpc_id="$vpc_id"' \
+        '    [[ "${MORROWPAL_MOCK_MISMATCH:-}" == vpc-account ]] && owner_id=000000000000' \
+        '    [[ "${MORROWPAL_MOCK_MISMATCH:-}" == vpc-state ]] && vpc_state=pending' \
+        '    [[ "${MORROWPAL_MOCK_MISMATCH:-}" == vpc-id ]] && resolved_vpc_id=vpc-other' \
+        '    printf "{\"Vpcs\":[{\"VpcId\":\"%s\",\"OwnerId\":\"%s\",\"State\":\"%s\"}]}\n" "$resolved_vpc_id" "$owner_id" "$vpc_state"' \
+        '    ;;' \
         '  ec2:describe-subnets)' \
         '    [[ "${MORROWPAL_MOCK_MISMATCH:-}" == subnet-vpc ]] && vpc_id=vpc-other' \
         '    resolved_availability_zone="$availability_zone"' \
@@ -200,12 +209,17 @@ main() {
     local cleanup_command
     local mismatch
     local output_file
+    local private_key_file
+    local public_key_file
     local test_directory
     local -a mismatches=(
         account
         inventory
         overlay
         prefix
+        vpc-account
+        vpc-id
+        vpc-state
         subnet-vpc
         subnet-az
         security-group-vpc
@@ -226,9 +240,77 @@ main() {
     mock_directory="$test_directory/bin"
     mock_log="$test_directory/aws.log"
     output_file="$test_directory/output"
+    private_key_file="$test_directory/private-key.pem"
+    public_key_file="$test_directory/recovery-key.pub"
     install -d -m 0700 "$mock_directory"
     install_mock_ansible "$mock_directory"
     install_mock_aws "$mock_directory"
+    printf '%s\n' \
+        'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIG1vcnJvd3BhbC10ZXN0LWtleQ== ignored-comment' \
+        >"$public_key_file"
+    printf '%s\n' \
+        '-----BEGIN PRIVATE KEY-----' \
+        'test-only-private-material' \
+        '-----END PRIVATE KEY-----' \
+        >"$private_key_file"
+
+    : >"$mock_log"
+    run_wrapper staging '' prerequisites initial-prerequisites \
+        --ssh-public-key-file "$public_key_file" \
+        --ssh-ingress-cidr 203.0.113.10/32 \
+        --dry-run >"$output_file"
+    grep -Fq 'Stack: morrowpal-staging-prerequisites' "$output_file" \
+        || fail "Prerequisites dry run targeted the wrong stack"
+    grep -Fq 'SSH public key: validated; material hidden' "$output_file" \
+        || fail "Prerequisites dry run did not report safe public-key validation"
+    if grep -Fq 'AAAAC3Nza' "$output_file"; then
+        fail "Prerequisites dry run printed public-key material"
+    fi
+    if grep -Eq 'describe-security-groups|describe-key-pairs|create-change-set' "$mock_log"; then
+        fail "Prerequisites dry run required resources that it is meant to create"
+    fi
+
+    : >"$mock_log"
+    run_wrapper staging '' prerequisites create-prerequisites \
+        --ssh-public-key-file "$public_key_file" \
+        --ssh-ingress-cidr 203.0.113.10/32 >"$output_file"
+    grep -Fq -- '--stack-name morrowpal-staging-prerequisites' "$mock_log" \
+        || fail "Prerequisites change set targeted the wrong stack"
+    grep -Fq 'ParameterKey=VpcId,ParameterValue=vpc-staging' "$mock_log" \
+        || fail "Prerequisites change set omitted the selected VPC"
+    grep -Fq 'ParameterKey=KeyName,ParameterValue=morrowpal-staging-01' "$mock_log" \
+        || fail "Prerequisites change set omitted the selected key name"
+    grep -Fq 'ParameterKey=SshPublicKeyMaterial,ParameterValue=ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIG1vcnJvd3BhbC10ZXN0LWtleQ==' "$mock_log" \
+        || fail "Prerequisites change set did not normalize the public key"
+    grep -Fq 'ParameterKey=SshIngressCidr,ParameterValue=203.0.113.10/32' "$mock_log" \
+        || fail "Prerequisites change set omitted the reviewed SSH CIDR"
+
+    : >"$mock_log"
+    if run_wrapper staging '' prerequisites reject-private-key \
+            --ssh-public-key-file "$private_key_file" \
+            --ssh-ingress-cidr 203.0.113.10/32 >"$output_file" 2>&1; then
+        fail "Prerequisites accepted private key material"
+    fi
+    [[ ! -s "$mock_log" ]] \
+        || fail "Private-key rejection contacted AWS"
+
+    : >"$mock_log"
+    if run_wrapper staging '' prerequisites reject-open-ssh \
+            --ssh-public-key-file "$public_key_file" \
+            --ssh-ingress-cidr 0.0.0.0/0 >"$output_file" 2>&1; then
+        fail "Prerequisites accepted world-open SSH ingress"
+    fi
+    [[ ! -s "$mock_log" ]] \
+        || fail "World-open SSH rejection contacted AWS"
+
+    : >"$mock_log"
+    if run_wrapper staging '' ecr reject-ssh-options \
+            --ssh-public-key-file "$public_key_file" \
+            --ssh-ingress-cidr 203.0.113.10/32 >"$output_file" 2>&1; then
+        fail "A non-prerequisites stack accepted SSH bootstrap options"
+    fi
+    [[ ! -s "$mock_log" ]] \
+        || fail "Invalid SSH bootstrap options contacted AWS"
 
     : >"$mock_log"
     run_wrapper staging '' runtime-secrets safe-runtime-secrets --dry-run >"$output_file"

@@ -14,7 +14,7 @@ Usage: morrowpal-infrastructure-change-set.sh ENVIRONMENT STACK_KIND CHANGE_SET_
 Create one guarded CloudFormation change set for prod or staging.
 
 STACK_KIND:
-  ecr | ec2-access | ec2 | mysql-storage | runtime-secrets |
+  prerequisites | ecr | ec2-access | ec2 | mysql-storage | runtime-secrets |
   system-alerts | public-ip | http-validation-ingress
 
 OPTIONS:
@@ -22,6 +22,10 @@ OPTIONS:
   --dry-run             Resolve and validate bindings without creating a change set.
   --detach-mysql-volume Remove the MySQL volume attachment. Valid only for
                         mysql-storage; attachment is the default.
+  --ssh-public-key-file PATH
+                        Public key to import. Required only for prerequisites.
+  --ssh-ingress-cidr CIDR
+                        Reviewed IPv4 CIDR for SSH. Required only for prerequisites.
 
 For system-alerts, set MORROWPAL_PRIMARY_ALERT_EMAIL. Optional recipients use
 MORROWPAL_SECONDARY_ALERT_EMAIL and MORROWPAL_TERTIARY_ALERT_EMAIL.
@@ -37,6 +41,48 @@ fail() {
 
 require_command() {
     command -v "$1" >/dev/null 2>&1 || fail "Required command not found: $1"
+}
+
+validate_ssh_ingress_cidr() {
+    local cidr="$1"
+    local address
+    local octet
+    local prefix
+    local -a octets=()
+
+    [[ "$cidr" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}/([0-9]|[12][0-9]|3[0-2])$ ]] \
+        || fail "SSH ingress CIDR must be a valid IPv4 CIDR"
+    address="${cidr%/*}"
+    prefix="${cidr#*/}"
+    IFS='.' read -r -a octets <<<"$address"
+    for octet in "${octets[@]}"; do
+        ((10#$octet <= 255)) || fail "SSH ingress CIDR contains an invalid IPv4 address"
+    done
+    ((10#$prefix > 0)) || fail "SSH ingress CIDR must not allow the entire IPv4 internet"
+}
+
+load_ssh_public_key() {
+    local key_line
+    local key_type
+    local key_data
+    local ignored_comment
+    local -a key_lines=()
+
+    [[ -f "$ssh_public_key_file" ]] \
+        || fail "SSH public-key file not found: $ssh_public_key_file"
+    if grep -Eq -- 'BEGIN .*PRIVATE KEY|PRIVATE KEY' "$ssh_public_key_file"; then
+        fail "SSH public-key file contains private key material"
+    fi
+    mapfile -t key_lines < <(awk 'NF { print }' "$ssh_public_key_file")
+    ((${#key_lines[@]} == 1)) \
+        || fail "SSH public-key file must contain exactly one non-empty line"
+    key_line="${key_lines[0]}"
+    read -r key_type key_data ignored_comment <<<"$key_line"
+    [[ "$key_type" == ssh-rsa || "$key_type" == ssh-ed25519 ]] \
+        || fail "SSH public key must use ssh-rsa or ssh-ed25519"
+    [[ "$key_data" =~ ^[A-Za-z0-9+/=]+$ ]] \
+        || fail "SSH public key data is malformed"
+    ssh_public_key_material="$key_type $key_data"
 }
 
 stack_output() {
@@ -148,6 +194,19 @@ validate_platform_bindings() {
     local key_pair_json
     local security_group_json
     local subnet_json
+    local vpc_json
+
+    vpc_json="$(aws ec2 describe-vpcs \
+        --vpc-ids "$MORROWPAL_VPC_ID" \
+        --output json \
+        --region "$MORROWPAL_AWS_REGION")" \
+        || fail "Configured VPC does not exist in the selected account and Region"
+    [[ "$(jq --raw-output '.Vpcs[0].VpcId' <<<"$vpc_json")" == "$MORROWPAL_VPC_ID" ]] \
+        || fail "Resolved VPC does not match the selected overlay"
+    [[ "$(jq --raw-output '.Vpcs[0].OwnerId' <<<"$vpc_json")" == "$MORROWPAL_AWS_ACCOUNT_ID" ]] \
+        || fail "Configured VPC belongs to another AWS account"
+    [[ "$(jq --raw-output '.Vpcs[0].State' <<<"$vpc_json")" == available ]] \
+        || fail "Configured VPC is not available"
 
     subnet_json="$(aws ec2 describe-subnets \
         --subnet-ids "$MORROWPAL_SUBNET_ID" \
@@ -162,6 +221,10 @@ validate_platform_bindings() {
         || fail "Configured subnet is not in the approved Availability Zone"
     [[ "$(jq --raw-output '.Subnets[0].State' <<<"$subnet_json")" == available ]] \
         || fail "Configured subnet is not available"
+
+    if [[ "$stack_kind" == prerequisites ]]; then
+        return
+    fi
 
     security_group_json="$(aws ec2 describe-security-groups \
         --group-ids "$MORROWPAL_SECURITY_GROUP_ID" \
@@ -274,6 +337,14 @@ build_parameters() {
     capabilities=()
 
     case "$stack_kind" in
+        prerequisites)
+            parameters+=(
+                "ParameterKey=VpcId,ParameterValue=$MORROWPAL_VPC_ID"
+                "ParameterKey=KeyName,ParameterValue=$MORROWPAL_EC2_KEY_NAME"
+                "ParameterKey=SshPublicKeyMaterial,ParameterValue=$ssh_public_key_material"
+                "ParameterKey=SshIngressCidr,ParameterValue=$ssh_ingress_cidr"
+            )
+            ;;
         ecr)
             ;;
         ec2-access)
@@ -333,7 +404,13 @@ print_resolution() {
     printf 'Change-set type: %s\n' "$change_set_type"
     printf 'Template: %s\n' "${template_path#$infrastructure_directory/}"
     printf 'Subnet: %s\n' "$MORROWPAL_SUBNET_ID"
-    printf 'Security group: %s\n' "$MORROWPAL_SECURITY_GROUP_ID"
+    if [[ "$stack_kind" == prerequisites ]]; then
+        printf 'Recovery key pair: %s\n' "$MORROWPAL_EC2_KEY_NAME"
+        printf 'SSH ingress CIDR: %s\n' "$ssh_ingress_cidr"
+        printf 'SSH public key: validated; material hidden\n'
+    else
+        printf 'Security group: %s\n' "$MORROWPAL_SECURITY_GROUP_ID"
+    fi
     if [[ -n "$instance_profile_name" ]]; then
         printf 'Instance profile: %s\n' "$instance_profile_name"
         printf 'EC2 role: %s\n' "$role_name"
@@ -371,7 +448,7 @@ case "$selected_environment" in
     *) fail "ENVIRONMENT must be prod or staging" ;;
 esac
 case "$stack_kind" in
-    ecr|ec2-access|ec2|mysql-storage|runtime-secrets|system-alerts|public-ip|http-validation-ingress) ;;
+    prerequisites|ecr|ec2-access|ec2|mysql-storage|runtime-secrets|system-alerts|public-ip|http-validation-ingress) ;;
     *) fail "Unknown STACK_KIND: $stack_kind" ;;
 esac
 [[ "$change_set_name" =~ ^[A-Za-z][A-Za-z0-9-]{0,127}$ ]] \
@@ -380,11 +457,34 @@ esac
 confirm_production=false
 dry_run=false
 detach_mysql_volume=false
-for option in "$@"; do
-    case "$option" in
-        --confirm-production) confirm_production=true ;;
-        --dry-run) dry_run=true ;;
-        --detach-mysql-volume) detach_mysql_volume=true ;;
+ssh_public_key_file=''
+ssh_ingress_cidr=''
+while (($# > 0)); do
+    case "$1" in
+        --confirm-production)
+            confirm_production=true
+            shift
+            ;;
+        --dry-run)
+            dry_run=true
+            shift
+            ;;
+        --detach-mysql-volume)
+            detach_mysql_volume=true
+            shift
+            ;;
+        --ssh-public-key-file)
+            (($# >= 2)) || fail "--ssh-public-key-file requires a path"
+            [[ -z "$ssh_public_key_file" ]] || fail "--ssh-public-key-file may be provided only once"
+            ssh_public_key_file="$2"
+            shift 2
+            ;;
+        --ssh-ingress-cidr)
+            (($# >= 2)) || fail "--ssh-ingress-cidr requires a CIDR"
+            [[ -z "$ssh_ingress_cidr" ]] || fail "--ssh-ingress-cidr may be provided only once"
+            ssh_ingress_cidr="$2"
+            shift 2
+            ;;
         *) usage >&2; exit 2 ;;
     esac
 done
@@ -396,6 +496,16 @@ if [[ "$selected_environment" == staging && "$confirm_production" == true ]]; th
 fi
 if [[ "$detach_mysql_volume" == true && "$stack_kind" != mysql-storage ]]; then
     fail "--detach-mysql-volume is valid only for mysql-storage"
+fi
+if [[ "$stack_kind" == prerequisites ]]; then
+    [[ -n "$ssh_public_key_file" ]] \
+        || fail "--ssh-public-key-file is required for prerequisites"
+    [[ -n "$ssh_ingress_cidr" ]] \
+        || fail "--ssh-ingress-cidr is required for prerequisites"
+    validate_ssh_ingress_cidr "$ssh_ingress_cidr"
+    load_ssh_public_key
+elif [[ -n "$ssh_public_key_file" || -n "$ssh_ingress_cidr" ]]; then
+    fail "SSH bootstrap options are valid only for prerequisites"
 fi
 
 readonly inventory_file="$infrastructure_directory/environments/$selected_environment/inventory.ini"
@@ -433,7 +543,7 @@ validate_platform_bindings
 resolve_target_change_type
 
 case "$stack_kind" in
-    ecr|ec2-access)
+    prerequisites|ecr|ec2-access)
         ;;
     ec2)
         resolve_access_stack

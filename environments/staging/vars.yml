@@ -56,5 +56,5 @@ morrowpal_email_otp_from_address: MorrowPal <verification-code@staging.morrowpal
 morrowpal_email_notification_from_address: MorrowPal <notifications@staging.morrowpal.com>
 morrowpal_email_dispatch_opt_out_url: https://staging.morrowpal.com/notifications/disable/
 
-morrowpal_app_notifications_provider: stub
+morrowpal_app_notifications_provider: firebase
 morrowpal_firebase_project_id: morrowpal-staging

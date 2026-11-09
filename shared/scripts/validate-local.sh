@@ -278,8 +278,8 @@ main() {
         .services["backend-api-blue"].environment.APP_AUTH_STORE_REVIEW_EMAIL == "store-review@staging.morrowpal.com" and
         .services["backend-api-blue"].environment.APP_API_CORS_ALLOWED_ORIGIN_PATTERNS == "https://app.staging.morrowpal.com,https://staging.morrowpal.com" and
         .services["backend-api-blue"].environment.APP_CLIENT_COMPATIBILITY_WEB_UPDATE_URL == "https://app.staging.morrowpal.com/" and
-        .services["backend-job-dispatch"].environment.APP_APP_NOTIFICATIONS_PROVIDER == "stub" and
-        .services["backend-job-dispatch"].environment.APP_APP_NOTIFICATIONS_FIREBASE_PROJECT_ID == "STAGING_FIREBASE_PROJECT_ID" and
+        .services["backend-job-dispatch"].environment.APP_APP_NOTIFICATIONS_PROVIDER == "firebase" and
+        .services["backend-job-dispatch"].environment.APP_APP_NOTIFICATIONS_FIREBASE_PROJECT_ID == "morrowpal-staging" and
         .services["backend-job-dispatch"].environment.APP_SYSTEM_ALERTS_TOPIC_ARN == $system_alerts_topic_arn and
         .services["backend-job-dispatch"].environment.APP_EMAIL_POSTMARK_DISPATCH_FROM_ADDRESS == "MorrowPal <notifications@staging.morrowpal.com>" and
         .services["backend-job-dispatch"].environment.APP_EMAIL_DISPATCH_OPT_OUT_URL == "https://staging.morrowpal.com/notifications/disable/" and

@@ -122,6 +122,7 @@ main() {
     local template
     local -a aws_regions=()
     local -a templates=(
+        "$CLOUDFORMATION_DIR/prerequisites.yml"
         "$CLOUDFORMATION_DIR/ecr.yml"
         "$CLOUDFORMATION_DIR/ec2-access.yml"
         "$CLOUDFORMATION_DIR/ec2.yml"

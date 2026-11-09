@@ -39,8 +39,9 @@ Each Region's default VPC and public subnet are external AWS platform
 prerequisites. Neither environment's network is managed by the MorrowPal
 CloudFormation templates, so generic deployment code has no environment branch
 for network ownership. The external IONOS zone is a shared DNS prerequisite and
-also remains outside CloudFormation. Staging has its own security group and
-recovery key pair in `us-east-1`.
+also remains outside CloudFormation. The shared prerequisites template manages
+each environment's dedicated host security group and imports only the public
+half of its recovery key. Private key material remains local and untracked.
 
 The production apex, `www`, `api`, `app`, `admin`, and `back` A records point
 to production Elastic IP `3.12.65.199`. The corresponding staging names are

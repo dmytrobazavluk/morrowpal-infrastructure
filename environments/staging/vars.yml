@@ -5,7 +5,7 @@ morrowpal_aws_region: us-east-1
 morrowpal_availability_zone: us-east-1a
 morrowpal_vpc_id: vpc-0d3057f78521c530d
 morrowpal_subnet_id: subnet-06f9d6d89b1c17eeb
-morrowpal_security_group_id: STAGING_SECURITY_GROUP_ID
+morrowpal_security_group_id: sg-082dc509f3354457a
 morrowpal_ec2_key_name: morrowpal-staging-01
 
 morrowpal_stack_prefix: morrowpal-staging

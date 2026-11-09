@@ -295,13 +295,20 @@ main() {
         || fail "Private-key rejection contacted AWS"
 
     : >"$mock_log"
-    if run_wrapper staging '' prerequisites reject-open-ssh \
+    run_wrapper staging '' prerequisites match-production-ssh \
             --ssh-public-key-file "$public_key_file" \
-            --ssh-ingress-cidr 0.0.0.0/0 >"$output_file" 2>&1; then
-        fail "Prerequisites accepted world-open SSH ingress"
+            --ssh-ingress-cidr 0.0.0.0/0 >"$output_file"
+    grep -Fq 'ParameterKey=SshIngressCidr,ParameterValue=0.0.0.0/0' "$mock_log" \
+        || fail "Prerequisites did not preserve explicitly selected production SSH access"
+
+    : >"$mock_log"
+    if run_wrapper staging '' prerequisites reject-invalid-ssh \
+            --ssh-public-key-file "$public_key_file" \
+            --ssh-ingress-cidr 256.0.0.1/32 >"$output_file" 2>&1; then
+        fail "Prerequisites accepted an invalid SSH CIDR"
     fi
     [[ ! -s "$mock_log" ]] \
-        || fail "World-open SSH rejection contacted AWS"
+        || fail "Invalid SSH CIDR rejection contacted AWS"
 
     : >"$mock_log"
     if run_wrapper staging '' ecr reject-ssh-options \

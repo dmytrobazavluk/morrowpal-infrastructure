@@ -47,18 +47,15 @@ validate_ssh_ingress_cidr() {
     local cidr="$1"
     local address
     local octet
-    local prefix
     local -a octets=()
 
     [[ "$cidr" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}/([0-9]|[12][0-9]|3[0-2])$ ]] \
         || fail "SSH ingress CIDR must be a valid IPv4 CIDR"
     address="${cidr%/*}"
-    prefix="${cidr#*/}"
     IFS='.' read -r -a octets <<<"$address"
     for octet in "${octets[@]}"; do
         ((10#$octet <= 255)) || fail "SSH ingress CIDR contains an invalid IPv4 address"
     done
-    ((10#$prefix > 0)) || fail "SSH ingress CIDR must not allow the entire IPv4 internet"
 }
 
 load_ssh_public_key() {

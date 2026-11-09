@@ -38,6 +38,17 @@ install_mock_ansible() {
         '  security_group_id=sg-staging' \
         '  key_name=morrowpal-staging-01' \
         'fi' \
+        'instance_name="morrowpal-$environment-01"' \
+        'if [[ "${MORROWPAL_MOCK_MISMATCH:-}" == other-environment ]]; then' \
+        '  public_ip=3.12.65.199' \
+        '  private_key=../morrowpal-prod-01.pem' \
+        '  known_hosts=environments/prod/known_hosts' \
+        '  vpc_id=vpc-prod' \
+        '  subnet_id=subnet-prod' \
+        '  security_group_id=sg-prod' \
+        '  key_name=01' \
+        '  instance_name=morrowpal-prod-01' \
+        'fi' \
         'overlay_environment="$environment"' \
         'stack_prefix="morrowpal-$environment"' \
         'if [[ "${MORROWPAL_MOCK_MISMATCH:-}" == overlay ]]; then overlay_environment=prod; fi' \
@@ -52,7 +63,7 @@ install_mock_ansible() {
         '  "MORROWPAL_SUBNET_ID=\"$subnet_id\"" \' \
         '  "MORROWPAL_SECURITY_GROUP_ID=\"$security_group_id\"" \' \
         '  "MORROWPAL_EC2_KEY_NAME=\"$key_name\"" \' \
-        '  "MORROWPAL_INSTANCE_NAME=\"morrowpal-$environment-01\"" \' \
+        '  "MORROWPAL_INSTANCE_NAME=\"$instance_name\"" \' \
         '  "MORROWPAL_INSTANCE_TYPE=\"t3.small\"" \' \
         '  "MORROWPAL_ROOT_VOLUME_SIZE_GIB=8" \' \
         '  "MORROWPAL_MYSQL_VOLUME_SIZE_GIB=10" \' \
@@ -77,6 +88,11 @@ install_mock_ansible() {
         '  private_key=../morrowpal-staging-01.pem' \
         '  known_hosts=environments/staging/known_hosts' \
         'fi' \
+        'if [[ "${MORROWPAL_MOCK_MISMATCH:-}" == other-environment ]]; then' \
+        '  public_ip=3.12.65.199' \
+        '  private_key=../morrowpal-prod-01.pem' \
+        '  known_hosts=environments/prod/known_hosts' \
+        'fi' \
         'if [[ "${MORROWPAL_MOCK_MISMATCH:-}" == inventory ]]; then public_ip=WRONG_PUBLIC_IP; fi' \
         'printf "{\"morrowpal_hosts\":{\"hosts\":[\"01\"]},\"_meta\":{\"hostvars\":{\"01\":{\"ansible_host\":\"%s\",\"ansible_user\":\"ec2-user\",\"ansible_ssh_private_key_file\":\"%s\",\"ansible_ssh_common_args\":\"-o UserKnownHostsFile=%s\"}}}}\n" "$public_ip" "$private_key" "$known_hosts"' \
         >"$mock_directory/ansible-inventory"
@@ -94,14 +110,16 @@ install_mock_aws() {
         'operation="${2:-}"' \
         'joined="$*"' \
         'environment="${MORROWPAL_MOCK_ENVIRONMENT:-staging}"' \
-        'vpc_id="vpc-$environment"' \
-        'subnet_id="subnet-$environment"' \
-        'security_group_id="sg-$environment"' \
-        'profile_name="morrowpal-$environment-profile"' \
+        'resource_environment="$environment"' \
+        'if [[ "${MORROWPAL_MOCK_MISMATCH:-}" == other-environment ]]; then resource_environment=prod; fi' \
+        'vpc_id="vpc-$resource_environment"' \
+        'subnet_id="subnet-$resource_environment"' \
+        'security_group_id="sg-$resource_environment"' \
+        'profile_name="morrowpal-$resource_environment-profile"' \
         'profile_arn="arn:aws:iam::384078510608:instance-profile/$profile_name"' \
-        'role_name="morrowpal-$environment-role"' \
+        'role_name="morrowpal-$resource_environment-role"' \
         'role_arn="arn:aws:iam::384078510608:role/$role_name"' \
-        'instance_id="i-$environment"' \
+        'instance_id="i-$resource_environment"' \
         'case "$service:$operation" in' \
         '  sts:get-caller-identity)' \
         '    if [[ "${MORROWPAL_MOCK_MISMATCH:-}" == account ]]; then printf "000000000000\n"; else printf "384078510608\n"; fi' \
@@ -114,13 +132,13 @@ install_mock_aws() {
         '    ;;' \
         '  ec2:describe-security-groups)' \
         '    [[ "${MORROWPAL_MOCK_MISMATCH:-}" == security-group-vpc ]] && vpc_id=vpc-other' \
-        '    tag_environment="$environment"' \
+        '    tag_environment="$resource_environment"' \
         '    [[ "${MORROWPAL_MOCK_MISMATCH:-}" == security-group-environment ]] && tag_environment=prod' \
-        '    if [[ "$environment" == prod ]]; then tags="[]"; else tags="[{\"Key\":\"Environment\",\"Value\":\"$tag_environment\"},{\"Key\":\"Application\",\"Value\":\"morrowpal\"}]"; fi' \
+        '    if [[ "$environment" == prod && "${MORROWPAL_MOCK_MISMATCH:-}" != other-environment ]]; then tags="[]"; else tags="[{\"Key\":\"Environment\",\"Value\":\"$tag_environment\"},{\"Key\":\"Application\",\"Value\":\"morrowpal\"}]"; fi' \
         '    printf "{\"SecurityGroups\":[{\"OwnerId\":\"384078510608\",\"VpcId\":\"%s\",\"Tags\":%s}]}\n" "$vpc_id" "$tags"' \
         '    ;;' \
         '  ec2:describe-key-pairs)' \
-        '    if [[ "$environment" == prod ]]; then key_name=01; else key_name=morrowpal-staging-01; fi' \
+        '    if [[ "$resource_environment" == prod ]]; then key_name=01; else key_name=morrowpal-staging-01; fi' \
         '    [[ "${MORROWPAL_MOCK_MISMATCH:-}" == key-pair ]] && key_name=wrong-key' \
         '    printf "{\"KeyPairs\":[{\"KeyName\":\"%s\"}]}\n" "$key_name"' \
         '    ;;' \
@@ -142,7 +160,7 @@ install_mock_aws() {
         '    printf "{\"InstanceProfile\":{\"Arn\":\"%s\",\"Roles\":[{\"RoleName\":\"%s\"}]}}\n" "$profile_arn" "$profile_role_name"' \
         '    ;;' \
         '  ec2:describe-instances)' \
-        '    instance_environment="$environment"' \
+        '    instance_environment="$resource_environment"' \
         '    instance_profile_arn="$profile_arn"' \
         '    instance_subnet_id="$subnet_id"' \
         '    instance_security_group_id="$security_group_id"' \
@@ -150,7 +168,7 @@ install_mock_aws() {
         '    [[ "${MORROWPAL_MOCK_MISMATCH:-}" == instance-profile ]] && instance_profile_arn="arn:aws:iam::384078510608:instance-profile/wrong"' \
         '    [[ "${MORROWPAL_MOCK_MISMATCH:-}" == instance-subnet ]] && instance_subnet_id=subnet-other' \
         '    [[ "${MORROWPAL_MOCK_MISMATCH:-}" == instance-security-group ]] && instance_security_group_id=sg-other' \
-        '    printf "{\"Reservations\":[{\"Instances\":[{\"InstanceId\":\"%s\",\"SubnetId\":\"%s\",\"Placement\":{\"AvailabilityZone\":\"us-east-2c\"},\"IamInstanceProfile\":{\"Arn\":\"%s\"},\"SecurityGroups\":[{\"GroupId\":\"%s\"}],\"State\":{\"Name\":\"running\"},\"Tags\":[{\"Key\":\"Application\",\"Value\":\"morrowpal\"},{\"Key\":\"Environment\",\"Value\":\"%s\"},{\"Key\":\"Name\",\"Value\":\"morrowpal-%s-01\"},{\"Key\":\"aws:cloudformation:stack-name\",\"Value\":\"morrowpal-%s-ec2\"}]}]}]}\n" "$instance_id" "$instance_subnet_id" "$instance_profile_arn" "$instance_security_group_id" "$instance_environment" "$environment" "$environment"' \
+        '    printf "{\"Reservations\":[{\"Instances\":[{\"InstanceId\":\"%s\",\"SubnetId\":\"%s\",\"Placement\":{\"AvailabilityZone\":\"us-east-2c\"},\"IamInstanceProfile\":{\"Arn\":\"%s\"},\"SecurityGroups\":[{\"GroupId\":\"%s\"}],\"State\":{\"Name\":\"running\"},\"Tags\":[{\"Key\":\"Application\",\"Value\":\"morrowpal\"},{\"Key\":\"Environment\",\"Value\":\"%s\"},{\"Key\":\"Name\",\"Value\":\"morrowpal-%s-01\"},{\"Key\":\"aws:cloudformation:stack-name\",\"Value\":\"morrowpal-%s-ec2\"}]}]}]}\n" "$instance_id" "$instance_subnet_id" "$instance_profile_arn" "$instance_security_group_id" "$instance_environment" "$resource_environment" "$resource_environment"' \
         '    ;;' \
         '  cloudformation:create-change-set)' \
         '    printf "{\"Id\":\"mock-change-set\"}\n"' \
@@ -229,6 +247,22 @@ main() {
     if run_wrapper staging instance-environment ec2 reject-existing-ec2 --dry-run \
             >"$output_file" 2>&1; then
         fail "EC2 update accepted an existing instance from another environment"
+    fi
+
+    : >"$mock_log"
+    if run_wrapper staging other-environment runtime-secrets \
+            reject-coherent-production-bindings >"$output_file" 2>&1; then
+        fail "Staging accepted a coherent set of production resource bindings"
+    fi
+    grep -Fq 'Staging security group is missing its environment identity tags' \
+        "$output_file" \
+        || fail "Cross-environment fixture did not reach the environment identity guard"
+    grep -Fq 'ec2 describe-subnets --subnet-ids subnet-prod' "$mock_log" \
+        || fail "Cross-environment fixture did not resolve the production subnet"
+    grep -Fq 'ec2 describe-security-groups --group-ids sg-prod' "$mock_log" \
+        || fail "Cross-environment fixture did not resolve the production security group"
+    if grep -Fq 'aws:cloudformation create-change-set' "$mock_log"; then
+        fail "Production resource bindings reached staging change-set creation"
     fi
 
     : >"$mock_log"

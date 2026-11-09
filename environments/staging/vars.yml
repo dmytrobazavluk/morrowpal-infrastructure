@@ -3,6 +3,10 @@ morrowpal_environment: staging
 morrowpal_aws_account_id: "384078510608"
 morrowpal_aws_region: us-east-2
 morrowpal_availability_zone: us-east-2c
+morrowpal_vpc_id: STAGING_VPC_ID
+morrowpal_subnet_id: STAGING_SUBNET_ID
+morrowpal_security_group_id: STAGING_SECURITY_GROUP_ID
+morrowpal_ec2_key_name: morrowpal-staging-01
 
 morrowpal_stack_prefix: morrowpal-staging
 morrowpal_ecr_registry: 384078510608.dkr.ecr.us-east-2.amazonaws.com

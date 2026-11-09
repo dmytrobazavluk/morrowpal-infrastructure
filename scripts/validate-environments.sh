@@ -49,6 +49,10 @@ validate_vars_file() {
         morrowpal_aws_account_id
         morrowpal_aws_region
         morrowpal_availability_zone
+        morrowpal_vpc_id
+        morrowpal_subnet_id
+        morrowpal_security_group_id
+        morrowpal_ec2_key_name
         morrowpal_stack_prefix
         morrowpal_ecr_registry
         morrowpal_ecr_repository_prefix

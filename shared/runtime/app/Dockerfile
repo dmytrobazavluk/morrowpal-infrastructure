@@ -7,6 +7,9 @@ RUN apk upgrade --no-cache \
 
 COPY --from=web --chown=101:101 . /usr/share/nginx/html/
 
+# Deployment supplies this separately. Reject a local preview configuration.
+RUN test ! -e /usr/share/nginx/html/runtime-config.js
+
 USER 101:101
 
 EXPOSE 8080

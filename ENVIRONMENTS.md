@@ -12,6 +12,27 @@ implementation:
 Staging matches prod structurally. It does not share prod data, credentials,
 public endpoints, or external delivery destinations.
 
+## Shared web app image
+
+The Flutter web app is built once with its version and build number. Its API
+URL and public Firebase client settings are provided at deployment through
+`app/runtime-config.js`, mounted read-only outside the image. Flutter loads it
+before startup and the Firebase messaging worker imports the same file. Neither
+consumer falls back to production. Nginx serves the configuration and worker
+with `Cache-Control: no-store`; the generated Flutter offline worker is disabled.
+
+`deploy.yml` reads `frontend/config/firebase/<environment>/{build,web}.json`
+from the sibling frontend checkout, validates its API and project against the
+selected overlay, and renders the runtime file. Set
+`morrowpal_frontend_directory` if the checkout is elsewhere. Configuration
+changes recreate the app container to refresh its file mount. Firebase
+service-account credentials remain separate server-only runtime secrets.
+
+The app publisher's environment selects the ECR destination, not compiled app
+settings. Promotion should copy the tested image, preserving its digest and
+tag; the repository URLs can differ. Existing environment-specific images
+remain unchanged and require a newly built image to adopt runtime settings.
+
 ## Initial placement decision
 
 Both environments use AWS account `384078510608`, but use separate Regions and

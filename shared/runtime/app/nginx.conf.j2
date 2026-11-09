@@ -33,6 +33,18 @@ server {
         return 404;
     }
 
+    location = /runtime-config.js {
+        alias /etc/morrowpal/runtime-config.js;
+        default_type application/javascript;
+        add_header Cache-Control "no-store" always;
+        add_header X-Content-Type-Options "nosniff" always;
+    }
+
+    location = /firebase-messaging-sw.js {
+        add_header Cache-Control "no-store" always;
+        try_files $uri =404;
+    }
+
     location = /notifications/disable {
         access_log off;
         add_header Cache-Control "no-store" always;

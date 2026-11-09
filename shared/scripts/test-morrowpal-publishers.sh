@@ -55,7 +55,7 @@ run_dry_runs() {
     MORROWPAL_PUBLISH_DRY_RUN=true \
         "$app_publisher" "$environment" 1.1.0 2 >"$output_file"
     assert_output_contains "$output_file" "/$expected_prefix/app"
-    assert_output_contains "$output_file" "API URL $expected_api_url"
+    assert_output_contains "$output_file" "environment-independent app image"
 
     PATH="$mock_directory:$PATH" \
     MORROWPAL_MOCK_LOG="$mock_log" \

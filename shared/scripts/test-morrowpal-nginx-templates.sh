@@ -40,7 +40,13 @@ assert_digest() {
 
     IFS= read -r expected_digest <"$baseline_file" \
         || fail "Could not read baseline: $baseline_file"
-    digest_output="$(sha256sum "$rendered_file")"
+    if [[ "$baseline_file" == "$app_baseline" ]]; then
+        # Keep the captured production baseline. Exclude only the two new
+        # runtime configuration locations from this legacy comparison.
+        digest_output="$(sed '/^    location = \/runtime-config.js {/,/^    location = \/notifications\/disable {/ { /^    location = \/notifications\/disable {/!d; }' "$rendered_file" | sha256sum)"
+    else
+        digest_output="$(sha256sum "$rendered_file")"
+    fi
     actual_digest="${digest_output%% *}"
     [[ "$actual_digest" == "$expected_digest" ]] \
         || fail "Rendered Nginx configuration differs from production baseline"
@@ -77,6 +83,17 @@ main() {
 
     assert_digest "$prod_app" "$app_baseline"
     assert_digest "$prod_website" "$website_baseline"
+
+    for rendered in "$prod_app" "$staging_app"; do
+        grep -Fq 'alias /etc/morrowpal/runtime-config.js;' "$rendered" \
+            || fail "App does not serve deployment runtime configuration"
+        grep -A4 -F 'location = /runtime-config.js {' "$rendered" \
+            | grep -Fq 'Cache-Control "no-store"' \
+            || fail "Runtime configuration must not be cached"
+        grep -A3 -F 'location = /firebase-messaging-sw.js {' "$rendered" \
+            | grep -Fq 'try_files $uri =404;' \
+            || fail "Missing notification workers must not fall back to app HTML"
+    done
 
     grep -Fq 'https://staging.morrowpal.com/notifications/disable/' "$staging_app" \
         || fail "Staging app redirect is incorrect"

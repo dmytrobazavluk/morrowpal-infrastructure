@@ -148,6 +148,7 @@ main() {
     "$SCRIPT_DIR/test-morrowpal-rate-limit-verifiers.sh"
     "$SCRIPT_DIR/test-morrowpal-tls-templates.sh"
     "$SCRIPT_DIR/test-morrowpal-nginx-templates.sh"
+    python3 "$SCRIPT_DIR/test-morrowpal-web-runtime.py"
 
     docker compose version >/dev/null 2>&1 \
         || fail "Docker Compose plugin is not available"
@@ -246,7 +247,13 @@ main() {
     staging_render="$(render_compose "$staging_compose_env_file")"
 
     printf 'Comparing the rendered production Compose configuration to its baseline...\n'
-    digest_output="$(jq --sort-keys --compact-output . <<<"$prod_render" | sha256sum)"
+    # Preserve the captured production baseline while allowing the new public
+    # runtime configuration mount required by environment-independent app images.
+    jq --exit-status '.services.app.volumes | any(.target == "/etc/morrowpal/runtime-config.js" and .read_only == true)' \
+        <<<"$prod_render" >/dev/null || fail "App runtime configuration mount must be read-only"
+    digest_output="$(jq --sort-keys --compact-output \
+        '.services.app.volumes |= map(select(.target != "/etc/morrowpal/runtime-config.js"))' \
+        <<<"$prod_render" | sha256sum)"
     actual_digest="${digest_output%% *}"
 
     if [[ "$actual_digest" != "$expected_digest" ]]; then

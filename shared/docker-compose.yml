@@ -153,6 +153,7 @@ services:
       - "8080"
     volumes:
       - ${MORROWPAL_DEPLOYMENT_ROOT:?MORROWPAL_DEPLOYMENT_ROOT is required}/app/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ${MORROWPAL_DEPLOYMENT_ROOT:?MORROWPAL_DEPLOYMENT_ROOT is required}/app/runtime-config.js:/etc/morrowpal/runtime-config.js:ro
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--spider", "http://127.0.0.1:8080/ready"]
       interval: 10s

@@ -5,6 +5,13 @@
   gather_facts: false
 
   vars:
+    morrowpal_frontend_directory: "{{ playbook_dir }}/../../../frontend"
+    morrowpal_web_client_build: >-
+      {{ lookup('ansible.builtin.file', morrowpal_frontend_directory ~
+         '/config/firebase/' ~ morrowpal_environment ~ '/build.json') | from_json }}
+    morrowpal_web_firebase_config: >-
+      {{ lookup('ansible.builtin.file', morrowpal_frontend_directory ~
+         '/config/firebase/' ~ morrowpal_environment ~ '/web.json') | from_json }}
     asm_exec_version: 6d1de54ace0ba876d8c1d099fe5d7d8a7e8d384c
     asm_exec_checksum: 05a9f8164b63b286bcf88bf4223c95b799e0ecaada45ddcd805567f57b20299f
     asm_exec_url: >-
@@ -12,6 +19,19 @@
       }}/plugins/aws-core/skills/aws-secrets-manager/references/asm-exec
 
   pre_tasks:
+    - name: Bind public web configuration to the selected deployment environment
+      ansible.builtin.assert:
+        that:
+          - morrowpal_environment in ['prod', 'staging']
+          - morrowpal_web_client_build.environment == morrowpal_environment
+          - morrowpal_web_client_build.apiBaseUrl == morrowpal_public_urls.api
+          - morrowpal_web_client_build.firebaseProjectId == morrowpal_firebase_project_id
+          - morrowpal_web_firebase_config.projectId == morrowpal_firebase_project_id
+          - morrowpal_web_firebase_config.apiKey | length > 0
+          - morrowpal_web_firebase_config.appId | length > 0
+          - morrowpal_web_firebase_config.messagingSenderId | length > 0
+        fail_msg: Public web client configuration does not match the selected environment.
+
     - name: Validate the requested backend image tag
       ansible.builtin.assert:
         that:
@@ -273,6 +293,15 @@
         mode: "0644"
       register: morrowpal_app_nginx_config
 
+    - name: Install the selected environment public web runtime configuration
+      ansible.builtin.template:
+        src: ../runtime/app/runtime-config.js.j2
+        dest: "{{ morrowpal_deployment_root }}/app/runtime-config.js"
+        owner: root
+        group: root
+        mode: "0644"
+      register: morrowpal_app_runtime_config
+
     - name: Install the selected environment website Nginx configuration
       ansible.builtin.template:
         src: ../runtime/website/nginx.conf.j2
@@ -348,6 +377,7 @@
             (morrowpal_envoy_config is changed) or
             (morrowpal_envoy_tls_sds_config is changed) or
             (morrowpal_app_nginx_config is changed) or
+            (morrowpal_app_runtime_config is changed) or
             (morrowpal_website_nginx_config is changed)
           }}
         morrowpal_envoy_recreation_required: >-
@@ -356,7 +386,8 @@
             (morrowpal_envoy_tls_sds_config is changed)
           }}
         morrowpal_app_recreation_required: >-
-          {{ morrowpal_app_nginx_config is changed }}
+          {{ (morrowpal_app_nginx_config is changed) or
+             (morrowpal_app_runtime_config is changed) }}
         morrowpal_website_recreation_required: >-
           {{ morrowpal_website_nginx_config is changed }}
 

@@ -167,12 +167,10 @@ readonly build_number="$3"
 
 require_command aws
 morrowpal_load_publish_environment "$environment" "$infrastructure_dir"
-morrowpal_require_environment_values MORROWPAL_API_URL
 
 readonly aws_region="$MORROWPAL_AWS_REGION"
 readonly expected_aws_account_id="$MORROWPAL_AWS_ACCOUNT_ID"
 readonly repository="$MORROWPAL_ECR_REPOSITORY_PREFIX/app"
-readonly api_base_url="$MORROWPAL_API_URL"
 registry="$MORROWPAL_ECR_REGISTRY"
 
 actual_account_id="$(aws sts get-caller-identity --query Account --output text --region "$aws_region")"
@@ -181,8 +179,8 @@ actual_account_id="$(aws sts get-caller-identity --query Account --output text -
 
 case "${MORROWPAL_PUBLISH_DRY_RUN:-false}" in
     true)
-        printf 'Dry run: app image would publish to %s/%s in %s with API URL %s.\n' \
-            "$registry" "$repository" "$aws_region" "$api_base_url"
+        printf 'Dry run: environment-independent app image would publish to %s/%s in %s.\n' \
+            "$registry" "$repository" "$aws_region"
         exit 0
         ;;
     false)
@@ -232,7 +230,7 @@ readonly image="$registry/$repository:$image_tag"
 (
     cd "$app_dir"
     flutter pub get
-    dart run tool/build_web.dart "$environment" "$app_version" "$build_number" "$api_base_url"
+    dart run tool/build_web.dart "$app_version" "$build_number"
     docker build \
         --no-cache \
         --pull \

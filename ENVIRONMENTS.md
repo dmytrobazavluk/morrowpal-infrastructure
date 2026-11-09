@@ -20,7 +20,10 @@ Both environments use:
 - AWS Region `us-east-2`
 - Availability Zone `us-east-2c`
 - the existing account VPC and its internet-connected public subnet capability
-- the existing Route 53 public hosted zone for `morrowpal.com`
+
+Public DNS for `morrowpal.com` is hosted by IONOS on its `ui-dns` name servers.
+AWS account `384078510608` has no Route 53 hosted zones. DNS records are managed
+manually in IONOS and are outside the current CloudFormation implementation.
 
 Using one account keeps the first staging implementation small. Isolation is
 provided by distinct stacks, IAM resources, security groups, instances,
@@ -28,10 +31,18 @@ volumes, public addresses, repository paths, secrets, topics, and DNS records.
 A separate staging account remains a possible later improvement, not part of
 this refactor.
 
-The VPC, public subnet, and hosted zone are shared platform prerequisites. They
-are not currently managed by the MorrowPal CloudFormation templates. The
-staging host initially uses the same public subnet pattern as prod, with its
-own security group and recovery key pair.
+The VPC and public subnet are shared AWS platform prerequisites. The external
+IONOS zone is a shared DNS prerequisite. None is currently managed by the
+MorrowPal CloudFormation templates. The staging host initially uses the same
+public subnet pattern as prod, with its own security group and recovery key
+pair.
+
+The production apex, `www`, `api`, `app`, `admin`, and `back` A records point
+to production Elastic IP `3.12.65.199`. The corresponding staging names are
+currently absent and return NXDOMAIN. They must be added to IONOS only after
+the staging Elastic IP exists. Every DNS change requires a separate human
+review confirming that only staging names are affected and that no unexpected
+AAAA record exists.
 
 ## Environment identities
 
@@ -146,7 +157,7 @@ Staging owns distinct versions of every application resource:
 - ECR repositories
 - Secrets Manager secrets
 - SNS topic and subscriptions
-- DNS records and TLS certificate
+- logically separate IONOS DNS records and TLS certificate
 - MySQL database contents
 - Ansible inventory and SSH host-key record
 
@@ -286,7 +297,7 @@ A normal staging session is:
 7. Gracefully stop the staging instance.
 
 Stopping EC2 does not delete its EBS volumes, Elastic IP, secrets, repositories,
-DNS records, or other persistent resources.
+manually managed IONOS DNS records, or other persistent resources.
 
 ## Promotion rule
 

@@ -12,6 +12,11 @@ network resources already exist:
 - EC2 key pair `01`
 - Public DNS zone for `morrowpal.com`
 
+All routine CloudFormation change sets in this runbook use the guarded wrapper.
+Direct template invocation is unsupported for routine operations because it
+bypasses environment binding. Use it only as part of a documented recovery
+procedure with an independently reviewed parameter set.
+
 For replacing an existing host while retaining its EBS volume and Elastic IP,
 use [Replace the production host](./replace-host.md) instead.
 
@@ -74,15 +79,8 @@ done
 ## 3. Create the container repositories
 
 ```bash
-aws cloudformation create-change-set \
-  --stack-name morrowpal-prod-ecr \
-  --change-set-name initial-ecr \
-  --change-set-type CREATE \
-  --template-body file://../shared/cloudformation/ecr.yml \
-  --parameters \
-    ParameterKey=Environment,ParameterValue=prod \
-    ParameterKey=TaggedImageRetentionCount,ParameterValue=5 \
-  --region us-east-2
+../shared/scripts/morrowpal-infrastructure-change-set.sh \
+  prod ecr initial-ecr --confirm-production
 
 aws cloudformation wait change-set-create-complete \
   --stack-name morrowpal-prod-ecr \
@@ -113,13 +111,8 @@ aws cloudformation wait stack-create-complete \
 ## 4. Create the EC2 access role
 
 ```bash
-aws cloudformation create-change-set \
-  --stack-name morrowpal-prod-ec2-access \
-  --change-set-name initial-ec2-access \
-  --change-set-type CREATE \
-  --template-body file://../shared/cloudformation/ec2-access.yml \
-  --capabilities CAPABILITY_IAM \
-  --region us-east-2
+../shared/scripts/morrowpal-infrastructure-change-set.sh \
+  prod ec2-access initial-ec2-access --confirm-production
 
 aws cloudformation wait change-set-create-complete \
   --stack-name morrowpal-prod-ec2-access \
@@ -147,16 +140,6 @@ aws cloudformation wait stack-create-complete \
   --region us-east-2
 ```
 
-Read the instance profile name:
-
-```bash
-INSTANCE_PROFILE_NAME="$(aws cloudformation describe-stacks \
-  --stack-name morrowpal-prod-ec2-access \
-  --query 'Stacks[0].Outputs[?OutputKey==`InstanceProfileName`].OutputValue' \
-  --output text \
-  --region us-east-2)"
-```
-
 ## 5. Create the EC2 host
 
 The template creates Amazon Linux 2023 on x86_64 with encrypted gp3 storage,
@@ -164,17 +147,8 @@ IMDSv2 enforcement, container-compatible metadata hop limit, and standard CPU
 credit mode.
 
 ```bash
-aws cloudformation create-change-set \
-  --stack-name morrowpal-prod-ec2 \
-  --change-set-name initial-ec2 \
-  --change-set-type CREATE \
-  --template-body file://../shared/cloudformation/ec2.yml \
-  --parameters \
-    ParameterKey=KeyName,ParameterValue=01 \
-    ParameterKey=SubnetId,ParameterValue=subnet-098ab1625c79adf3d \
-    ParameterKey=SecurityGroupId,ParameterValue=sg-0103b42f143676fda \
-    ParameterKey=InstanceProfileName,ParameterValue="$INSTANCE_PROFILE_NAME" \
-  --region us-east-2
+../shared/scripts/morrowpal-infrastructure-change-set.sh \
+  prod ec2 initial-ec2 --confirm-production
 
 aws cloudformation wait change-set-create-complete \
   --stack-name morrowpal-prod-ec2 \
@@ -202,15 +176,9 @@ aws cloudformation wait stack-create-complete \
   --region us-east-2
 ```
 
-Read the instance ID and temporary bootstrap address:
+Read the temporary bootstrap address:
 
 ```bash
-PRODUCTION_INSTANCE_ID="$(aws cloudformation describe-stacks \
-  --stack-name morrowpal-prod-ec2 \
-  --query 'Stacks[0].Outputs[?OutputKey==`InstanceId`].OutputValue' \
-  --output text \
-  --region us-east-2)"
-
 BOOTSTRAP_PUBLIC_IP="$(aws cloudformation describe-stacks \
   --stack-name morrowpal-prod-ec2 \
   --query 'Stacks[0].Outputs[?OutputKey==`BootstrapPublicIp`].OutputValue' \
@@ -243,13 +211,8 @@ migration.
 ## 7. Create and prepare encrypted MySQL storage
 
 ```bash
-aws cloudformation create-change-set \
-  --stack-name morrowpal-prod-mysql-storage \
-  --change-set-name initial-mysql-storage \
-  --change-set-type CREATE \
-  --template-body file://../shared/cloudformation/mysql-storage.yml \
-  --parameters ParameterKey=InstanceId,ParameterValue="$PRODUCTION_INSTANCE_ID" \
-  --region us-east-2
+../shared/scripts/morrowpal-infrastructure-change-set.sh \
+  prod mysql-storage initial-mysql-storage --confirm-production
 
 aws cloudformation wait change-set-create-complete \
   --stack-name morrowpal-prod-mysql-storage \
@@ -302,21 +265,8 @@ placeholder application-store review verification code inside Secrets Manager.
 Do not retrieve or print their values.
 
 ```bash
-PRODUCTION_EC2_ROLE_ARN="$(aws cloudformation describe-stacks \
-  --stack-name morrowpal-prod-ec2-access \
-  --query 'Stacks[0].Outputs[?OutputKey==`RoleArn`].OutputValue' \
-  --output text \
-  --region us-east-2)"
-PRODUCTION_EC2_ROLE_NAME="${PRODUCTION_EC2_ROLE_ARN##*/}"
-
-aws cloudformation create-change-set \
-  --stack-name morrowpal-prod-runtime-secrets \
-  --change-set-name initial-runtime-secrets \
-  --change-set-type CREATE \
-  --template-body file://../shared/cloudformation/runtime-secrets.yml \
-  --parameters "ParameterKey=ProductionEc2RoleName,ParameterValue=$PRODUCTION_EC2_ROLE_NAME" \
-  --capabilities CAPABILITY_IAM \
-  --region us-east-2
+../shared/scripts/morrowpal-infrastructure-change-set.sh \
+  prod runtime-secrets initial-runtime-secrets --confirm-production
 
 aws cloudformation wait change-set-create-complete \
   --stack-name morrowpal-prod-runtime-secrets \
@@ -363,13 +313,8 @@ operations](./postmark.md).
 ## 9. Create the stable public IP
 
 ```bash
-aws cloudformation create-change-set \
-  --stack-name morrowpal-prod-public-ip \
-  --change-set-name initial-public-ip \
-  --change-set-type CREATE \
-  --template-body file://../shared/cloudformation/public-ip.yml \
-  --parameters ParameterKey=InstanceId,ParameterValue="$PRODUCTION_INSTANCE_ID" \
-  --region us-east-2
+../shared/scripts/morrowpal-infrastructure-change-set.sh \
+  prod public-ip initial-public-ip --confirm-production
 
 aws cloudformation wait change-set-create-complete \
   --stack-name morrowpal-prod-public-ip \
@@ -413,13 +358,9 @@ Point these names to the stable IPv4 address and remove any AAAA records:
 Create the HTTP validation ingress rule used for initial issuance and renewal:
 
 ```bash
-aws cloudformation create-change-set \
-  --stack-name morrowpal-prod-http-validation-ingress \
-  --change-set-name initial-http-validation-ingress \
-  --change-set-type CREATE \
-  --template-body file://../shared/cloudformation/http-validation-ingress.yml \
-  --parameters ParameterKey=SecurityGroupId,ParameterValue=sg-0103b42f143676fda \
-  --region us-east-2
+../shared/scripts/morrowpal-infrastructure-change-set.sh \
+  prod http-validation-ingress initial-http-validation-ingress \
+  --confirm-production
 
 aws cloudformation wait change-set-create-complete \
   --stack-name morrowpal-prod-http-validation-ingress \

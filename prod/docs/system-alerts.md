@@ -33,24 +33,11 @@ aws cloudformation validate-template \
   --template-body file://../shared/cloudformation/system-alerts.yml \
   --region us-east-2
 
-PRODUCTION_EC2_ROLE_ARN="$(aws cloudformation describe-stacks \
-  --stack-name morrowpal-prod-ec2-access \
-  --query 'Stacks[0].Outputs[?OutputKey==`RoleArn`].OutputValue' \
-  --output text --region us-east-2)"
-PRODUCTION_EC2_ROLE_NAME="${PRODUCTION_EC2_ROLE_ARN##*/}"
-
-aws cloudformation create-change-set \
-  --stack-name morrowpal-prod-system-alerts \
-  --change-set-name initial-system-alerts \
-  --change-set-type CREATE \
-  --template-body file://../shared/cloudformation/system-alerts.yml \
-  --parameters \
-    "ParameterKey=ProductionEc2RoleName,ParameterValue=$PRODUCTION_EC2_ROLE_NAME" \
-    "ParameterKey=PrimaryAlertEmail,ParameterValue=$PRIMARY_ALERT_EMAIL" \
-    "ParameterKey=SecondaryAlertEmail,ParameterValue=$SECONDARY_ALERT_EMAIL" \
-    "ParameterKey=TertiaryAlertEmail,ParameterValue=$TERTIARY_ALERT_EMAIL" \
-  --capabilities CAPABILITY_IAM \
-  --region us-east-2
+MORROWPAL_PRIMARY_ALERT_EMAIL="$PRIMARY_ALERT_EMAIL" \
+MORROWPAL_SECONDARY_ALERT_EMAIL="$SECONDARY_ALERT_EMAIL" \
+MORROWPAL_TERTIARY_ALERT_EMAIL="$TERTIARY_ALERT_EMAIL" \
+  ../shared/scripts/morrowpal-infrastructure-change-set.sh \
+    prod system-alerts initial-system-alerts --confirm-production
 ```
 
 Set `PRIMARY_ALERT_EMAIL` before running the change set. Set
@@ -63,8 +50,9 @@ The stack also grants the EC2 role KMS data-key and decrypt permissions scoped
 to this topic and the AWS-managed SNS key; encrypted-topic publishing requires
 both those permissions and `sns:Publish`.
 
-For updates, use an `UPDATE` change set, review its replacement and deletion
-actions, and confirm any newly added email subscriptions.
+For updates, run the same guarded wrapper with a new change-set name. It detects
+that the stack exists and creates an `UPDATE` change set. Review its replacement
+and deletion actions and confirm any newly added email subscriptions.
 
 ## Verify
 

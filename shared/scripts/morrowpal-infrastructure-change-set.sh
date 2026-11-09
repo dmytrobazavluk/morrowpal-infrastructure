@@ -20,6 +20,8 @@ STACK_KIND:
 OPTIONS:
   --confirm-production  Required for prod.
   --dry-run             Resolve and validate bindings without creating a change set.
+  --detach-mysql-volume Remove the MySQL volume attachment. Valid only for
+                        mysql-storage; attachment is the default.
 
 For system-alerts, set MORROWPAL_PRIMARY_ALERT_EMAIL. Optional recipients use
 MORROWPAL_SECONDARY_ALERT_EMAIL and MORROWPAL_TERTIARY_ALERT_EMAIL.
@@ -288,9 +290,14 @@ build_parameters() {
             )
             ;;
         mysql-storage)
+            local attach_volume=true
+            if [[ "$detach_mysql_volume" == true ]]; then
+                attach_volume=false
+            fi
             parameters+=(
                 "ParameterKey=AvailabilityZone,ParameterValue=$instance_availability_zone"
                 "ParameterKey=InstanceId,ParameterValue=$instance_id"
+                "ParameterKey=AttachVolume,ParameterValue=$attach_volume"
                 "ParameterKey=VolumeSizeGiB,ParameterValue=$MORROWPAL_MYSQL_VOLUME_SIZE_GIB"
             )
             ;;
@@ -334,6 +341,13 @@ print_resolution() {
     if [[ -n "$instance_id" ]]; then
         printf 'EC2 instance: %s\n' "$instance_id"
     fi
+    if [[ "$stack_kind" == mysql-storage ]]; then
+        if [[ "$detach_mysql_volume" == true ]]; then
+            printf 'MySQL volume attachment: detached\n'
+        else
+            printf 'MySQL volume attachment: attached\n'
+        fi
+    fi
 }
 
 cleanup() {
@@ -365,10 +379,12 @@ esac
 
 confirm_production=false
 dry_run=false
+detach_mysql_volume=false
 for option in "$@"; do
     case "$option" in
         --confirm-production) confirm_production=true ;;
         --dry-run) dry_run=true ;;
+        --detach-mysql-volume) detach_mysql_volume=true ;;
         *) usage >&2; exit 2 ;;
     esac
 done
@@ -377,6 +393,9 @@ if [[ "$selected_environment" == prod && "$confirm_production" != true ]]; then
 fi
 if [[ "$selected_environment" == staging && "$confirm_production" == true ]]; then
     fail "--confirm-production cannot be used with staging"
+fi
+if [[ "$detach_mysql_volume" == true && "$stack_kind" != mysql-storage ]]; then
+    fail "--detach-mysql-volume is valid only for mysql-storage"
 fi
 
 readonly inventory_file="$infrastructure_directory/environments/$selected_environment/inventory.ini"

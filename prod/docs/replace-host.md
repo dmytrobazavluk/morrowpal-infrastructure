@@ -6,24 +6,23 @@ This procedure replaces EC2 while retaining the encrypted MySQL EBS volume and
 stable Elastic IP. It causes downtime while MySQL storage is detached and the
 public IP is moved.
 
+All routine change sets use the guarded wrapper. Direct template invocation is
+unsupported here because it permits manually supplied cross-environment IDs.
+
 Review [Install production from scratch](./install-from-scratch.md) for host
 creation and preparation commands. Do not format the retained MySQL volume.
 
 ## 1. Create and prepare the replacement host
 
-Create the replacement through `../shared/cloudformation/ec2.yml` with the same subnet,
-security group, key pair, and EC2 instance profile. The subnet must remain in
-`us-east-2c`, the Availability Zone of the retained volume.
+Create the replacement with the guarded wrapper's `ec2` stack kind, following
+the EC2 section of [Install production from scratch](./install-from-scratch.md).
+The wrapper binds the subnet, security group, key pair, and instance profile to
+production. The subnet must remain in `us-east-2c`, the Availability Zone of
+the retained volume.
 
-Read the replacement instance ID and temporary address:
+Read the replacement host's temporary address:
 
 ```bash
-PRODUCTION_INSTANCE_ID="$(aws cloudformation describe-stacks \
-  --stack-name morrowpal-prod-ec2 \
-  --query 'Stacks[0].Outputs[?OutputKey==`InstanceId`].OutputValue' \
-  --output text \
-  --region us-east-2)"
-
 BOOTSTRAP_PUBLIC_IP="$(aws cloudformation describe-stacks \
   --stack-name morrowpal-prod-ec2 \
   --query 'Stacks[0].Outputs[?OutputKey==`BootstrapPublicIp`].OutputValue' \
@@ -59,17 +58,9 @@ Create an update that removes only the attachment and records the replacement
 instance as the next target:
 
 ```bash
-aws cloudformation create-change-set \
-  --stack-name morrowpal-prod-mysql-storage \
-  --change-set-name detach-mysql-volume \
-  --change-set-type UPDATE \
-  --template-body file://../shared/cloudformation/mysql-storage.yml \
-  --parameters \
-    ParameterKey=InstanceId,ParameterValue="$PRODUCTION_INSTANCE_ID" \
-    ParameterKey=AttachVolume,ParameterValue=false \
-    ParameterKey=AvailabilityZone,UsePreviousValue=true \
-    ParameterKey=VolumeSizeGiB,UsePreviousValue=true \
-  --region us-east-2
+../shared/scripts/morrowpal-infrastructure-change-set.sh \
+  prod mysql-storage detach-mysql-volume \
+  --confirm-production --detach-mysql-volume
 
 aws cloudformation wait change-set-create-complete \
   --stack-name morrowpal-prod-mysql-storage \
@@ -103,17 +94,8 @@ aws ec2 wait volume-available \
 ## 4. Attach the volume to the replacement
 
 ```bash
-aws cloudformation create-change-set \
-  --stack-name morrowpal-prod-mysql-storage \
-  --change-set-name attach-mysql-volume \
-  --change-set-type UPDATE \
-  --template-body file://../shared/cloudformation/mysql-storage.yml \
-  --parameters \
-    ParameterKey=InstanceId,ParameterValue="$PRODUCTION_INSTANCE_ID" \
-    ParameterKey=AttachVolume,ParameterValue=true \
-    ParameterKey=AvailabilityZone,UsePreviousValue=true \
-    ParameterKey=VolumeSizeGiB,UsePreviousValue=true \
-  --region us-east-2
+../shared/scripts/morrowpal-infrastructure-change-set.sh \
+  prod mysql-storage attach-mysql-volume --confirm-production
 
 aws cloudformation wait change-set-create-complete \
   --stack-name morrowpal-prod-mysql-storage \
@@ -158,13 +140,8 @@ host. Verify local service readiness before moving public traffic.
 ## 6. Move the stable Elastic IP
 
 ```bash
-aws cloudformation create-change-set \
-  --stack-name morrowpal-prod-public-ip \
-  --change-set-name move-production-public-ip \
-  --change-set-type UPDATE \
-  --template-body file://../shared/cloudformation/public-ip.yml \
-  --parameters ParameterKey=InstanceId,ParameterValue="$PRODUCTION_INSTANCE_ID" \
-  --region us-east-2
+../shared/scripts/morrowpal-infrastructure-change-set.sh \
+  prod public-ip move-production-public-ip --confirm-production
 
 aws cloudformation wait change-set-create-complete \
   --stack-name morrowpal-prod-public-ip \

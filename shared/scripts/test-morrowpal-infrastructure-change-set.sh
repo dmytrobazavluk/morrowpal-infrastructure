@@ -251,6 +251,25 @@ main() {
     grep -Fq 'ParameterKey=Environment,ParameterValue=staging' "$mock_log" \
         || fail "Change set omitted the selected environment parameter"
 
+    : >"$mock_log"
+    run_wrapper staging '' mysql-storage detach-staging-mysql \
+        --detach-mysql-volume >"$output_file"
+    grep -Fq 'ParameterKey=AttachVolume,ParameterValue=false' "$mock_log" \
+        || fail "MySQL detach did not disable the volume attachment"
+
+    : >"$mock_log"
+    run_wrapper staging '' mysql-storage attach-staging-mysql >"$output_file"
+    grep -Fq 'ParameterKey=AttachVolume,ParameterValue=true' "$mock_log" \
+        || fail "MySQL attachment was not explicit"
+
+    : >"$mock_log"
+    if run_wrapper staging '' ecr invalid-detach-option \
+            --detach-mysql-volume >"$output_file" 2>&1; then
+        fail "MySQL detach option was accepted for a different stack kind"
+    fi
+    [[ ! -s "$mock_log" ]] \
+        || fail "Invalid MySQL detach option contacted AWS"
+
     printf 'MorrowPal guarded infrastructure change-set validation passed.\n'
 }
 

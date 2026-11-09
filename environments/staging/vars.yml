@@ -22,7 +22,7 @@ morrowpal_root_volume_size_gib: 8
 morrowpal_mysql_volume_size_gib: 10
 morrowpal_deployment_root: /opt/morrowpal
 morrowpal_mysql_data_mount: /var/lib/morrowpal
-morrowpal_public_ipv4: STAGING_PUBLIC_IP
+morrowpal_public_ipv4: 98.95.17.0
 
 morrowpal_domains:
   apex: staging.morrowpal.com
@@ -41,7 +41,7 @@ morrowpal_cors_allowed_origin_patterns: https://app.staging.morrowpal.com,https:
 morrowpal_store_review_email: store-review@staging.morrowpal.com
 
 morrowpal_tls_certificate_name: staging.morrowpal.com
-morrowpal_tls_expected_ipv4: STAGING_PUBLIC_IP
+morrowpal_tls_expected_ipv4: 98.95.17.0
 
 morrowpal_ssh_host_alias: "01"
 morrowpal_ssh_user: ec2-user

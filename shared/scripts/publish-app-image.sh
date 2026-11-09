@@ -194,6 +194,7 @@ esac
 
 require_command docker
 require_command flutter
+require_command dart
 require_command git
 
 git -C "$app_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1 \
@@ -231,11 +232,7 @@ readonly image="$registry/$repository:$image_tag"
 (
     cd "$app_dir"
     flutter pub get
-    flutter build web \
-        --release \
-        --build-name="$app_version" \
-        --build-number="$build_number" \
-        --dart-define="API_BASE_URL=$api_base_url"
+    dart run tool/build_web.dart "$environment" "$app_version" "$build_number" "$api_base_url"
     docker build \
         --no-cache \
         --pull \

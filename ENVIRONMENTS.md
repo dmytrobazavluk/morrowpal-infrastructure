@@ -44,9 +44,11 @@ each environment's dedicated host security group and imports only the public
 half of its recovery key. Private key material remains local and untracked.
 
 The production apex, `www`, `api`, `app`, `admin`, and `back` A records point
-to production Elastic IP `3.12.65.199`. The corresponding staging names are
-currently absent and return NXDOMAIN. They must be added to IONOS only after
-the staging Elastic IP exists. Every DNS change requires a separate human
+to production Elastic IP `3.12.65.199`. The user added the six configured staging
+A records in IONOS, pointing to staging Elastic IP `98.95.17.0`. Checks on
+2026-11-09 verified all four IONOS authoritative servers return that address
+for every staging name, no staging AAAA answers, and unchanged production A
+records. Every DNS change requires a separate human
 review confirming that only staging names are affected and that no unexpected
 AAAA record exists.
 

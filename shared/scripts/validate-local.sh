@@ -143,7 +143,7 @@ main() {
     "$SCRIPT_DIR/test-morrowpal-service.sh"
     "$SCRIPT_DIR/test-morrowpal-deploy-release.sh"
     "$SCRIPT_DIR/test-morrowpal-app-website-releases.sh"
-    "$SCRIPT_DIR/test-morrowpal-publishers.sh"
+    "$SCRIPT_DIR/test-morrowpal-images.sh"
     "$SCRIPT_DIR/test-morrowpal-infrastructure-change-set.sh"
     "$SCRIPT_DIR/test-morrowpal-rate-limit-verifiers.sh"
     "$SCRIPT_DIR/test-morrowpal-tls-templates.sh"

@@ -17,9 +17,10 @@ public endpoints, or external delivery destinations.
 The Flutter web app is built once with its version and build number. Its API
 URL and public Firebase client settings are provided at deployment through
 `app/runtime-config.js`, mounted read-only outside the image. Flutter loads it
-before startup and the Firebase messaging worker imports the same file. Neither
-consumer falls back to production. Nginx serves the configuration and worker
-with `Cache-Control: no-store`; the generated Flutter offline worker is disabled.
+before startup and the Firebase messaging worker imports the same file. Both
+consumers require valid deployment settings. Nginx serves the configuration and
+worker with `Cache-Control: no-store`; the generated Flutter offline worker is
+disabled.
 
 `deploy.yml` reads `frontend/config/firebase/<environment>/{build,web}.json`
 from the sibling frontend checkout, validates its API and project against the
@@ -28,24 +29,26 @@ selected overlay, and renders the runtime file. Set
 changes recreate the app container to refresh its file mount. Firebase
 service-account credentials remain separate server-only runtime secrets.
 
-The app publisher's environment selects the ECR destination, not compiled app
-settings. Promotion should copy the tested image, preserving its digest and
-tag; the repository URLs can differ. Existing environment-specific images
-remain unchanged and require a newly built image to adopt runtime settings.
+`build-images.sh COMPONENT [APP_VERSION]` packages the selected component into
+local Docker images.
+`push-images.sh` uploads those images to the selected environment's ECR
+repositories. Keep the tested local image for the production push, which
+preserves its digest and tag across the environment repositories.
 
 ## Publishing build numbers
 
-The three image publishers automatically increment tracked counters under
+The local release builder reserves the selected component's next number under
 [`build-numbers/`](build-numbers/README.md), shared by both environments.
 Backend API and job images share one counter; app and website each have their
 own. Initial counters were seeded from the highest existing production/staging
 tags checked on 2026-11-09: backend 32, app 28 and website 13.
 
-A component lock prevents concurrent publishing from the same checkout;
-different components can publish concurrently. Other checkouts and workstations
+A component lock prevents concurrent builds from the same checkout;
+different components can build concurrently. Other checkouts and workstations
 must coordinate and use the latest committed counter. Commit reservations even
-after failed builds. Dry runs and local development builds do not increment
-these counters. Promotion preserves an existing number and image digest.
+after failed builds. Each release build reserves its number before compilation.
+Production push requires explicit confirmation and preserves the build's number
+and image digest. The deployment command selects the version to run on the host.
 
 ## Initial placement decision
 
@@ -71,9 +74,8 @@ paths, secrets, topics, and DNS records. A separate staging account remains a
 possible later improvement, not part of this refactor.
 
 Each Region's default VPC and public subnet are external AWS platform
-prerequisites. Neither environment's network is managed by the MorrowPal
-CloudFormation templates, so generic deployment code has no environment branch
-for network ownership. The external IONOS zone is a shared DNS prerequisite and
+prerequisites. Both environments pass those externally managed network IDs to
+the shared CloudFormation templates. The external IONOS zone is a shared DNS prerequisite and
 also remains outside CloudFormation. The shared prerequisites template manages
 each environment's dedicated host security group and imports only the public
 half of its recovery key. Private key material remains local and untracked.

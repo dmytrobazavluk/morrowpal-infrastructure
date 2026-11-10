@@ -1,72 +1,93 @@
 # Update the App
 
-Run commands from `infrastructure/prod`.
+Run commands from `infrastructure`.
 
-The app image definition is in `../shared/runtime/app/Dockerfile`, and its
+Production operations below are deferred until staging validation and the final
+parity audit are complete and production work is explicitly approved.
+Select the deployment target with the matching Ansible inventory and
+environment variable file.
+
+The app image definition is in `shared/runtime/app/Dockerfile`, and its
 environment-specific Nginx configuration is rendered from
-`../shared/runtime/app/nginx.conf.j2` onto the
-host. The publisher builds the sibling `frontend` repository and supplies only
+`shared/runtime/app/nginx.conf.j2` onto the host. Public API and Firebase settings
+are supplied separately through the read-only `app/runtime-config.js` mount.
+The deployment requires the sibling frontend checkout for its canonical public
+configuration; override `morrowpal_frontend_directory` if necessary.
+The builder builds the sibling `frontend` repository and supplies only
 `frontend/build/web` to the container build.
 
 ## 1. Preconditions
 
-Confirm the app source worktree is clean because the publisher refuses dirty
+Confirm the app source worktree is clean because the builder refuses dirty
 source:
 
 ```bash
-git -C ../../frontend status --short
+git -C ../frontend status --short
 ```
 
 Confirm AWS identity and host connectivity:
 
 ```bash
 aws sts get-caller-identity
-ansible production -m ping
+ansible morrowpal_hosts -i environments/staging/inventory.ini \
+  -e @environments/staging/vars.yml -m ping
 ```
 
 The AWS account must be `384078510608`.
 
-The current Flutter test suite has known widget-test failures. The publishing
-script builds the production web app but does not run that failing suite. Make
+The current Flutter test suite has known widget-test failures. The build
+script builds the shared web app but does not run that failing suite. Make
 the release decision explicitly rather than assuming the release is test-gated.
 
-## 2. Publish the app image
+## 2. Build locally, push to staging, and test
 
-Choose a semantic app version. The publisher reserves the next shared app build
-number automatically:
+Choose the semantic app version (`1.1.0` in this example). The builder compiles
+environment-independent Flutter web, creates a local Linux AMD64 Nginx image,
+and exports `APP_TAG` when sourced. The reserved number also becomes Flutter's
+build number. Deployment supplies the API and public Firebase settings.
 
 ```bash
-source ../shared/scripts/publish-app-image.sh prod APP_VERSION
+source shared/scripts/build-images.sh app 1.1.0
+shared/scripts/push-images.sh staging app "$APP_TAG"
 ```
 
-For example:
+The build command reserves the next number in `build-numbers/app` and
+creates local images. Commit that counter even if building fails. The push
+command uploads the images to staging's ECR repositories, verifies their digests
+and waits for vulnerability scans. Critical/high findings fail this step.
+See [build number coordination](../../build-numbers/README.md).
+
+Deploy and test in staging:
 
 ```bash
-source ../shared/scripts/publish-app-image.sh prod 1.1.0
+ansible-playbook shared/playbooks/deploy.yml \
+  -i environments/staging/inventory.ini \
+  -e @environments/staging/vars.yml \
+  -e "morrowpal_app_image_tag=$APP_TAG"
 ```
 
-`APP_VERSION` becomes the packaged Flutter version and the
-`X-MorrowPal-Build` header. The reserved number becomes the packaged Flutter build
-number and remains the increasing number in the immutable image tag.
-
-The publisher:
-
-- Compiles environment-independent Flutter web with the requested app version
-  and reserved build number. Deployment supplies the API and public Firebase settings.
-- Builds the pinned, non-root Nginx image for Linux AMD64.
-- Pushes an immutable `build-N-GITSHA` tag to `morrowpal/prod/app`.
-- Waits for the ECR vulnerability scan.
-- Rejects critical or high findings.
-- Exports the exact published tag as `APP_TAG` in the current shell.
-
-Commit the incremented `build-numbers/app` file even if publishing fails.
-See [build number coordination](../../build-numbers/README.md). To promote a
-staging-tested build, copy its existing image instead of invoking this builder.
-
-## 3. Preview the deployment
+After staging validation, the final parity audit, and explicit production
+approval, push the same local image to production:
 
 ```bash
-ansible-playbook ../shared/playbooks/deploy.yml \
+shared/scripts/push-images.sh prod app "$APP_TAG" --confirm-production
+```
+
+Keep the tested local release image until promotion. The production push
+preserves the tag and verifies the digest against the staging push.
+`APP_TAG` identifies the app build. Proceed with deployment below
+after the push succeeds and deployment is approved.
+
+Registry-to-registry recovery for missing local images is planned in Step 54a.1.
+If the local release images are missing, stop until they can be recovered from
+staging with their verified digests.
+
+## 3. Preview the production deployment (after approval and promotion)
+
+```bash
+ansible-playbook shared/playbooks/deploy.yml \
+  -i environments/prod/inventory.ini \
+  -e @environments/prod/vars.yml \
   --check \
   --diff \
   -e "morrowpal_app_image_tag=$APP_TAG"
@@ -78,22 +99,27 @@ the Compose file changed, both API slots are rolled one at a time so API
 configuration changes cannot recreate them together. An Envoy configuration
 change recreates the single Envoy container and can cause a brief edge
 interruption. An app Nginx configuration change recreates the app container so
-the new read-only host configuration is loaded.
+the new read-only host configuration is loaded. Runtime configuration changes
+also recreate the app container to refresh its file mount.
 
-## 4. Deploy
+## 4. Deploy to production
 
 ```bash
-ansible-playbook ../shared/playbooks/deploy.yml \
+ansible-playbook shared/playbooks/deploy.yml \
+  -i environments/prod/inventory.ini \
+  -e @environments/prod/vars.yml \
   -e "morrowpal_app_image_tag=$APP_TAG"
 ```
 
 The app deployment waits for both the container health check and the public
 Envoy route. If either fails, it restores the previously recorded app tag.
 
-## 5. Verify
+## 5. Verify production
 
 ```bash
-ansible 01 -b -m command -a '/usr/local/sbin/morrowpal-service status'
+ansible morrowpal_hosts -i environments/prod/inventory.ini \
+  -e @environments/prod/vars.yml -b -m command \
+  -a '/usr/local/sbin/morrowpal-service status'
 curl --fail --show-error --silent https://app.morrowpal.com/ready
 curl --head https://app.morrowpal.com/
 curl --head https://app.morrowpal.com/nonexistent/client/route
@@ -121,14 +147,16 @@ Access-Control-Allow-Origin: https://app.morrowpal.com
 Finally, test initial loading, sign-in, an API-backed action, refresh, local
 SQLite persistence, and sign-out in a private browser window.
 
-## Rollback
+## Production rollback
 
 Deploy a previously retained app tag:
 
 ```bash
 PREVIOUS_APP_TAG='build-N-GITSHA'
 
-ansible-playbook ../shared/playbooks/deploy.yml \
+ansible-playbook shared/playbooks/deploy.yml \
+  -i environments/prod/inventory.ini \
+  -e @environments/prod/vars.yml \
   -e "morrowpal_app_image_tag=$PREVIOUS_APP_TAG"
 ```
 

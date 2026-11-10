@@ -125,8 +125,7 @@ main() {
         fail "Nginx image definition contains environment-specific configuration"
     fi
     if grep -Eq -- '--build-arg.*MORROWPAL_(WEBSITE|API)_URL' \
-            "$script_directory/publish-app-image.sh" \
-            "$script_directory/publish-website-image.sh"; then
+            "$script_directory/build-images.sh"; then
         fail "Image publisher passes Nginx environment configuration at build time"
     fi
     grep -Fq '${MORROWPAL_DEPLOYMENT_ROOT:?MORROWPAL_DEPLOYMENT_ROOT is required}/app/nginx.conf:/etc/nginx/conf.d/default.conf:ro' \

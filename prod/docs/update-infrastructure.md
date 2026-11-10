@@ -1,13 +1,18 @@
 # Update Production Infrastructure
 
-Run commands from `infrastructure/prod`.
+Run commands from `infrastructure`.
+
+Production operations below are deferred until staging validation and the final
+parity audit are complete and production work is explicitly approved. Select the
+deployment target with the matching Ansible inventory and environment variable
+file. Apply and validate changes in staging first.
 
 Use this procedure for infrastructure-only changes that do not publish a new
 backend, app, or website image. Examples include changes to:
 
-- `../shared/docker-compose.yml`
-- `../shared/runtime/envoy/envoy.yaml.j2`
-- `../shared/runtime/envoy/tls-certificate-sds.yaml.j2`
+- `shared/docker-compose.yml`
+- `shared/runtime/envoy/envoy.yaml.j2`
+- `shared/runtime/envoy/tls-certificate-sds.yaml.j2`
 - the MorrowPal systemd unit or service scripts
 
 Use the component-specific update procedures when deploying a new application
@@ -24,25 +29,24 @@ git diff --check
 git diff
 ```
 
-Validate the production Compose file:
+Validate the resolved environment configurations locally:
 
 ```bash
-API_BLUE_IMAGE_TAG=validation \
-API_GREEN_IMAGE_TAG=validation \
-JOB_IMAGE_TAG=validation \
-APP_IMAGE_TAG=validation \
-WEBSITE_IMAGE_TAG=validation \
-docker compose config --quiet
+bash shared/scripts/validate-local.sh
 ```
 
-The placeholder values are used only for local Compose interpolation. The
-deployment continues to use the immutable image tags recorded on the host.
+The validator renders the shared Compose configuration with explicit environment
+values without deploying. Deployment uses immutable image tags recorded on the
+selected host. The shared deploy playbook also requires the sibling frontend
+checkout for public web runtime settings; set `morrowpal_frontend_directory` if
+that checkout is elsewhere.
 
 Confirm AWS identity and host connectivity:
 
 ```bash
 aws sts get-caller-identity
-ansible production -m ping
+ansible morrowpal_hosts -i environments/prod/inventory.ini \
+  -e @environments/prod/vars.yml -m ping
 ```
 
 The AWS account must be `384078510608`.
@@ -50,7 +54,9 @@ The AWS account must be `384078510608`.
 ## 2. Preview the Deployment
 
 ```bash
-ansible-playbook ../shared/playbooks/deploy.yml \
+ansible-playbook shared/playbooks/deploy.yml \
+  -i environments/prod/inventory.ini \
+  -e @environments/prod/vars.yml \
   --check \
   --diff
 ```
@@ -74,7 +80,9 @@ public edge interruption.
 ## 3. Deploy
 
 ```bash
-ansible-playbook ../shared/playbooks/deploy.yml
+ansible-playbook shared/playbooks/deploy.yml \
+  -i environments/prod/inventory.ini \
+  -e @environments/prod/vars.yml
 ```
 
 Do not run `docker compose down` during routine deployment. The playbook copies
@@ -84,7 +92,8 @@ checks the readiness endpoints.
 ## 4. Verify
 
 ```bash
-ansible 01 -b -m command \
+ansible morrowpal_hosts -i environments/prod/inventory.ini \
+  -e @environments/prod/vars.yml -b -m command \
   -a '/usr/local/sbin/morrowpal-service status'
 
 curl --fail --show-error --silent https://api.morrowpal.com/ready
@@ -95,7 +104,8 @@ curl --fail --show-error --silent https://morrowpal.com/ready
 For an Envoy change, also inspect its recent logs:
 
 ```bash
-ansible 01 -b -m command \
+ansible morrowpal_hosts -i environments/prod/inventory.ini \
+  -e @environments/prod/vars.yml -b -m command \
   -a 'docker logs --tail=200 morrowpal-envoy-1'
 ```
 
@@ -103,7 +113,7 @@ Exercise the routes affected by the change before declaring the deployment
 complete. For a rate-limit change, run the guarded verification script:
 
 ```bash
-../shared/scripts/verify-rate-limit.sh \
+shared/scripts/verify-rate-limit.sh \
   prod \
   https://api.morrowpal.com/ready \
   --confirm-production
@@ -112,7 +122,7 @@ complete. For a rate-limit change, run the guarded verification script:
 Run the same check against staging without the production confirmation:
 
 ```bash
-../shared/scripts/verify-rate-limit.sh \
+shared/scripts/verify-rate-limit.sh \
   staging \
   https://api.staging.morrowpal.com/ready
 ```
@@ -131,7 +141,7 @@ For a change to the anonymous account-creation limit, run its guarded
 verification script instead:
 
 ```bash
-../shared/scripts/verify-account-creation-rate-limit.sh \
+shared/scripts/verify-account-creation-rate-limit.sh \
   prod \
   https://api.morrowpal.com/accounts \
   --confirm-production
@@ -140,7 +150,7 @@ verification script instead:
 For staging:
 
 ```bash
-../shared/scripts/verify-account-creation-rate-limit.sh \
+shared/scripts/verify-account-creation-rate-limit.sh \
   staging \
   https://api.staging.morrowpal.com/accounts
 ```
@@ -164,11 +174,15 @@ the reversal, and deploy it through the same playbook:
 git diff --check
 git diff
 
-ansible-playbook ../shared/playbooks/deploy.yml \
+ansible-playbook shared/playbooks/deploy.yml \
+  -i environments/prod/inventory.ini \
+  -e @environments/prod/vars.yml \
   --check \
   --diff
 
-ansible-playbook ../shared/playbooks/deploy.yml
+ansible-playbook shared/playbooks/deploy.yml \
+  -i environments/prod/inventory.ini \
+  -e @environments/prod/vars.yml
 ```
 
 Verify service status and all three public readiness endpoints after rollback.

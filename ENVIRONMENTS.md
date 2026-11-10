@@ -33,6 +33,20 @@ settings. Promotion should copy the tested image, preserving its digest and
 tag; the repository URLs can differ. Existing environment-specific images
 remain unchanged and require a newly built image to adopt runtime settings.
 
+## Publishing build numbers
+
+The three image publishers automatically increment tracked counters under
+[`build-numbers/`](build-numbers/README.md), shared by both environments.
+Backend API and job images share one counter; app and website each have their
+own. Initial counters were seeded from the highest existing production/staging
+tags checked on 2026-11-09: backend 32, app 28 and website 13.
+
+A component lock prevents concurrent publishing from the same checkout;
+different components can publish concurrently. Other checkouts and workstations
+must coordinate and use the latest committed counter. Commit reservations even
+after failed builds. Dry runs and local development builds do not increment
+these counters. Promotion preserves an existing number and image digest.
+
 ## Initial placement decision
 
 Both environments use AWS account `384078510608`, but use separate Regions and

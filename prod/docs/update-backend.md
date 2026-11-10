@@ -33,10 +33,10 @@ The AWS account must be `384078510608`.
 
 ## 2. Publish the backend images
 
-Choose a positive build number greater than the latest published backend build:
+The publisher reserves the next shared backend build number automatically:
 
 ```bash
-source ../shared/scripts/publish-images.sh prod BUILD_NUMBER
+source ../shared/scripts/publish-images.sh prod
 ```
 
 The publisher:
@@ -49,6 +49,10 @@ The publisher:
 - Refuses the wrong AWS account, a dirty backend worktree, an existing tag, or
   a non-increasing build number.
 - Exports the exact published tag as `BACKEND_TAG` in the current shell.
+
+Commit the incremented `build-numbers/backend` file even if publishing fails.
+See [build number coordination](../../build-numbers/README.md). To promote a
+staging-tested build, copy its existing images instead of invoking this builder.
 
 ## 3. Preview the deployment
 

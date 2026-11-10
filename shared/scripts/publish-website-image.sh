@@ -52,19 +52,21 @@ source "$script_dir/morrowpal-runtime-config.sh"
 source "$script_dir/morrowpal-publish-config.sh"
 logged_in=false
 registry=""
+docker_auth_directory=""
 
 usage() {
     cat <<'EOF'
-Usage: publish-website-image.sh ENVIRONMENT BUILD_NUMBER
+Usage: publish-website-image.sh ENVIRONMENT
 
 Build, publish, and scan a landing-page image.
 
 Arguments:
   ENVIRONMENT   Target environment: prod or staging.
-  BUILD_NUMBER  Positive, increasing integer used in the immutable image tag.
 
 Example:
-  source ./infrastructure/shared/scripts/publish-website-image.sh staging 1
+  source ./infrastructure/shared/scripts/publish-website-image.sh staging
+
+The shared website counter is incremented automatically before building.
 
 Set WEBSITE_DIR to override the default sibling www source directory.
 When sourced, the script exports WEBSITE_TAG in the current shell.
@@ -78,8 +80,9 @@ fail() {
 
 cleanup() {
     if [[ "$logged_in" == true ]]; then
-        docker logout "$registry" >/dev/null 2>&1 || true
+        docker --config "$docker_auth_directory" logout "$registry" >/dev/null 2>&1 || true
     fi
+    if [[ -n "$docker_auth_directory" ]]; then rm -rf -- "$docker_auth_directory"; fi
 }
 
 require_command() {
@@ -152,14 +155,12 @@ if (($# == 1)) && [[ "$1" == "-h" || "$1" == "--help" ]]; then
     exit 0
 fi
 
-if (($# != 2)); then
+if (($# != 1)); then
     usage >&2
     exit 2
 fi
 
 readonly environment="$1"
-readonly build_number="$2"
-[[ "$build_number" =~ ^[1-9][0-9]*$ ]] || fail "BUILD_NUMBER must be a positive integer"
 
 require_command aws
 morrowpal_load_publish_environment "$environment" "$infrastructure_dir"
@@ -202,6 +203,8 @@ source_sha="$(
     } | sort -z | xargs -0 sha256sum | sha256sum | cut -c1-7
 )"
 readonly source_sha
+morrowpal_reserve_build_number website "$infrastructure_dir"
+readonly build_number="$MORROWPAL_BUILD_NUMBER"
 readonly image_tag="build-$build_number-$source_sha"
 
 existing_tags="$(aws ecr list-images \
@@ -223,7 +226,7 @@ for existing_tag in $existing_tags; do
 done
 
 ((build_number > latest_build_number)) \
-    || fail "BUILD_NUMBER must be greater than the latest published build number ($latest_build_number)"
+    || fail "Website counter is behind published build $latest_build_number; sync or update build-numbers/website before retrying"
 
 readonly image="$registry/$repository:$image_tag"
 
@@ -237,14 +240,15 @@ docker build \
     --tag "$image" \
     "$website_container_dir"
 
+docker_auth_directory="$(mktemp -d)"
 aws ecr get-login-password --region "$aws_region" \
-    | docker login --username AWS --password-stdin "$registry"
+    | docker --config "$docker_auth_directory" login --username AWS --password-stdin "$registry"
 logged_in=true
 
-docker push "$image"
+docker --config "$docker_auth_directory" push "$image"
 wait_for_scan "$image_tag"
 
-docker logout "$registry" >/dev/null 2>&1
+docker --config "$docker_auth_directory" logout "$registry" >/dev/null 2>&1
 logged_in=false
 
 if [[ -n "${MORROWPAL_IMAGE_TAG_OUTPUT_FILE:-}" ]]; then

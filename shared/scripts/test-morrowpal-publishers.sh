@@ -45,7 +45,7 @@ run_dry_runs() {
     MORROWPAL_MOCK_LOG="$mock_log" \
     MORROWPAL_MOCK_ACCOUNT_ID=384078510608 \
     MORROWPAL_PUBLISH_DRY_RUN=true \
-        "$backend_publisher" "$environment" 2 >"$output_file"
+        "$backend_publisher" "$environment" >"$output_file"
     assert_output_contains "$output_file" "/$expected_prefix/backend-api"
     assert_output_contains "$output_file" "/$expected_prefix/backend-job"
 
@@ -53,7 +53,7 @@ run_dry_runs() {
     MORROWPAL_MOCK_LOG="$mock_log" \
     MORROWPAL_MOCK_ACCOUNT_ID=384078510608 \
     MORROWPAL_PUBLISH_DRY_RUN=true \
-        "$app_publisher" "$environment" 1.1.0 2 >"$output_file"
+        "$app_publisher" "$environment" 1.1.0 >"$output_file"
     assert_output_contains "$output_file" "/$expected_prefix/app"
     assert_output_contains "$output_file" "environment-independent app image"
 
@@ -61,7 +61,7 @@ run_dry_runs() {
     MORROWPAL_MOCK_LOG="$mock_log" \
     MORROWPAL_MOCK_ACCOUNT_ID=384078510608 \
     MORROWPAL_PUBLISH_DRY_RUN=true \
-        "$website_publisher" "$environment" 2 >"$output_file"
+        "$website_publisher" "$environment" >"$output_file"
     assert_output_contains "$output_file" "/$expected_prefix/website"
 }
 
@@ -72,6 +72,9 @@ main() {
     local mock_log
     local output_file
     local test_directory
+    local counter_snapshot
+
+    counter_snapshot="$(sha256sum "$script_directory/../../build-numbers/"{backend,app,website})"
 
     bash -n \
         "$backend_publisher" \
@@ -107,21 +110,21 @@ main() {
         MORROWPAL_MOCK_LOG="$mismatch_log" \
         MORROWPAL_MOCK_ACCOUNT_ID=000000000000 \
         MORROWPAL_PUBLISH_DRY_RUN=true \
-            "$backend_publisher" staging 2 >/dev/null 2>&1; then
+            "$backend_publisher" staging >/dev/null 2>&1; then
         fail "Publisher accepted an AWS account mismatch"
     fi
     if PATH="$mock_directory:$PATH" \
         MORROWPAL_MOCK_LOG="$mismatch_log" \
         MORROWPAL_MOCK_ACCOUNT_ID=000000000000 \
         MORROWPAL_PUBLISH_DRY_RUN=true \
-            "$app_publisher" staging 1.1.0 2 >/dev/null 2>&1; then
+            "$app_publisher" staging 1.1.0 >/dev/null 2>&1; then
         fail "App publisher accepted an AWS account mismatch"
     fi
     if PATH="$mock_directory:$PATH" \
         MORROWPAL_MOCK_LOG="$mismatch_log" \
         MORROWPAL_MOCK_ACCOUNT_ID=000000000000 \
         MORROWPAL_PUBLISH_DRY_RUN=true \
-            "$website_publisher" staging 2 >/dev/null 2>&1; then
+            "$website_publisher" staging >/dev/null 2>&1; then
         fail "Website publisher accepted an AWS account mismatch"
     fi
     grep -Fq 'aws:sts get-caller-identity' "$mismatch_log" \
@@ -130,17 +133,20 @@ main() {
         fail "Account mismatch reached an ECR operation"
     fi
 
-    if "$backend_publisher" 2 >/dev/null 2>&1; then
+    if "$backend_publisher" >/dev/null 2>&1; then
         fail "Backend publisher accepted a missing environment"
     fi
     if PATH="$mock_directory:$PATH" \
         MORROWPAL_MOCK_LOG="$mock_log" \
         MORROWPAL_MOCK_ACCOUNT_ID=384078510608 \
         MORROWPAL_PUBLISH_DRY_RUN=true \
-            "$backend_publisher" qa 2 >/dev/null 2>&1; then
+            "$backend_publisher" qa >/dev/null 2>&1; then
         fail "Backend publisher accepted an unknown environment"
     fi
 
+    [[ "$counter_snapshot" == "$(sha256sum "$script_directory/../../build-numbers/"{backend,app,website})" ]] \
+        || fail "Dry runs or rejected preflight checks changed build counters"
+    bash "$script_directory/test-morrowpal-build-numbers.sh"
     printf 'MorrowPal image publisher validation passed.\n'
 }
 

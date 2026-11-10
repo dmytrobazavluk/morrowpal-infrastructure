@@ -32,32 +32,36 @@ the release decision explicitly rather than assuming the release is test-gated.
 
 ## 2. Publish the app image
 
-Choose a semantic app version and a positive build number greater than the
-latest published app build:
+Choose a semantic app version. The publisher reserves the next shared app build
+number automatically:
 
 ```bash
-source ../shared/scripts/publish-app-image.sh prod APP_VERSION BUILD_NUMBER
+source ../shared/scripts/publish-app-image.sh prod APP_VERSION
 ```
 
 For example:
 
 ```bash
-source ../shared/scripts/publish-app-image.sh prod 1.1.0 2
+source ../shared/scripts/publish-app-image.sh prod 1.1.0
 ```
 
 `APP_VERSION` becomes the packaged Flutter version and the
-`X-MorrowPal-Build` header. `BUILD_NUMBER` becomes the packaged Flutter build
+`X-MorrowPal-Build` header. The reserved number becomes the packaged Flutter build
 number and remains the increasing number in the immutable image tag.
 
 The publisher:
 
-- Compiles Flutter web with the requested app version, build number, and
-  `API_BASE_URL=https://api.morrowpal.com`.
+- Compiles environment-independent Flutter web with the requested app version
+  and reserved build number. Deployment supplies the API and public Firebase settings.
 - Builds the pinned, non-root Nginx image for Linux AMD64.
 - Pushes an immutable `build-N-GITSHA` tag to `morrowpal/prod/app`.
 - Waits for the ECR vulnerability scan.
 - Rejects critical or high findings.
 - Exports the exact published tag as `APP_TAG` in the current shell.
+
+Commit the incremented `build-numbers/app` file even if publishing fails.
+See [build number coordination](../../build-numbers/README.md). To promote a
+staging-tested build, copy its existing image instead of invoking this builder.
 
 ## 3. Preview the deployment
 

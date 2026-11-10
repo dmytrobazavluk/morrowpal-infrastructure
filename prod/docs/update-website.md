@@ -26,16 +26,10 @@ change before enabling emails that link to this page.
 
 ## 2. Publish the Website Image
 
-Choose a positive build number greater than the latest published website build:
+The publisher reserves the next shared website build number automatically:
 
 ```bash
-source ../shared/scripts/publish-website-image.sh prod BUILD_NUMBER
-```
-
-For example:
-
-```bash
-source ../shared/scripts/publish-website-image.sh prod 1
+source ../shared/scripts/publish-website-image.sh prod
 ```
 
 The publisher computes a stable seven-character digest from the deployable
@@ -43,6 +37,10 @@ website files, builds the pinned non-root Nginx image for Linux AMD64, pushes an
 immutable `build-N-SOURCESHA` tag to `morrowpal/prod/website`, waits for the ECR
 vulnerability scan, rejects critical or high findings, and exports the exact
 published tag as `WEBSITE_TAG` in the current shell.
+
+Commit the incremented `build-numbers/website` file even if publishing fails.
+See [build number coordination](../../build-numbers/README.md). To promote a
+staging-tested build, copy its existing image instead of invoking this builder.
 
 ## 3. Preview the Deployment
 

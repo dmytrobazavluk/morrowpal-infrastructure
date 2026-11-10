@@ -2,6 +2,39 @@
 
 set -Eeuo pipefail
 
+# Call directly, not through command substitution: the descriptor holds the
+# component lock until the publisher exits, including on failure.
+morrowpal_reserve_build_number() {
+    local component="$1"
+    local repository_directory="$2"
+    local counter_file="$repository_directory/build-numbers/$component"
+    local previous
+
+    case "$component" in backend|app|website) ;; *) return 1 ;; esac
+    command -v flock >/dev/null 2>&1 || {
+        printf 'Required command not found: flock\n' >&2
+        return 1
+    }
+    [[ -f "$counter_file" ]] || {
+        printf 'Build counter not found: %s\n' "$counter_file" >&2
+        return 1
+    }
+    exec {MORROWPAL_BUILD_LOCK_FD}<>"$counter_file"
+    flock --nonblock "$MORROWPAL_BUILD_LOCK_FD" || {
+        printf 'Another %s publishing build is running in this checkout.\n' "$component" >&2
+        return 1
+    }
+    previous="$(cat "$counter_file")"
+    [[ "$previous" =~ ^(0|[1-9][0-9]{0,8})$ ]] || {
+        printf 'Invalid build counter: %s\n' "$counter_file" >&2
+        return 1
+    }
+    MORROWPAL_BUILD_NUMBER=$((previous + 1))
+    printf '%s\n' "$MORROWPAL_BUILD_NUMBER" >"$counter_file"
+    printf 'Reserved %s build %s. Commit %s even if the build fails.\n' \
+        "$component" "$MORROWPAL_BUILD_NUMBER" "$counter_file" >&2
+}
+
 morrowpal_load_publish_environment() {
     local selected_environment="$1"
     local repository_directory="$2"

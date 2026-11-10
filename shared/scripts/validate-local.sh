@@ -148,7 +148,7 @@ main() {
     "$SCRIPT_DIR/test-morrowpal-rate-limit-verifiers.sh"
     "$SCRIPT_DIR/test-morrowpal-tls-templates.sh"
     "$SCRIPT_DIR/test-morrowpal-nginx-templates.sh"
-    python3 "$SCRIPT_DIR/test-morrowpal-web-runtime.py"
+    bash "$SCRIPT_DIR/test-morrowpal-web-runtime.sh"
 
     docker compose version >/dev/null 2>&1 \
         || fail "Docker Compose plugin is not available"

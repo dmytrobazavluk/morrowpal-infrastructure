@@ -52,19 +52,21 @@ source "$SCRIPT_DIR/morrowpal-publish-config.sh"
 
 logged_in=false
 registry=""
+docker_auth_directory=""
 
 usage() {
     cat <<'EOF'
-Usage: publish-images.sh ENVIRONMENT BUILD_NUMBER
+Usage: publish-images.sh ENVIRONMENT
 
 Build, test, publish, and scan backend API and job images.
 
 Arguments:
   ENVIRONMENT   Target environment: prod or staging.
-  BUILD_NUMBER  Positive, increasing integer used in the immutable image tag.
 
 Example:
-  source ./infrastructure/shared/scripts/publish-images.sh staging 2
+  source ./infrastructure/shared/scripts/publish-images.sh staging
+
+The shared backend counter is incremented automatically before building.
 
 Set BACKEND_DIR to override the default sibling backend repository location.
 When sourced, the script exports BACKEND_TAG in the current shell.
@@ -78,8 +80,9 @@ fail() {
 
 cleanup() {
     if [[ "$logged_in" == true ]]; then
-        docker logout "$registry" >/dev/null 2>&1 || true
+        docker --config "$docker_auth_directory" logout "$registry" >/dev/null 2>&1 || true
     fi
+    if [[ -n "$docker_auth_directory" ]]; then rm -rf -- "$docker_auth_directory"; fi
 }
 
 require_command() {
@@ -166,14 +169,12 @@ if (($# == 1)) && [[ "$1" == "-h" || "$1" == "--help" ]]; then
     exit 0
 fi
 
-if (($# != 2)); then
+if (($# != 1)); then
     usage >&2
     exit 2
 fi
 
 readonly ENVIRONMENT="$1"
-readonly BUILD_NUMBER="$2"
-[[ "$BUILD_NUMBER" =~ ^[1-9][0-9]*$ ]] || fail "BUILD_NUMBER must be a positive integer"
 
 require_command aws
 morrowpal_load_publish_environment "$ENVIRONMENT" "$INFRASTRUCTURE_DIR"
@@ -215,6 +216,8 @@ if [[ -n "$(git -C "$BACKEND_DIR" status --porcelain)" ]]; then
 fi
 
 readonly GIT_SHA="$(git -C "$BACKEND_DIR" rev-parse --short=7 HEAD)"
+morrowpal_reserve_build_number backend "$INFRASTRUCTURE_DIR"
+readonly BUILD_NUMBER="$MORROWPAL_BUILD_NUMBER"
 readonly IMAGE_TAG="build-$BUILD_NUMBER-$GIT_SHA"
 
 readonly API_IMAGE="$registry/$API_REPOSITORY:$IMAGE_TAG"
@@ -236,7 +239,7 @@ for repository in "$API_REPOSITORY" "$JOB_REPOSITORY"; do
 done
 
 if ((BUILD_NUMBER <= latest_build_number)); then
-    fail "BUILD_NUMBER must be greater than the latest published build number ($latest_build_number)"
+    fail "Backend counter is behind published build $latest_build_number; sync or update build-numbers/backend before retrying"
 fi
 
 docker info >/dev/null 2>&1 || fail "Docker daemon is not available"
@@ -269,12 +272,13 @@ printf 'Publishing backend commit %s as %s\n' "$GIT_SHA" "$IMAGE_TAG"
         .
 )
 
+docker_auth_directory="$(mktemp -d)"
 aws ecr get-login-password --region "$AWS_REGION" \
-    | docker login --username AWS --password-stdin "$registry"
+    | docker --config "$docker_auth_directory" login --username AWS --password-stdin "$registry"
 logged_in=true
 
-docker push "$API_IMAGE"
-docker push "$JOB_IMAGE"
+docker --config "$docker_auth_directory" push "$API_IMAGE"
+docker --config "$docker_auth_directory" push "$JOB_IMAGE"
 
 for repository in "$API_REPOSITORY" "$JOB_REPOSITORY"; do
     aws ecr describe-images \

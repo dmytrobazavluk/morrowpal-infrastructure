@@ -52,20 +52,22 @@ source "$script_dir/morrowpal-runtime-config.sh"
 source "$script_dir/morrowpal-publish-config.sh"
 logged_in=false
 registry=""
+docker_auth_directory=""
 
 usage() {
     cat <<'EOF'
-Usage: publish-app-image.sh ENVIRONMENT APP_VERSION BUILD_NUMBER
+Usage: publish-app-image.sh ENVIRONMENT APP_VERSION
 
 Build, publish, and scan a Flutter web app image.
 
 Arguments:
   ENVIRONMENT   Target environment: prod or staging.
   APP_VERSION   Semantic app version used in X-MorrowPal-Build, for example 1.1.0.
-  BUILD_NUMBER  Positive, increasing integer used in the immutable image tag.
 
 Example:
-  source ./infrastructure/shared/scripts/publish-app-image.sh staging 1.1.0 2
+  source ./infrastructure/shared/scripts/publish-app-image.sh staging 1.1.0
+
+The shared app counter is incremented automatically before building.
 
 Set APP_DIR to override the default sibling frontend repository location.
 When sourced, the script exports APP_TAG in the current shell.
@@ -79,8 +81,9 @@ fail() {
 
 cleanup() {
     if [[ "$logged_in" == true ]]; then
-        docker logout "$registry" >/dev/null 2>&1 || true
+        docker --config "$docker_auth_directory" logout "$registry" >/dev/null 2>&1 || true
     fi
+    if [[ -n "$docker_auth_directory" ]]; then rm -rf -- "$docker_auth_directory"; fi
 }
 
 require_command() {
@@ -153,17 +156,15 @@ if (($# == 1)) && [[ "$1" == "-h" || "$1" == "--help" ]]; then
     exit 0
 fi
 
-if (($# != 3)); then
+if (($# != 2)); then
     usage >&2
     exit 2
 fi
 
 readonly environment="$1"
 readonly app_version="$2"
-readonly build_number="$3"
 [[ "$app_version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] \
     || fail "APP_VERSION must use major.minor.patch with non-negative integers"
-[[ "$build_number" =~ ^[1-9][0-9]*$ ]] || fail "BUILD_NUMBER must be a positive integer"
 
 require_command aws
 morrowpal_load_publish_environment "$environment" "$infrastructure_dir"
@@ -203,6 +204,8 @@ if [[ -n "$(git -C "$app_dir" status --porcelain)" ]]; then
 fi
 
 readonly git_sha="$(git -C "$app_dir" rev-parse --short=7 HEAD)"
+morrowpal_reserve_build_number app "$infrastructure_dir"
+readonly build_number="$MORROWPAL_BUILD_NUMBER"
 readonly image_tag="build-$build_number-$git_sha"
 
 existing_tags="$(aws ecr list-images \
@@ -223,7 +226,7 @@ for existing_tag in $existing_tags; do
 done
 
 ((build_number > latest_build_number)) \
-    || fail "BUILD_NUMBER must be greater than the latest published build number ($latest_build_number)"
+    || fail "App counter is behind published build $latest_build_number; sync or update build-numbers/app before retrying"
 
 readonly image="$registry/$repository:$image_tag"
 
@@ -240,14 +243,15 @@ readonly image="$registry/$repository:$image_tag"
         "$app_container_dir"
 )
 
+docker_auth_directory="$(mktemp -d)"
 aws ecr get-login-password --region "$aws_region" \
-    | docker login --username AWS --password-stdin "$registry"
+    | docker --config "$docker_auth_directory" login --username AWS --password-stdin "$registry"
 logged_in=true
 
-docker push "$image"
+docker --config "$docker_auth_directory" push "$image"
 wait_for_scan "$image_tag"
 
-docker logout "$registry" >/dev/null 2>&1
+docker --config "$docker_auth_directory" logout "$registry" >/dev/null 2>&1
 logged_in=false
 
 if [[ -n "${MORROWPAL_IMAGE_TAG_OUTPUT_FILE:-}" ]]; then

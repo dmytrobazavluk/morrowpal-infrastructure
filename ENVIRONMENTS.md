@@ -24,16 +24,24 @@ disabled.
 
 `deploy.yml` reads `frontend/config/firebase/<environment>/{build,web}.json`
 from the sibling frontend checkout, validates its API and project against the
-selected overlay, and renders the runtime file. Set
-`morrowpal_frontend_directory` if the checkout is elsewhere. Configuration
-changes recreate the app container to refresh its file mount. Firebase
-service-account credentials remain separate server-only runtime secrets.
+selected overlay, and renders the runtime file. Use
+`--frontend-directory PATH` on the deployment command if the checkout is
+elsewhere. Configuration changes recreate the app container to refresh its file
+mount. Firebase service-account credentials remain separate server-only runtime
+secrets.
 
 `build-images.sh COMPONENT [APP_VERSION]` packages the selected component into
 local Docker images.
-`push-images.sh` uploads those images to the selected environment's ECR
-repositories. Keep the tested local image for the production push, which
-preserves its digest and tag across the environment repositories.
+`deploy-images.sh ENVIRONMENT COMPONENT IMAGE_TAG` validates the selected
+environment's account, Region, stack outputs, instance, IAM profile, Elastic IP,
+inventory and overlay. It uploads and scans images, then runs the shared Ansible
+playbook with snapshots of the validated inputs and verifies readiness.
+Production requires `--confirm-production`. The command preserves build numbers,
+tags and image digests. Keep local images for their first production publication.
+
+The target guards use the shared stacks' outputs and environment tags. Production
+application deployment follows the approved production template promotion in
+Step 54b of the refactor plan.
 
 ## Publishing build numbers
 
@@ -47,8 +55,10 @@ A component lock prevents concurrent builds from the same checkout;
 different components can build concurrently. Other checkouts and workstations
 must coordinate and use the latest committed counter. Commit reservations even
 after failed builds. Each release build reserves its number before compilation.
-Production push requires explicit confirmation and preserves the build's number
-and image digest. The deployment command selects the version to run on the host.
+`--dry-run` validates the target and image sources using read-only AWS calls.
+`--check --diff` previews host changes with already-published images. Configuration
+updates use `deploy-images.sh ENVIRONMENT infrastructure`; they retain the host's
+recorded image tags. Run deployments to one environment sequentially.
 
 ## Initial placement decision
 

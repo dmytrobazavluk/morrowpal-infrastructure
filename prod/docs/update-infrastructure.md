@@ -3,9 +3,9 @@
 Run commands from `infrastructure`.
 
 Production operations below are deferred until staging validation and the final
-parity audit are complete and production work is explicitly approved. Select the
-deployment target with the matching Ansible inventory and environment variable
-file. Apply and validate changes in staging first.
+parity audit are complete and production work is explicitly approved. The
+deployment command selects and validates the matching inventory and configuration.
+Apply and validate changes in staging first.
 
 Use this procedure for infrastructure-only changes that do not publish a new
 backend, app, or website image. Examples include changes to:
@@ -38,7 +38,7 @@ bash shared/scripts/validate-local.sh
 The validator renders the shared Compose configuration with explicit environment
 values without deploying. Deployment uses immutable image tags recorded on the
 selected host. The shared deploy playbook also requires the sibling frontend
-checkout for public web runtime settings; set `morrowpal_frontend_directory` if
+checkout for public web runtime settings; use `--frontend-directory PATH` if
 that checkout is elsewhere.
 
 Confirm AWS identity and host connectivity:
@@ -54,11 +54,7 @@ The AWS account must be `384078510608`.
 ## 2. Preview the Deployment
 
 ```bash
-ansible-playbook shared/playbooks/deploy.yml \
-  -i environments/prod/inventory.ini \
-  -e @environments/prod/vars.yml \
-  --check \
-  --diff
+shared/scripts/deploy-images.sh prod infrastructure --confirm-production --check --diff
 ```
 
 Review the preview and confirm that it contains only the intended files and
@@ -80,9 +76,7 @@ public edge interruption.
 ## 3. Deploy
 
 ```bash
-ansible-playbook shared/playbooks/deploy.yml \
-  -i environments/prod/inventory.ini \
-  -e @environments/prod/vars.yml
+shared/scripts/deploy-images.sh prod infrastructure --confirm-production
 ```
 
 Do not run `docker compose down` during routine deployment. The playbook copies
@@ -174,15 +168,9 @@ the reversal, and deploy it through the same playbook:
 git diff --check
 git diff
 
-ansible-playbook shared/playbooks/deploy.yml \
-  -i environments/prod/inventory.ini \
-  -e @environments/prod/vars.yml \
-  --check \
-  --diff
+shared/scripts/deploy-images.sh prod infrastructure --confirm-production --check --diff
 
-ansible-playbook shared/playbooks/deploy.yml \
-  -i environments/prod/inventory.ini \
-  -e @environments/prod/vars.yml
+shared/scripts/deploy-images.sh prod infrastructure --confirm-production
 ```
 
 Verify service status and all three public readiness endpoints after rollback.

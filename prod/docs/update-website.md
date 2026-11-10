@@ -4,8 +4,8 @@ Run commands from `infrastructure`.
 
 Production operations below are deferred until staging validation and the final
 parity audit are complete and production work is explicitly approved.
-Select the deployment target with the matching Ansible inventory and
-environment variable file.
+The deployment command selects and validates the matching inventory and
+configuration for the requested environment.
 
 The landing-page container is defined in `shared/runtime/website`. The builder
 supplies the sibling `www` directory as a named Docker build context and copies
@@ -32,63 +32,48 @@ ansible morrowpal_hosts -i environments/staging/inventory.ini \
 The AWS account must be `384078510608`.
 
 The shared deploy playbook requires the sibling frontend checkout to read public
-web runtime settings, including for a website-only deployment. Set
-`morrowpal_frontend_directory` if that checkout is elsewhere.
+web runtime settings, including for a website-only deployment. Use
+`--frontend-directory PATH` if that checkout is elsewhere.
 
 The dispatch email confirmation page also requires the API Compose setting to
 allow `https://morrowpal.com` as a CORS origin. Deploy the accompanying Compose
 change before enabling emails that link to this page.
 
-## 2. Build locally, push to staging, and test
+## 2. Build and deploy to staging
 
 The builder hashes the deployable website files and creates a local Linux AMD64
 Nginx image with a `build-N-SOURCESHA` tag. It exports `WEBSITE_TAG` when sourced.
 
 ```bash
 source shared/scripts/build-images.sh website
-shared/scripts/push-images.sh staging website "$WEBSITE_TAG"
+shared/scripts/deploy-images.sh staging website "$WEBSITE_TAG" --dry-run
 ```
 
-The build command reserves the next number in `build-numbers/website` and
-creates local images. Commit that counter even if building fails. The push
-command uploads the images to staging's ECR repositories, verifies their digests
-and waits for vulnerability scans. Critical/high findings fail this step.
-See [build number coordination](../../build-numbers/README.md).
+The build reserves the component's next number. Commit its counter file even if
+building fails. The dry run validates the AWS account, Region, stack outputs,
+instance identity, Elastic IP, inventory, overlay, and available image sources.
+It prints the deployment plan using read-only AWS calls.
 
 Deploy and test in staging:
 
 ```bash
-ansible-playbook shared/playbooks/deploy.yml \
-  -i environments/staging/inventory.ini \
-  -e @environments/staging/vars.yml \
-  -e "morrowpal_website_image_tag=$WEBSITE_TAG"
+shared/scripts/deploy-images.sh staging website "$WEBSITE_TAG"
 ```
 
-After staging validation, the final parity audit, and explicit production
-approval, push the same local image to production:
+The command publishes the local release images, verifies digests and scans, then
+runs the shared Ansible playbook with the validated inventory and configuration.
+Critical/high findings stop the deployment before any host action. Published
+images with the requested immutable tag support retries and rollback. The
+playbook checks container and public readiness before completing.
+
+Keep tested local images for the first production publication. Production work
+starts after staging validation, the final parity audit and explicit approval.
+The production deployment preserves the selected tag and image digest.
+
+## 3. Preview the approved production deployment
 
 ```bash
-shared/scripts/push-images.sh prod website "$WEBSITE_TAG" --confirm-production
-```
-
-Keep the tested local release image until promotion. The production push
-preserves the tag and verifies the digest against the staging push.
-`WEBSITE_TAG` identifies the website build. Proceed with deployment below
-after the push succeeds and deployment is approved.
-
-Registry-to-registry recovery for missing local images is planned in Step 54a.1.
-If the local release images are missing, stop until they can be recovered from
-staging with their verified digests.
-
-## 3. Preview the production deployment (after approval and promotion)
-
-```bash
-ansible-playbook shared/playbooks/deploy.yml \
-  -i environments/prod/inventory.ini \
-  -e @environments/prod/vars.yml \
-  --check \
-  --diff \
-  -e "morrowpal_website_image_tag=$WEBSITE_TAG"
+shared/scripts/deploy-images.sh prod website "$WEBSITE_TAG" --confirm-production --dry-run
 ```
 
 The first website deployment also installs the service definition and changes
@@ -98,10 +83,7 @@ interruption. Later website-only releases replace only the website container.
 ## 4. Deploy to production
 
 ```bash
-ansible-playbook shared/playbooks/deploy.yml \
-  -i environments/prod/inventory.ini \
-  -e @environments/prod/vars.yml \
-  -e "morrowpal_website_image_tag=$WEBSITE_TAG"
+shared/scripts/deploy-images.sh prod website "$WEBSITE_TAG" --confirm-production
 ```
 
 The website deployment waits for both the container health check and the public
@@ -130,15 +112,12 @@ browsers and verify both store links.
 
 ## Production rollback
 
-Deploy a previously retained website tag:
+Select a retained website tag in production ECR. Deploy it with:
 
 ```bash
 PREVIOUS_WEBSITE_TAG='build-N-SOURCESHA'
 
-ansible-playbook shared/playbooks/deploy.yml \
-  -i environments/prod/inventory.ini \
-  -e @environments/prod/vars.yml \
-  -e "morrowpal_website_image_tag=$PREVIOUS_WEBSITE_TAG"
+shared/scripts/deploy-images.sh prod website "$PREVIOUS_WEBSITE_TAG" --confirm-production
 ```
 
 The ECR lifecycle policy retains the five most recent `build-*` images by

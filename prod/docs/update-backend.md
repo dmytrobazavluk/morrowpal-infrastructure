@@ -4,8 +4,8 @@ Run commands from `infrastructure`.
 
 Production operations below are deferred until staging validation and the final
 parity audit are complete and production work is explicitly approved.
-Select the deployment target with the matching Ansible inventory and
-environment variable file.
+The deployment command selects and validates the matching inventory and
+configuration for the requested environment.
 
 This procedure updates all backend runtime components:
 
@@ -38,10 +38,10 @@ ansible morrowpal_hosts -i environments/staging/inventory.ini \
 The AWS account must be `384078510608`.
 
 The shared deploy playbook requires the sibling frontend checkout to read public
-web runtime settings, including for a backend-only deployment. Set
-`morrowpal_frontend_directory` if that checkout is elsewhere.
+web runtime settings, including for a backend-only deployment. Use
+`--frontend-directory PATH` if that checkout is elsewhere.
 
-## 2. Build locally, push to staging, and test
+## 2. Build and deploy to staging
 
 The builder runs backend unit, API and job tests, then creates local Linux AMD64
 API and job images with one immutable `build-N-GITSHA` tag. It exports
@@ -49,49 +49,34 @@ API and job images with one immutable `build-N-GITSHA` tag. It exports
 
 ```bash
 source shared/scripts/build-images.sh backend
-shared/scripts/push-images.sh staging backend "$BACKEND_TAG"
+shared/scripts/deploy-images.sh staging backend "$BACKEND_TAG" --dry-run
 ```
 
-The build command reserves the next number in `build-numbers/backend` and
-creates local images. Commit that counter even if building fails. The push
-command uploads the images to staging's ECR repositories, verifies their digests
-and waits for vulnerability scans. Critical/high findings fail this step.
-See [build number coordination](../../build-numbers/README.md).
+The build reserves the component's next number. Commit its counter file even if
+building fails. The dry run validates the AWS account, Region, stack outputs,
+instance identity, Elastic IP, inventory, overlay, and available image sources.
+It prints the deployment plan using read-only AWS calls.
 
 Deploy and test in staging:
 
 ```bash
-ansible-playbook shared/playbooks/deploy.yml \
-  -i environments/staging/inventory.ini \
-  -e @environments/staging/vars.yml \
-  -e "morrowpal_image_tag=$BACKEND_TAG"
+shared/scripts/deploy-images.sh staging backend "$BACKEND_TAG"
 ```
 
-After staging validation, the final parity audit, and explicit production
-approval, push the same local images to production:
+The command publishes the local release images, verifies digests and scans, then
+runs the shared Ansible playbook with the validated inventory and configuration.
+Critical/high findings stop the deployment before any host action. Published
+images with the requested immutable tag support retries and rollback. The
+playbook checks container and public readiness before completing.
+
+Keep tested local images for the first production publication. Production work
+starts after staging validation, the final parity audit and explicit approval.
+The production deployment preserves the selected tag and image digest.
+
+## 3. Preview the approved production deployment
 
 ```bash
-shared/scripts/push-images.sh prod backend "$BACKEND_TAG" --confirm-production
-```
-
-Keep the tested local release images until promotion. The production push
-preserves the tag and verifies the digest against the staging push.
-`BACKEND_TAG` identifies the backend build. Proceed with deployment below
-after the push succeeds and deployment is approved.
-
-Registry-to-registry recovery for missing local images is planned in Step 54a.1.
-If the local release images are missing, stop until they can be recovered from
-staging with their verified digests.
-
-## 3. Preview the production deployment (after approval and promotion)
-
-```bash
-ansible-playbook shared/playbooks/deploy.yml \
-  -i environments/prod/inventory.ini \
-  -e @environments/prod/vars.yml \
-  --check \
-  --diff \
-  -e "morrowpal_image_tag=$BACKEND_TAG"
+shared/scripts/deploy-images.sh prod backend "$BACKEND_TAG" --confirm-production --dry-run
 ```
 
 The deployment preserves the currently recorded app image tag; a backend
@@ -106,13 +91,10 @@ brief edge interruption.
 ## 4. Deploy to production
 
 ```bash
-ansible-playbook shared/playbooks/deploy.yml \
-  -i environments/prod/inventory.ini \
-  -e @environments/prod/vars.yml \
-  -e "morrowpal_image_tag=$BACKEND_TAG"
+shared/scripts/deploy-images.sh prod backend "$BACKEND_TAG" --confirm-production
 ```
 
-The rolling release command performs these steps:
+The shared playbook's rolling release command performs these steps:
 
 1. Routes traffic away from one API slot.
 2. Waits for active requests to drain.
@@ -144,16 +126,12 @@ Exercise one authenticated API flow before declaring the release complete.
 
 ## Production rollback
 
-Select a previously retained backend tag and deploy it through the same
-playbook:
+Select a retained backend tag in production ECR. Deploy it with:
 
 ```bash
 PREVIOUS_BACKEND_TAG='build-N-GITSHA'
 
-ansible-playbook shared/playbooks/deploy.yml \
-  -i environments/prod/inventory.ini \
-  -e @environments/prod/vars.yml \
-  -e "morrowpal_image_tag=$PREVIOUS_BACKEND_TAG"
+shared/scripts/deploy-images.sh prod backend "$PREVIOUS_BACKEND_TAG" --confirm-production
 ```
 
 The ECR lifecycle policy retains the five most recent `build-*` images by

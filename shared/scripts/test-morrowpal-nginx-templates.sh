@@ -41,9 +41,12 @@ assert_digest() {
     IFS= read -r expected_digest <"$baseline_file" \
         || fail "Could not read baseline: $baseline_file"
     if [[ "$baseline_file" == "$app_baseline" ]]; then
-        # Keep the captured production baseline. Exclude only the two new
-        # runtime configuration locations from this legacy comparison.
-        digest_output="$(sed '/^    location = \/runtime-config.js {/,/^    location = \/notifications\/disable {/ { /^    location = \/notifications\/disable {/!d; }' "$rendered_file" | sha256sum)"
+        # Keep the captured production baseline. Normalize the reviewed readiness
+        # MIME type correction and exclude the runtime configuration locations.
+        digest_output="$(sed \
+            -e '/^    location = \/ready {/,/^    }/s|^        default_type text/plain;$|        add_header Content-Type text/plain;|' \
+            -e '/^    location = \/runtime-config.js {/,/^    location = \/notifications\/disable {/ { /^    location = \/notifications\/disable {/!d; }' \
+            "$rendered_file" | sha256sum)"
     else
         digest_output="$(sha256sum "$rendered_file")"
     fi

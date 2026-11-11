@@ -69,6 +69,20 @@ Critical/high findings stop the deployment before any host action. Published
 images with the requested immutable tag support retries and rollback. The
 playbook checks container and public readiness before completing.
 
+For a staging rollback, select a retained, previously tested tag and deploy it
+through the same wrapper:
+
+```bash
+PREVIOUS_BACKEND_TAG='build-N-GITSHA'
+shared/scripts/deploy-images.sh staging backend "$PREVIOUS_BACKEND_TAG"
+```
+
+Verify that both API slots and both jobs use the selected tag, readiness passes,
+and Envoy's API weights return to 50/50. Both API slots normally serve traffic;
+the rolling helper temporarily sends all traffic to the other slot while
+replacing one. A rollback changes container images, so review database migration
+compatibility before rolling back a release that changed the schema.
+
 Keep tested local images for the first production publication. Production work
 starts after staging validation, the final parity audit and explicit approval.
 The production deployment preserves the selected tag and image digest.

@@ -247,12 +247,18 @@ main() {
     staging_render="$(render_compose "$staging_compose_env_file")"
 
     printf 'Comparing the rendered production Compose configuration to its baseline...\n'
-    # Preserve the captured production baseline while allowing the new public
-    # runtime configuration mount required by environment-independent app images.
+    # Keep the captured production baseline. Validate the shared MySQL pin and
+    # app runtime mount explicitly, then normalize those reviewed differences.
+    jq --exit-status '.services.mysql.image | test("^mysql:8\\.4\\.[0-9]+@sha256:[0-9a-f]{64}$")' \
+        <<<"$prod_render" >/dev/null || fail "MySQL must pin an 8.4 patch version and digest"
+    [[ "$(jq --raw-output '.services.mysql.image' <<<"$prod_render")" == \
+        "$(jq --raw-output '.services.mysql.image' <<<"$staging_render")" ]] \
+        || fail "MySQL image differs between environment renderings"
     jq --exit-status '.services.app.volumes | any(.target == "/etc/morrowpal/runtime-config.js" and .read_only == true)' \
         <<<"$prod_render" >/dev/null || fail "App runtime configuration mount must be read-only"
     digest_output="$(jq --sort-keys --compact-output \
-        '.services.app.volumes |= map(select(.target != "/etc/morrowpal/runtime-config.js"))' \
+        '.services.mysql.image = "mysql:8.4" |
+         .services.app.volumes |= map(select(.target != "/etc/morrowpal/runtime-config.js"))' \
         <<<"$prod_render" | sha256sum)"
     actual_digest="${digest_output%% *}"
 

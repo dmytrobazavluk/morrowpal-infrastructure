@@ -61,9 +61,9 @@ Resources:
             ]
           }
       Tags:
-        - Key: application
+        - Key: Application
           Value: morrowpal
-        - Key: environment
+        - Key: Environment
           Value: !Ref Environment
 
   AppRepository:
@@ -110,9 +110,9 @@ Resources:
             ]
           }
       Tags:
-        - Key: application
+        - Key: Application
           Value: morrowpal
-        - Key: environment
+        - Key: Environment
           Value: !Ref Environment
 
   BackendApiRepository:
@@ -159,9 +159,9 @@ Resources:
             ]
           }
       Tags:
-        - Key: application
+        - Key: Application
           Value: morrowpal
-        - Key: environment
+        - Key: Environment
           Value: !Ref Environment
 
   BackendJobRepository:
@@ -208,9 +208,9 @@ Resources:
             ]
           }
       Tags:
-        - Key: application
+        - Key: Application
           Value: morrowpal
-        - Key: environment
+        - Key: Environment
           Value: !Ref Environment
 
 Outputs:

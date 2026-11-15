@@ -80,3 +80,35 @@ aws iam tag-instance-profile --instance-profile-name "$profile_name" \
 These tags identify staging resources; they do not change role membership or
 policy documents. The separate IAM tagging step must be repeated if the access
 stack creates a replacement profile.
+
+## Stack and network identity tags
+
+The guarded CloudFormation change-set wrapper applies `Environment` and
+`Application` stack tags for the selected environment and preserves other
+existing stack tags. Staging tag backfills reuse the deployed templates and
+current parameter values; each change set is reviewed before execution.
+
+The primary network interface is created inside the EC2 instance definition,
+whose embedded network-interface properties have no `Tags` field. Its common
+tags are applied in place. After host replacement, validate and tag the new
+primary interface:
+
+```bash
+(
+test "$(aws sts get-caller-identity --query Account --output text)" = 384078510608 || exit 1
+instance_id=$(aws cloudformation describe-stacks --stack-name morrowpal-staging-ec2 \
+  --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`InstanceId`].OutputValue | [0]' --output text) || exit 1
+host=$(aws ec2 describe-instances --instance-ids "$instance_id" --region us-east-1 --output json) || exit 1
+jq -e '.Reservations[0].OwnerId=="384078510608" and (.Reservations[0].Instances[0] |
+  any(.Tags[]; .Key=="Environment" and .Value=="staging")
+  and any(.Tags[]; .Key=="Application" and .Value=="morrowpal")
+  and any(.Tags[]; .Key=="aws:cloudformation:stack-name" and .Value=="morrowpal-staging-ec2"))' <<<"$host" >/dev/null || exit 1
+interface_id=$(jq -er '.Reservations[0].Instances[0].NetworkInterfaces[] |
+  select(.Attachment.DeviceIndex==0) | .NetworkInterfaceId' <<<"$host") || exit 1
+aws ec2 create-tags --resources "$interface_id" --region us-east-1 \
+  --tags Key=Environment,Value=staging Key=Application,Value=morrowpal
+)
+```
+
+This changes tag metadata without detaching the interface or changing its
+addresses or security groups.

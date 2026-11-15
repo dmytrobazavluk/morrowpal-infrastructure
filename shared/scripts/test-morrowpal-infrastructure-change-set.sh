@@ -157,6 +157,10 @@ install_mock_aws() {
         '    printf "{\"KeyPairs\":[{\"KeyName\":\"%s\"}]}\n" "$key_name"' \
         '    ;;' \
         '  cloudformation:describe-stacks)' \
+        '    if [[ "${MORROWPAL_MOCK_MISMATCH:-}" == stack-tags && "$joined" == *"--stack-name morrowpal-$environment-ecr"* ]]; then' \
+        '      printf "%s\n" '\''{"Stacks":[{"Tags":[{"Key":"Owner","Value":"fixture"}]}]}'\''' \
+        '      exit 0' \
+        '    fi' \
         '    if [[ "$joined" == *"--stack-name morrowpal-$environment-ec2-access"* ]]; then' \
         '      output_role_arn="$role_arn"' \
         '      [[ "${MORROWPAL_MOCK_MISMATCH:-}" == access-account ]] && output_role_arn="arn:aws:iam::000000000000:role/$role_name"' \
@@ -390,6 +394,19 @@ main() {
         || fail "Change set omitted the selected environment parameter"
     grep -Fq -- '--region us-east-1' "$mock_log" \
         || fail "Staging change set targeted the wrong Region"
+    grep -Fq '"Key":"Environment","Value":"staging"' "$mock_log" \
+        || fail 'Staging change set omitted its stack environment tag'
+    grep -Fq '"Key":"Application","Value":"morrowpal"' "$mock_log" \
+        || fail 'Change set omitted its stack application tag'
+
+    : >"$mock_log"
+    run_wrapper staging stack-tags ecr preserve-extra-stack-tags >"$output_file"
+    grep -Fq '"Key":"Owner","Value":"fixture"' "$mock_log" \
+        || fail 'Stack tag update discarded an existing custom tag'
+    : >"$mock_log"
+    run_wrapper prod '' ecr production-stack-tags --confirm-production >"$output_file"
+    grep -Fq '"Key":"Environment","Value":"prod"' "$mock_log" \
+        || fail 'Confirmed production change set received the wrong environment tag'
 
     : >"$mock_log"
     run_wrapper staging '' mysql-storage detach-staging-mysql \

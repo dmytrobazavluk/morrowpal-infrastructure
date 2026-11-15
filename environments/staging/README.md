@@ -7,6 +7,12 @@ For Compose, Envoy, service-script, or systemd changes, follow the
 [shared infrastructure update procedure](../../shared/docs/update-infrastructure.md)
 with `ENVIRONMENT=staging`.
 
+Component releases follow the shared guides, starting with their staging steps:
+
+- [Update the backend](../../shared/docs/update-backend.md)
+- [Update the app](../../shared/docs/update-app.md)
+- [Update the website](../../shared/docs/update-website.md)
+
 ```bash
 shared/scripts/staging-lifecycle.sh status
 shared/scripts/staging-lifecycle.sh stop --dry-run

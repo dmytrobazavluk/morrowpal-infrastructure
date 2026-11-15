@@ -75,12 +75,12 @@ Ansible variables, or logs. Runtime resolution uses dynamic references through
 ## Installation sequence status
 
 Continue with [resource creation and host preparation](./install-from-scratch.md).
-It ends at an explicit initial-deployment gate. The
-[old production installation page](../../prod/docs/install-from-scratch.md)
-remains reference material while the supported bootstrap path is completed.
+It includes the guarded first deployment and verification. The
+[production installation page](../../prod/docs/install-from-scratch.md)
+links to the same shared sequence.
 
-The routine `deploy-images.sh` command accepts one component tag per invocation.
-A fresh host requires all three component tags together. A supported initial
-publication/deployment path must be implemented and tested before documenting
-the final bootstrap command. Do not attempt the initial installation by running
-three routine component deployments against a host without recorded tags.
+For the first deployment, `deploy-images.sh ENVIRONMENT initial BACKEND_TAG APP_TAG
+WEBSITE_TAG` publishes all four images and supplies all three component tags in
+one playbook invocation. Routine backend/app/website deployments select one
+component afterward. Do not attempt the initial installation by running three
+routine component deployments against a host without recorded tags.

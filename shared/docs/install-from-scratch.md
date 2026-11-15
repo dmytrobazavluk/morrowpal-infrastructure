@@ -7,8 +7,8 @@ recreate their stacks or retained resources; use the update or host-replacement
 procedure instead. Production writes require completed staging validation,
 the final parity audit, and explicit approval.
 
-This guide ends before initial image deployment. That command remains gated
-until the supported bootstrap path is implemented and tested.
+The initial deployment uses one guarded command with all three component tags.
+Routine component updates use the separate update guides afterward.
 
 ## 1. Select and load the environment
 
@@ -216,7 +216,7 @@ Replace the example email before running. The TLS playbook checks DNS against
 the selected overlay. The [production TLS guide](../../prod/docs/tls.md)
 describes renewal architecture; its production commands are not staging steps.
 
-## 5. Record preparation and stop before deployment
+## 5. Record preparation and select images
 
 Record stack outputs, completed provider setup and SNS confirmations, storage
 identity, DNS records, certificate checks, and any manual metadata tagging.
@@ -225,8 +225,78 @@ The [staging operations guide](../../environments/staging/README.md) documents
 instance-profile/root-volume/network tags, budget setup, and the staging-only
 nightly shutdown stack. Include those controls in a staging installation.
 
-**Initial deployment gate:** the routine deployment wrapper accepts one
-component tag per invocation; a new host needs all three component tags together.
-The supported bootstrap command is a pending implementation step. Stop here.
-Do not use three routine component deployments or an unguarded deploy playbook
-as a substitute. No application is expected to be running at this point.
+Build the initial release images locally using the build sections of the
+[backend](./update-backend.md), [app](./update-app.md), and
+[website](./update-website.md) guides. Do not run their individual deployments
+against a host without recorded tags. Keep each exported tag in this shell and
+commit the component counters after building, including failed builds.
+
+For a production installation, select the already-tested staging tags and retain
+the same local images. Do not rebuild for production. Missing images are not
+automatically copied from staging ECR. The production approval gate still applies.
+
+Set the selected tags explicitly if resuming in a new shell:
+
+```bash
+BACKEND_TAG='build-N-GITSHA'
+APP_TAG='build-N-GITSHA'
+WEBSITE_TAG='build-N-SOURCESHA'
+```
+
+Replace each placeholder with its actual immutable tag. The component numbers
+can differ; the API and both jobs share the backend tag.
+
+## 6. Publish and deploy the initial images together
+
+Preview the complete target and image plan without registry writes or host access:
+
+```bash
+shared/scripts/deploy-images.sh "$ENVIRONMENT" initial \
+  "$BACKEND_TAG" "$APP_TAG" "$WEBSITE_TAG" "${CONFIRMATION[@]}" --dry-run
+```
+
+The wrapper checks the account, Region, instance, role, network, Elastic IP,
+inventory, overlay, and all four image sources. It accepts no Ansible target
+overrides. Use `--frontend-directory PATH` if the frontend checkout is elsewhere.
+
+Apply the reviewed plan with the same tags:
+
+```bash
+shared/scripts/deploy-images.sh "$ENVIRONMENT" initial \
+  "$BACKEND_TAG" "$APP_TAG" "$WEBSITE_TAG" "${CONFIRMATION[@]}"
+```
+
+The command publishes missing local images into the selected immutable ECR
+repositories, verifies their digests, and scans all four images before any host
+action. Critical/high findings stop the deployment. It revalidates the target,
+then invokes the shared playbook once with all three component tags. No images
+are built and no build counters change during deployment.
+
+The playbook initializes missing tag files and starts the systemd service,
+which resolves secrets at runtime, pulls the selected images, and starts the
+containers with readiness checks. If publication or deployment fails, diagnose
+the error and retry with the same tags; already-published matching images are
+reused. Partial publication can leave images in ECR. Initial installation has no
+previous application release to restore automatically.
+
+`--check --diff` can preview the playbook only when all images are already
+published. It does not publish missing images; use `--dry-run` for the first
+publication preview. The `initial` mode explicitly supplies all component tags;
+on an existing host it can update all components, so use single-component modes
+for routine releases.
+
+## 7. Verify the installation
+
+```bash
+ansible morrowpal_hosts -i "$INVENTORY" -e "@$VARS" -b -m command \
+  -a '/usr/local/sbin/morrowpal-service status'
+ansible morrowpal_hosts -i "$INVENTORY" -e "@$VARS" -b -m command \
+  -a 'systemctl status morrowpal --no-pager'
+```
+
+Run the selected environment's endpoint and browser checks from all three
+component guides. Confirm both API slots and jobs use the backend tag, app and
+website use their selected tags, and API weights return to 50/50. Complete live
+email, SNS, and controlled-client Firebase notification checks. Readiness alone
+does not verify delivery. Record the tested tags/digests and results without
+secret values. Use the component update guides for subsequent releases.

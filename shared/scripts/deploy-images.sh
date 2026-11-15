@@ -62,9 +62,12 @@ load_deployment_environment() {
 usage() {
     cat <<'EOF'
 Usage: deploy-images.sh ENVIRONMENT COMPONENT [IMAGE_TAG] [OPTIONS]
+       deploy-images.sh ENVIRONMENT initial BACKEND_TAG APP_TAG WEBSITE_TAG [OPTIONS]
 
 Validate the target, publish release images, and deploy through Ansible.
-ENVIRONMENT is staging or prod. COMPONENT is backend, app, website, or infrastructure.
+ENVIRONMENT is staging or prod. COMPONENT is backend, app, website, infrastructure,
+or initial. Initial publishes all four images and supplies all three component
+tags to one deployment, for a host without recorded image tags.
 Backend publishes API and job images together. Infrastructure keeps the host's
 recorded image tags. Production requires --confirm-production.
 
@@ -86,10 +89,17 @@ if (($# < 2)); then usage >&2; exit 2; fi
 readonly environment="$1" component="$2"
 shift 2
 image_tag=""
-if [[ "$component" != infrastructure ]]; then
-    (($# >= 1)) || fail "IMAGE_TAG is required"
-    image_tag="$1"; shift
-fi
+backend_tag="" app_tag="" website_tag=""
+case "$component" in
+    initial)
+        (($# >= 3)) || fail 'Initial deployment requires BACKEND_TAG APP_TAG WEBSITE_TAG'
+        backend_tag="$1" app_tag="$2" website_tag="$3"
+        shift 3 ;;
+    infrastructure) ;;
+    *)
+        (($# >= 1)) || fail "IMAGE_TAG is required"
+        image_tag="$1"; shift ;;
+esac
 confirm_production=false
 dry_run=false
 check_mode=false
@@ -117,12 +127,24 @@ case "$environment" in
     *) fail 'Environment must be staging or prod' ;;
 esac
 case "$component" in
-    backend) repositories=(backend-api backend-job) ;;
-    app|website) repositories=("$component") ;;
-    infrastructure) repositories=() ;;
-    *) fail 'Component must be backend, app, website, or infrastructure' ;;
+    backend)
+        backend_tag="$image_tag"
+        repositories=(backend-api backend-job); image_tags=("$image_tag" "$image_tag") ;;
+    app)
+        app_tag="$image_tag"
+        repositories=(app); image_tags=("$image_tag") ;;
+    website)
+        website_tag="$image_tag"
+        repositories=(website); image_tags=("$image_tag") ;;
+    initial)
+        repositories=(backend-api backend-job app website)
+        image_tags=("$backend_tag" "$backend_tag" "$app_tag" "$website_tag") ;;
+    infrastructure) repositories=(); image_tags=() ;;
+    *) fail 'Component must be backend, app, website, infrastructure, or initial' ;;
 esac
-[[ "$component" == infrastructure || "$image_tag" =~ ^build-[1-9][0-9]*-[0-9a-f]{7}$ ]] || fail 'IMAGE_TAG must use build-N-SOURCEHASH'
+for image_tag in "${image_tags[@]}"; do
+    [[ "$image_tag" =~ ^build-[1-9][0-9]*-[0-9a-f]{7}$ ]] || fail 'IMAGE_TAG must use build-N-SOURCEHASH'
+done
 for command in aws jq ansible ansible-inventory ansible-playbook; do
     command -v "$command" >/dev/null 2>&1 || fail "Required command not found: $command"
 done
@@ -250,7 +272,9 @@ local_ids=()
 known_digests=()
 remote_digests=()
 publish_image=()
-for repository in "${repositories[@]}"; do
+for index in "${!repositories[@]}"; do
+    repository="${repositories[$index]}"
+    image_tag="${image_tags[$index]}"
     command -v docker >/dev/null 2>&1 || fail 'Required command not found: docker'
     target_repository="$MORROWPAL_ECR_REPOSITORY_PREFIX/$repository"
     mutability="$(aws ecr describe-repositories --registry-id "$actual_account" \
@@ -289,14 +313,11 @@ for repository in "${repositories[@]}"; do
         "$image_tag" "${publish_image[-1]}" "${remote_digest:-pending}"
 done
 
-case "$component" in
-    backend) tag_variable=morrowpal_image_tag ;;
-    app) tag_variable=morrowpal_app_image_tag ;;
-    website) tag_variable=morrowpal_website_image_tag ;;
-    infrastructure) tag_variable="" ;;
-esac
-jq -n --arg variable "$tag_variable" --arg tag "$image_tag" --arg frontend "$frontend_directory" '
-    (if $variable == "" then {} else {($variable): $tag} end)
+jq -n --arg backend "$backend_tag" --arg app "$app_tag" --arg website "$website_tag" \
+    --arg frontend "$frontend_directory" '
+    (if $backend == "" then {} else {morrowpal_image_tag: $backend} end)
+    + (if $app == "" then {} else {morrowpal_app_image_tag: $app} end)
+    + (if $website == "" then {} else {morrowpal_website_image_tag: $website} end)
     + (if $frontend == "" then {} else {morrowpal_frontend_directory: $frontend} end)
     + {ansible_connection: "ssh", ansible_port: 22}
 ' >"$work_directory/release.json"
@@ -312,7 +333,7 @@ if [[ "$dry_run" == true ]]; then
 fi
 
 wait_for_scan() {
-    local repository="$1" result status critical high attempt
+    local repository="$1" image_tag="$2" result status critical high attempt
     for ((attempt=1; attempt<=30; attempt++)); do
         if result="$(aws ecr describe-image-scan-findings \
             --repository-name "$repository" --image-id "imageTag=$image_tag" \
@@ -342,6 +363,7 @@ wait_for_scan() {
 logged_in=false
 for index in "${!repositories[@]}"; do
     repository="$MORROWPAL_ECR_REPOSITORY_PREFIX/${repositories[$index]}"
+    image_tag="${image_tags[$index]}"
     if [[ "${publish_image[$index]}" == true ]]; then
         if [[ "$logged_in" == false ]]; then
             aws ecr get-login-password --region "$aws_region" \
@@ -362,7 +384,7 @@ for index in "${!repositories[@]}"; do
             || fail "Manifest digest differs from the previously pushed image: $target"
         remote_digests[$index]="$remote_digest"
     fi
-    wait_for_scan "$repository"
+    wait_for_scan "$repository" "$image_tag"
 done
 
 # All images must pass publication and scanning before the first host action.
@@ -373,4 +395,4 @@ validate_target
     || fail 'Deployment target changed during publication; review and retry'
 printf 'Running %s deployment on validated instance %s.\n' "$component" "$instance_id"
 "${deploy_command[@]}"
-printf 'Deployment verified by the shared playbook: %s %s %s.\n' "$environment" "$component" "$image_tag"
+printf 'Deployment verified by the shared playbook: %s %s.\n' "$environment" "$component"

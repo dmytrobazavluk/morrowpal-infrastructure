@@ -121,7 +121,9 @@ case "$service $operation" in
         else printf 'ImageNotFoundException\n' >&2; exit 254; fi ;;
     'ecr describe-image-scan-findings')
         touch "$MORROWPAL_TEST_FIXTURE/scanned"
-        printf '{"status":"COMPLETE","findings":{"HIGH":%s}}\n' "${MORROWPAL_TEST_HIGH:-0}" ;;
+        high="${MORROWPAL_TEST_HIGH:-0}"
+        if [[ -n "${MORROWPAL_TEST_HIGH_REPOSITORY:-}" && "$repository" == */"$MORROWPAL_TEST_HIGH_REPOSITORY" ]]; then high=1; fi
+        printf '{"status":"COMPLETE","findings":{"HIGH":%s}}\n' "$high" ;;
     *) exit 90 ;;
 esac
 SH
@@ -133,6 +135,7 @@ if [[ "$1" == --config ]]; then shift 2; fi
 case "$1" in
     image)
         if [[ "${MORROWPAL_TEST_MISSING:-false}" == true && "$*" == *backend-job* ]]; then exit 1; fi
+        if [[ -n "${MORROWPAL_TEST_MISSING_REPOSITORY:-}" && "$*" == *"morrowpal/$MORROWPAL_TEST_MISSING_REPOSITORY:"* ]]; then exit 1; fi
         if [[ "$4" == '{{.Id}}' ]]; then printf 'sha256:%064d\n' 2
         else jq -Rsc 'split("\n") | map(select(length > 0))' "$MORROWPAL_TEST_PUSHED"; fi ;;
     push) printf '%s@sha256:%064d\n' "${2%:*}" 1 >>"$MORROWPAL_TEST_PUSHED" ;;
@@ -175,6 +178,7 @@ ip="$(awk '$1 == "morrowpal_public_ipv4:" {print $2}' "$overlay")"
 "$MORROWPAL_TEST_REAL_INVENTORY" -i "$inventory" --list \
     | jq --exit-status --arg ip "$ip" '._meta.hostvars["01"].ansible_host == $ip' >/dev/null
 jq --exit-status '.ansible_connection == "ssh" and .ansible_port == 22' "$release" >/dev/null
+cp "$release" "$MORROWPAL_TEST_FIXTURE/last-release.json"
 exit "${MORROWPAL_TEST_DEPLOY_FAILURE:-0}"
 SH
 cat >"$test_directory/bin/flutter" <<'SH'
@@ -295,6 +299,50 @@ export MORROWPAL_TEST_ACCOUNT
 : >"$MORROWPAL_TEST_LOG"
 if MORROWPAL_TEST_MISSING=true "$deploy" staging backend "$tag" >"$test_directory/rejected.log" 2>&1; then fail 'Missing job image accepted'; fi
 if grep -Eq 'get-login-password|docker:.*push ' "$MORROWPAL_TEST_LOG"; then fail 'Missing job image allowed a partial push'; fi
+
+# A fresh host needs every component tag in the same playbook invocation.
+backend_tag="$(cat "$test_directory/BACKEND_TAG")"
+app_tag="$(cat "$test_directory/APP_TAG")"
+website_tag="$(cat "$test_directory/WEBSITE_TAG")"
+initial_tags=("$backend_tag" "$app_tag" "$website_tag")
+: >"$MORROWPAL_TEST_LOG"
+if "$deploy" staging initial "$backend_tag" "$app_tag" >"$test_directory/rejected.log" 2>&1; then fail 'Initial deployment accepted missing website tag'; fi
+if "$deploy" staging initial "$backend_tag" invalid "$website_tag" >"$test_directory/rejected.log" 2>&1; then fail 'Initial deployment accepted malformed app tag'; fi
+if "$deploy" prod initial "${initial_tags[@]}" >"$test_directory/rejected.log" 2>&1; then fail 'Initial production deployment omitted confirmation'; fi
+[[ ! -s "$MORROWPAL_TEST_LOG" ]] || fail 'Invalid initial arguments accessed tools'
+"$deploy" staging initial "${initial_tags[@]}" --dry-run >"$test_directory/push.log" 2>&1
+if grep -Eq 'deploy:|get-login-password|docker:.*(tag |push |login )' "$MORROWPAL_TEST_LOG"; then fail 'Initial dry run mutated resources'; fi
+: >"$MORROWPAL_TEST_LOG"
+if "$deploy" staging initial "${initial_tags[@]}" --check >"$test_directory/rejected.log" 2>&1; then fail 'Initial check accepted unpublished images'; fi
+if grep -Eq 'deploy:|get-login-password|docker:.*push ' "$MORROWPAL_TEST_LOG"; then fail 'Initial check published missing images'; fi
+: >"$MORROWPAL_TEST_LOG"
+if MORROWPAL_TEST_MISSING_REPOSITORY=website "$deploy" staging initial "${initial_tags[@]}" >"$test_directory/rejected.log" 2>&1; then fail 'Initial deployment accepted missing website image'; fi
+if grep -Eq 'deploy:|get-login-password|docker:.*push ' "$MORROWPAL_TEST_LOG"; then fail 'Initial image preflight allowed partial publication'; fi
+: >"$MORROWPAL_TEST_LOG"
+if MORROWPAL_TEST_HIGH_REPOSITORY=website "$deploy" staging initial "${initial_tags[@]}" >"$test_directory/rejected.log" 2>&1; then fail 'Initial deployment accepted website scan failure'; fi
+if grep -Fq 'deploy:' "$MORROWPAL_TEST_LOG"; then fail 'Initial scan failure reached host'; fi
+: >"$MORROWPAL_TEST_LOG"
+: >"$MORROWPAL_TEST_PUSHED"
+"$deploy" staging initial "${initial_tags[@]}" >"$test_directory/push.log" 2>&1 \
+    || { cat "$test_directory/push.log" >&2; exit 1; }
+[[ "$(grep -c '^deploy:' "$MORROWPAL_TEST_LOG")" == 1 ]] || fail 'Initial deployment did not use one playbook invocation'
+[[ "$(grep -c 'docker:.*push ' "$MORROWPAL_TEST_LOG")" == 4 ]] || fail 'Initial deployment did not publish four images'
+for repository in backend-api backend-job app website; do
+    case "$repository" in backend-*) expected_tag="$backend_tag" ;; app) expected_tag="$app_tag" ;; website) expected_tag="$website_tag" ;; esac
+    grep -Fq "morrowpal/staging/$repository:$expected_tag" "$MORROWPAL_TEST_LOG" || fail "Wrong initial tag for $repository"
+    grep -Fq -- "--repository-name morrowpal/staging/$repository --image-id imageTag=$expected_tag" "$MORROWPAL_TEST_LOG" || fail "Wrong scan tag for $repository"
+done
+jq --exit-status --arg backend "$backend_tag" --arg app "$app_tag" --arg website "$website_tag" '
+    .morrowpal_image_tag == $backend and .morrowpal_app_image_tag == $app
+    and .morrowpal_website_image_tag == $website
+' "$fixture/last-release.json" >/dev/null || fail 'Initial deployment omitted or mixed component tags'
+[[ "$(tail -1 "$MORROWPAL_TEST_LOG")" == deploy:* ]] || fail 'Initial host action preceded image validation'
+: >"$MORROWPAL_TEST_LOG"
+"$deploy" staging initial "${initial_tags[@]}" --check --diff >"$test_directory/push.log" 2>&1
+grep -Eq '^deploy:.*--check.*--diff' "$MORROWPAL_TEST_LOG" || fail 'Initial check omitted Ansible preview flags'
+if grep -Eq 'get-login-password|docker:.*push ' "$MORROWPAL_TEST_LOG"; then fail 'Initial check republished images'; fi
+"$deploy" prod initial "${initial_tags[@]}" --confirm-production --dry-run >"$test_directory/push.log" 2>&1
+: >"$MORROWPAL_TEST_PUSHED"
 
 for component in backend app website; do
     case "$component" in backend) variable=BACKEND_TAG ;; app) variable=APP_TAG ;; website) variable=WEBSITE_TAG ;; esac

@@ -49,7 +49,7 @@ curl --fail --silent --show-error https://app.staging.morrowpal.com/ready
 curl --fail --silent --show-error https://staging.morrowpal.com/ready
 ansible morrowpal_hosts -i environments/staging/inventory.ini \
   -e @environments/staging/vars.yml -b -m command \
-  -a "docker ps --format '{{.Names}} {{.Image}} {{.Status}}'"
+  -a 'docker ps'
 ```
 
 - [ ] Record the previous API blue/green, job, app, and website tags. If API slot
@@ -131,6 +131,9 @@ production publication. Deployment never builds images or increments counters.
 
 - [ ] Repeat all three public readiness checks and inspect service/container
   status. Confirm unchanged components retained their tags.
+  For a same-tag rehearsal, compare container IDs as well: Ansible command tasks
+  can report changed when invoking a release helper that keeps the existing
+  container. The task count alone does not prove a container replacement.
 - [ ] For backend changes, monitor readiness during the rolling replacement,
   confirm only one API slot is replaced at a time, both slots return to 50/50,
   and both jobs use the selected tag. A successful no-op deployment does not

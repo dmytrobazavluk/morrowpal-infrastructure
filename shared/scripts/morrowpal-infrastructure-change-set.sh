@@ -15,7 +15,7 @@ Create one guarded CloudFormation change set for prod or staging.
 
 STACK_KIND:
   prerequisites | ecr | ec2-access | ec2 | mysql-storage | runtime-secrets |
-  system-alerts | public-ip | http-validation-ingress
+  system-alerts | public-ip | http-validation-ingress | budget | auto-stop
 
 OPTIONS:
   --confirm-production  Required for prod.
@@ -29,6 +29,9 @@ OPTIONS:
 
 For system-alerts, set MORROWPAL_PRIMARY_ALERT_EMAIL. Optional recipients use
 MORROWPAL_SECONDARY_ALERT_EMAIL and MORROWPAL_TERTIARY_ALERT_EMAIL.
+For budget, set MORROWPAL_MONTHLY_BUDGET_USD and MORROWPAL_BUDGET_ALERT_EMAIL.
+auto-stop is staging-only and stops its validated instance nightly at 1 AM
+America/Chicago.
 
 The wrapper never executes a change set and accepts no resource-ID overrides.
 EC2 creation selects the regional Amazon Linux 2023 image. Updates preserve
@@ -348,6 +351,23 @@ build_parameters() {
             ;;
         ecr)
             ;;
+        auto-stop)
+            capabilities=(CAPABILITY_IAM)
+            parameters+=("ParameterKey=InstanceId,ParameterValue=$instance_id")
+            ;;
+        budget)
+            [[ "${MORROWPAL_MONTHLY_BUDGET_USD:-}" =~ ^[0-9]+([.][0-9]{1,2})?$ ]] \
+                || fail 'MORROWPAL_MONTHLY_BUDGET_USD must be a positive USD amount'
+            jq --null-input --exit-status --arg amount "$MORROWPAL_MONTHLY_BUDGET_USD" \
+                '$amount | tonumber >= 0.01' </dev/null >/dev/null \
+                || fail 'Monthly budget must be at least USD 0.01'
+            [[ "${MORROWPAL_BUDGET_ALERT_EMAIL:-}" =~ ^[[:alnum:]._%+-]+@[[:alnum:].-]+\.[[:alpha:]]{2,}$ ]] \
+                || fail 'MORROWPAL_BUDGET_ALERT_EMAIL must be an email address'
+            parameters+=(
+                "ParameterKey=MonthlyBudgetUsd,ParameterValue=$MORROWPAL_MONTHLY_BUDGET_USD"
+                "ParameterKey=AlertEmail,ParameterValue=$MORROWPAL_BUDGET_ALERT_EMAIL"
+            )
+            ;;
         ec2-access)
             capabilities=(CAPABILITY_IAM)
             ;;
@@ -461,9 +481,12 @@ case "$selected_environment" in
     *) fail "ENVIRONMENT must be prod or staging" ;;
 esac
 case "$stack_kind" in
-    prerequisites|ecr|ec2-access|ec2|mysql-storage|runtime-secrets|system-alerts|public-ip|http-validation-ingress) ;;
+    prerequisites|ecr|ec2-access|ec2|mysql-storage|runtime-secrets|system-alerts|public-ip|http-validation-ingress|budget|auto-stop) ;;
     *) fail "Unknown STACK_KIND: $stack_kind" ;;
 esac
+if [[ "$stack_kind" == auto-stop && "$selected_environment" != staging ]]; then
+    fail 'Automatic shutdown is supported only for staging'
+fi
 [[ "$change_set_name" =~ ^[A-Za-z][A-Za-z0-9-]{0,127}$ ]] \
     || fail "CHANGE_SET_NAME must start with a letter and contain only letters, digits, and hyphens"
 
@@ -554,11 +577,11 @@ require_command jq
 load_environment
 validate_inventory
 validate_account_and_region
-validate_platform_bindings
+if [[ "$stack_kind" != budget ]]; then validate_platform_bindings; fi
 resolve_target_change_type
 
 case "$stack_kind" in
-    prerequisites|ecr|ec2-access)
+    prerequisites|ecr|ec2-access|budget)
         ;;
     ec2)
         resolve_access_stack

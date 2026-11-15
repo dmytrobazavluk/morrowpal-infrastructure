@@ -131,6 +131,8 @@ main() {
         "$CLOUDFORMATION_DIR/mysql-storage.yml"
         "$CLOUDFORMATION_DIR/runtime-secrets.yml"
         "$CLOUDFORMATION_DIR/system-alerts.yml"
+        "$CLOUDFORMATION_DIR/budget.yml"
+        "$CLOUDFORMATION_DIR/auto-stop.yml"
     )
 
     require_command cfn-lint

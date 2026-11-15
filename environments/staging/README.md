@@ -19,7 +19,7 @@ validates AWS metadata without changing resources or connecting to the host.
 
 Stopping first acquires the host deployment lock and stops `morrowpal.service`,
 which shuts down the containers cleanly. The wrapper verifies that no project
-containers remain runniNsT3fOU1*Ef%gPqong, revalidates the target, requests a normal EC2 stop,
+containers remain running, revalidates the target, requests a normal EC2 stop,
 and waits for the stopped state. It leaves the instance, retained storage, and
 Elastic IP allocated. Staging is unavailable while stopped.
 
@@ -47,6 +47,38 @@ For a full read-only configuration preview and shared readiness checks:
 ```bash
 shared/scripts/deploy-images.sh staging infrastructure --check
 ```
+
+## Nightly shutdown
+
+EventBridge Scheduler requests a normal EC2 stop every night at **1:00 AM
+America/Chicago**, including weekends. The timezone follows daylight saving
+time; the repeated hour in autumn runs once. Invocation occurs within the
+scheduled minute, and shutdown takes additional time. Failed requests can
+retry for up to five minutes.
+
+The operating system stops `morrowpal.service` during shutdown, which stops the
+containers. This schedule is unconditional: finish testing and deployments
+before 1 AM. It does not acquire the deployment lock used by the manual lifecycle
+wrapper. Start staging when needed with `shared/scripts/staging-lifecycle.sh start`.
+Storage, secrets, images, and the Elastic IP remain allocated and billable.
+
+The `morrowpal-staging-auto-stop` CloudFormation stack owns the schedule, its
+dedicated group, and its execution role. The role can only stop the validated
+staging instance, and only while its `Environment=staging` and
+`Application=morrowpal` tags match. Its trust is restricted to the account and
+schedule group. Production is rejected by both the wrapper and template.
+
+Create a reviewed change set with:
+
+```bash
+shared/scripts/morrowpal-infrastructure-change-set.sh staging auto-stop REVIEW_NAME --dry-run
+shared/scripts/morrowpal-infrastructure-change-set.sh staging auto-stop REVIEW_NAME
+```
+
+Review and execute the change set explicitly. After replacing the staging host,
+update this stack through the wrapper so its target and permissions follow the
+new validated instance. Change the nightly time in `shared/cloudformation/auto-stop.yml`
+and review another change set to adjust the schedule.
 
 ## IAM identity tags
 
@@ -130,3 +162,31 @@ aws ce list-cost-allocation-tags --tag-keys Environment Application --region us-
 Activation applies to every value of the keys in this account. It does not
 tag or restart production resources. The lowercase keys are separate and remain
 inactive.
+
+## Monthly budget alerts
+
+The staging monthly budget is USD 15. Email notifications warn when actual
+staging-tagged costs exceed 80% or 100% of that amount (USD 12 and USD 15).
+Credits, refunds, and taxes are excluded. This budget monitors spending and
+sends email; it does not impose a spending cap or stop resources. Alert timing
+depends on AWS billing data updates.
+
+The shared budget template takes the amount and recipient as inputs. To prepare
+a reviewed update, supply the intended recipient:
+
+```bash
+MORROWPAL_MONTHLY_BUDGET_USD=15 \
+MORROWPAL_BUDGET_ALERT_EMAIL='you@example.com' \
+shared/scripts/morrowpal-infrastructure-change-set.sh staging budget staging-budget-review
+```
+
+Review the change set before execution. The budget filter is
+`Environment=staging`; untagged or shared costs outside that filter are excluded.
+The budget can be managed while staging is stopped.
+
+Read its configuration with:
+
+```bash
+aws budgets describe-budget --account-id 384078510608 \
+  --budget-name morrowpal-staging-budget-monthly --region us-east-1
+```

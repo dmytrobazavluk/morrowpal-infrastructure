@@ -448,6 +448,45 @@ main() {
         fi
         if grep -Fq 'cloudformation create-change-set' "$mock_log"; then fail 'Invalid AMI reached change-set creation'; fi
     done
+    : >"$mock_log"
+    run_wrapper staging '' auto-stop nightly-stop >"$output_file"
+    grep -Fq -- '--stack-name morrowpal-staging-auto-stop' "$mock_log" || fail 'Auto-stop targeted the wrong stack'
+    grep -Fq 'ParameterKey=InstanceId,ParameterValue=i-staging' "$mock_log" || fail 'Auto-stop omitted the validated staging instance'
+    grep -Fq -- '--capabilities CAPABILITY_IAM' "$mock_log" || fail 'Auto-stop omitted IAM capability'
+    : >"$mock_log"
+    run_wrapper staging '' auto-stop preview-nightly-stop --dry-run >"$output_file"
+    if grep -Fq 'cloudformation create-change-set' "$mock_log"; then fail 'Auto-stop dry run mutated AWS'; fi
+    : >"$mock_log"
+    if run_wrapper prod '' auto-stop reject-prod --confirm-production >"$output_file" 2>&1; then
+        fail 'Auto-stop accepted production'
+    fi
+    [[ ! -s "$mock_log" ]] || fail 'Production auto-stop contacted AWS'
+    for mismatch in instance-environment instance-subnet instance-security-group; do
+        : >"$mock_log"
+        if run_wrapper staging "$mismatch" auto-stop reject-mismatch >"$output_file" 2>&1; then
+            fail "Auto-stop accepted $mismatch"
+        fi
+        if grep -Fq 'cloudformation create-change-set' "$mock_log"; then fail 'Mismatched auto-stop target reached change-set creation'; fi
+    done
+
+    export MORROWPAL_MONTHLY_BUDGET_USD=15 MORROWPAL_BUDGET_ALERT_EMAIL=budget@example.com
+    : >"$mock_log"
+    run_wrapper staging '' budget create-budget >"$output_file"
+    grep -Fq -- '--stack-name morrowpal-staging-budget' "$mock_log" || fail 'Budget targeted the wrong stack'
+    grep -Fq 'ParameterKey=MonthlyBudgetUsd,ParameterValue=15' "$mock_log" || fail 'Budget omitted the amount'
+    grep -Fq 'ParameterKey=AlertEmail,ParameterValue=budget@example.com' "$mock_log" || fail 'Budget omitted the recipient'
+    if grep -Eq 'aws:ec2 |aws:iam ' "$mock_log"; then fail 'Budget unnecessarily required host resources'; fi
+    for amount in 0 -1 15USD 1.001; do
+        export MORROWPAL_MONTHLY_BUDGET_USD="$amount"
+        : >"$mock_log"
+        if run_wrapper staging '' budget reject-budget >"$output_file" 2>&1; then fail 'Invalid budget amount accepted'; fi
+        if grep -Fq 'cloudformation create-change-set' "$mock_log"; then fail 'Invalid amount reached change-set creation'; fi
+    done
+    export MORROWPAL_MONTHLY_BUDGET_USD=15 MORROWPAL_BUDGET_ALERT_EMAIL=invalid-address
+    : >"$mock_log"
+    if run_wrapper staging '' budget reject-email >"$output_file" 2>&1; then fail 'Invalid budget email accepted'; fi
+    if grep -Fq 'cloudformation create-change-set' "$mock_log"; then fail 'Invalid email reached change-set creation'; fi
+    unset MORROWPAL_MONTHLY_BUDGET_USD MORROWPAL_BUDGET_ALERT_EMAIL
     printf 'MorrowPal guarded infrastructure change-set validation passed.\n'
 }
 

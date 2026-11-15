@@ -1,0 +1,76 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Monthly cost budget and email alerts for one MorrowPal environment.
+
+Metadata:
+  AWSToolsMetrics:
+    AWSAgentToolkit: aws-cloudformation@1
+
+Parameters:
+  Environment:
+    Type: String
+    AllowedValues:
+      - prod
+      - staging
+    Description: Environment tag value used to filter budget costs.
+  MonthlyBudgetUsd:
+    Type: Number
+    MinValue: 0.01
+    Description: Monthly cost threshold in USD before credits, refunds, and taxes.
+  AlertEmail:
+    Type: String
+    MinLength: 3
+    MaxLength: 254
+    AllowedPattern: '[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}'
+    Description: Email address that receives budget threshold alerts.
+
+Resources:
+  MonthlyCostBudget:
+    Type: AWS::Budgets::Budget
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: Warns about environment-attributed spending before credits hide usage costs.
+        must: Filter by the selected Environment tag and notify without stopping resources.
+    Properties:
+      Budget:
+        BudgetName: !Sub '${AWS::StackName}-monthly'
+        BudgetType: COST
+        TimeUnit: MONTHLY
+        BudgetLimit:
+          Amount: !Ref MonthlyBudgetUsd
+          Unit: USD
+        CostFilters:
+          TagKeyValue:
+            - !Join ['', ['user:Environment$', !Ref Environment]]
+        CostTypes:
+          IncludeCredit: false
+          IncludeRefund: false
+          IncludeTax: false
+          UseBlended: false
+          UseAmortized: false
+      ResourceTags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: morrowpal
+      NotificationsWithSubscribers:
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            ThresholdType: PERCENTAGE
+            Threshold: 80
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref AlertEmail
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            ThresholdType: PERCENTAGE
+            Threshold: 100
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref AlertEmail
+
+Outputs:
+  BudgetName:
+    Description: Monthly budget name used by the global AWS Budgets API.
+    Value: !Ref MonthlyCostBudget

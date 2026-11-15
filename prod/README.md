@@ -8,7 +8,8 @@ otherwise.
 
 ## Documentation Index
 
-- [Install production from scratch](./docs/install-from-scratch.md)
+- [Installation prerequisites](../shared/docs/installation-prerequisites.md)
+- [Production installation prerequisites](./docs/installation-prerequisites.md)
 - [Update infrastructure configuration](../shared/docs/update-infrastructure.md)
 - [Update the backend](../shared/docs/update-backend.md)
 - [Postmark operations](./docs/postmark.md)

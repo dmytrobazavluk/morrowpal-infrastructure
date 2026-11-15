@@ -3,6 +3,10 @@
 Run commands from `infrastructure` with AWS credentials for the account and
 Region configured in `environments/staging/vars.yml`.
 
+For a new environment, begin with the
+[shared installation prerequisites](../../shared/docs/installation-prerequisites.md)
+and [staging-specific checklist](./installation-prerequisites.md).
+
 For Compose, Envoy, service-script, or systemd changes, follow the
 [shared infrastructure update procedure](../../shared/docs/update-infrastructure.md)
 with `ENVIRONMENT=staging`.

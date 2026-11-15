@@ -1,5 +1,12 @@
 # Install Production From Scratch
 
+**Reference only:** the commands below are pending the shared installation
+rewrite. They include obsolete working-directory and implicit inventory
+assumptions; do not execute them as an installation sequence. Begin with the
+[shared installation prerequisites](../../shared/docs/installation-prerequisites.md)
+and [production-specific checklist](./installation-prerequisites.md).
+Production changes require explicit approval after the staging gate.
+
 Run commands from `infrastructure/prod`.
 
 This runbook creates the production resources managed by this repository and

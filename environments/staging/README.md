@@ -9,6 +9,11 @@ and [staging-specific checklist](./installation-prerequisites.md).
 Then follow the [shared installation guide](../../shared/docs/install-from-scratch.md),
 including its guarded initial deployment with all three component tags.
 
+Use the [shared TLS guide](../../shared/docs/tls.md) for certificate operations.
+Read the [host-replacement planning checklist](../../shared/docs/replace-host.md)
+before planning a replacement; its execution path still requires implementation
+and a staging rehearsal.
+
 For Compose, Envoy, service-script, or systemd changes, follow the
 [shared infrastructure update procedure](../../shared/docs/update-infrastructure.md)
 with `ENVIRONMENT=staging`.

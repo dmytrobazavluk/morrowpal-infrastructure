@@ -37,8 +37,10 @@ backend, app, or website image. Examples include changes to:
 
 For new application images, use the [backend](./update-backend.md),
 [app](./update-app.md), or [website](./update-website.md) update guide.
-Use the installation, TLS, or host-replacement procedure when the change belongs
-to one of those workflows.
+Use the [installation guide](./install-from-scratch.md), [TLS guide](./tls.md),
+or [host-replacement planning checklist](./replace-host.md) when the change
+belongs to one of those workflows. Host replacement remains gated pending a
+supported implementation and staging rehearsal.
 
 CloudFormation resource changes use separate reviewed change sets through
 `shared/scripts/morrowpal-infrastructure-change-set.sh`. A host configuration

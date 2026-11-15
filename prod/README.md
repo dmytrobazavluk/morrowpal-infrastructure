@@ -19,8 +19,8 @@ otherwise.
 - [Child safety incident response](./docs/child-safety-response.md)
 - [Update the app](../shared/docs/update-app.md)
 - [Update the website](../shared/docs/update-website.md)
-- [Production TLS](./docs/tls.md)
-- [Replace the production host](./docs/replace-host.md)
+- [TLS certificates and renewal](../shared/docs/tls.md)
+- [Host-replacement planning and execution gate](../shared/docs/replace-host.md)
 - [Production database administration](./docs/admin.md)
 - [Recently registered users query](./docs/queries/recent-users-correspondences.md)
 
@@ -55,7 +55,7 @@ chmod 400 ../../morrowpal-prod-01.pem
 
 All names on the production certificate resolve to the stable production IPv4
 address. They must not have AAAA records until the production edge supports
-IPv6. See [Production TLS](./docs/tls.md).
+IPv6. See the [shared TLS guide](../shared/docs/tls.md).
 
 ## Runtime Architecture
 

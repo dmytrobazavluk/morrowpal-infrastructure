@@ -213,8 +213,8 @@ ansible morrowpal_hosts -i "$INVENTORY" -e "@$VARS" -b -m command \
 ```
 
 Replace the example email before running. The TLS playbook checks DNS against
-the selected overlay. The [production TLS guide](../../prod/docs/tls.md)
-describes renewal architecture; its production commands are not staging steps.
+the selected overlay. The [shared TLS guide](./tls.md) describes renewal,
+permissions, certificate loading, and verification for both environments.
 
 ## 5. Record preparation and select images
 

@@ -2,7 +2,7 @@
 
 Start with the [shared prerequisites](../../shared/docs/installation-prerequisites.md).
 Production already exists. Use its update procedures or the
-[host-replacement procedure](./replace-host.md) for work on that environment;
+[host-replacement planning checklist](../../shared/docs/replace-host.md) for that environment;
 this checklist does not authorize recreation or provider changes.
 
 - Account: `384078510608`; Region: `us-east-2`; Availability Zone: `us-east-2c`.
@@ -36,5 +36,5 @@ credentials merely to follow this checklist.
 IONOS serves public DNS for `morrowpal.com`. Its apex, `www`, `api`, `app`,
 `admin`, and `back` records must retain production's stable IPv4. There is no
 Route 53 hosted zone managed by this repository. Keep staging records isolated.
-See [production TLS](./tls.md) for certificate names and renewal; use explicit
-inventory and overlay arguments when following its commands.
+See the [shared TLS guide](../../shared/docs/tls.md) for certificate names and
+renewal with explicit inventory and overlay arguments.

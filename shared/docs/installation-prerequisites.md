@@ -74,9 +74,10 @@ Ansible variables, or logs. Runtime resolution uses dynamic references through
 
 ## Installation sequence status
 
-The shared resource/host installation procedure is the next documentation step.
-The [old production installation page](../../prod/docs/install-from-scratch.md)
-is reference material until that procedure is complete.
+Continue with [resource creation and host preparation](./install-from-scratch.md).
+It ends at an explicit initial-deployment gate. The
+[old production installation page](../../prod/docs/install-from-scratch.md)
+remains reference material while the supported bootstrap path is completed.
 
 The routine `deploy-images.sh` command accepts one component tag per invocation.
 A fresh host requires all three component tags together. A supported initial

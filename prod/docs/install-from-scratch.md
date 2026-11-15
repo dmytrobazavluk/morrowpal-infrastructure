@@ -5,6 +5,8 @@ rewrite. They include obsolete working-directory and implicit inventory
 assumptions; do not execute them as an installation sequence. Begin with the
 [shared installation prerequisites](../../shared/docs/installation-prerequisites.md)
 and [production-specific checklist](./installation-prerequisites.md).
+Use the [shared resource and host preparation guide](../../shared/docs/install-from-scratch.md)
+for the reviewed installation sequence up to its initial-deployment gate.
 Production changes require explicit approval after the staging gate.
 
 Run commands from `infrastructure/prod`.

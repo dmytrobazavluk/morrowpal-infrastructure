@@ -6,6 +6,8 @@ Region configured in `environments/staging/vars.yml`.
 For a new environment, begin with the
 [shared installation prerequisites](../../shared/docs/installation-prerequisites.md)
 and [staging-specific checklist](./installation-prerequisites.md).
+Then follow [resource creation and host preparation](../../shared/docs/install-from-scratch.md),
+which stops before the pending initial-deployment implementation.
 
 For Compose, Envoy, service-script, or systemd changes, follow the
 [shared infrastructure update procedure](../../shared/docs/update-infrastructure.md)

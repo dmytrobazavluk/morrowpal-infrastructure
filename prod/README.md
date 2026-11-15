@@ -10,6 +10,7 @@ otherwise.
 
 - [Installation prerequisites](../shared/docs/installation-prerequisites.md)
 - [Production installation prerequisites](./docs/installation-prerequisites.md)
+- [Resource creation and host preparation](../shared/docs/install-from-scratch.md)
 - [Update infrastructure configuration](../shared/docs/update-infrastructure.md)
 - [Update the backend](../shared/docs/update-backend.md)
 - [Postmark operations](./docs/postmark.md)

@@ -5,6 +5,9 @@ Region configured in `environments/staging/vars.yml`.
 
 For a release on the existing environment, follow the
 [staging release checklist](../../shared/docs/staging-release-checklist.md).
+After staging verification, use the separate
+[production promotion checklist](../../shared/docs/production-promotion-checklist.md)
+and its approval gates.
 
 For a new environment, begin with the
 [shared installation prerequisites](../../shared/docs/installation-prerequisites.md)

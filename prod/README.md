@@ -9,6 +9,7 @@ validation, the final parity audit, and explicit approval.
 
 ## Documentation Index
 
+- [Production promotion checklist](../shared/docs/production-promotion-checklist.md)
 - [Staging release checklist before promotion](../shared/docs/staging-release-checklist.md)
 - [Installation prerequisites](../shared/docs/installation-prerequisites.md)
 - [Production installation prerequisites](./docs/installation-prerequisites.md)

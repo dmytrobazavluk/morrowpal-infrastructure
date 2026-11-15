@@ -184,6 +184,7 @@ shared/scripts/staging-lifecycle.sh status
   secrets, and images remain allocated. If a delayed test needs more runtime,
   record it as pending and plan around the nightly shutdown.
 - [ ] Review and commit the intended implementation and build-counter changes.
-  Production promotion requires its separate checklist, final parity audit,
+  Production promotion requires the
+  [promotion checklist](./production-promotion-checklist.md), final parity audit,
   completed delivery checks, and explicit approval; this checklist performs no
   production action.

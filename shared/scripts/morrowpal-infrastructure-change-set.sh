@@ -31,6 +31,8 @@ For system-alerts, set MORROWPAL_PRIMARY_ALERT_EMAIL. Optional recipients use
 MORROWPAL_SECONDARY_ALERT_EMAIL and MORROWPAL_TERTIARY_ALERT_EMAIL.
 
 The wrapper never executes a change set and accepts no resource-ID overrides.
+EC2 creation selects the regional Amazon Linux 2023 image. Updates preserve
+the existing instance AMI; image upgrades require a reviewed host replacement.
 EOF
 }
 
@@ -44,7 +46,7 @@ require_command() {
 }
 
 validate_ssh_ingress_cidr() {
-    local cidr="$1"
+    local cidr="$1"NsT3fOU1*Ef%gPqo
     local address
     local octet
     local -a octets=()
@@ -307,6 +309,7 @@ resolve_and_validate_instance() {
         || fail "EC2 instance does not match the selected environment bindings"
     [[ "$instance_availability_zone" == "$MORROWPAL_AVAILABILITY_ZONE" ]] \
         || fail "EC2 stack Availability Zone does not match the selected overlay"
+    instance_ami_id="$(jq --raw-output '.Reservations[0].Instances[0].ImageId' <<<"$instance_json")"
 }
 
 resolve_target_change_type() {
@@ -348,7 +351,16 @@ build_parameters() {
             capabilities=(CAPABILITY_IAM)
             ;;
         ec2)
+            if [[ "$change_set_type" == CREATE ]]; then
+                instance_ami_id="$(aws ssm get-parameter \
+                    --name /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64 \
+                    --query Parameter.Value --output text --region "$MORROWPAL_AWS_REGION")" \
+                    || fail 'Could not resolve the regional Amazon Linux image'
+            fi
+            [[ "$instance_ami_id" =~ ^ami-([0-9a-f]{8}|[0-9a-f]{17})$ ]] \
+                || fail 'Could not resolve a valid AMI ID for the EC2 change set'
             parameters+=(
+                "ParameterKey=AmiId,ParameterValue=$instance_ami_id"
                 "ParameterKey=InstanceType,ParameterValue=$MORROWPAL_INSTANCE_TYPE"
                 "ParameterKey=KeyName,ParameterValue=$MORROWPAL_EC2_KEY_NAME"
                 "ParameterKey=SubnetId,ParameterValue=$MORROWPAL_SUBNET_ID"
@@ -414,6 +426,9 @@ print_resolution() {
     fi
     if [[ -n "$instance_id" ]]; then
         printf 'EC2 instance: %s\n' "$instance_id"
+    fi
+    if [[ "$stack_kind" == ec2 ]]; then
+        printf 'AMI: %s\n' "$instance_ami_id"
     fi
     if [[ "$stack_kind" == mysql-storage ]]; then
         if [[ "$detach_mysql_volume" == true ]]; then
@@ -520,6 +535,7 @@ instance_profile_arn=''
 role_arn=''
 role_name=''
 instance_id=''
+instance_ami_id=''
 instance_availability_zone=''
 change_set_type=''
 trap cleanup EXIT

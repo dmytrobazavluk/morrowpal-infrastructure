@@ -14,6 +14,11 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       Description: Allows a MorrowPal EC2 host to pull approved ECR images.
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: morrowpal
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:

@@ -162,6 +162,7 @@ install_mock_aws() {
         '      [[ "${MORROWPAL_MOCK_MISMATCH:-}" == access-account ]] && output_role_arn="arn:aws:iam::000000000000:role/$role_name"' \
         '      printf "{\"Stacks\":[{\"Outputs\":[{\"OutputKey\":\"InstanceProfileName\",\"OutputValue\":\"%s\"},{\"OutputKey\":\"InstanceProfileArn\",\"OutputValue\":\"%s\"},{\"OutputKey\":\"RoleArn\",\"OutputValue\":\"%s\"}]}]}\n" "$profile_name" "$profile_arn" "$output_role_arn"' \
         '    elif [[ "$joined" == *"--stack-name morrowpal-$environment-ec2"* ]]; then' \
+        '      if [[ "${MORROWPAL_MOCK_MISMATCH:-}" == new-ec2* ]]; then printf "Stack does not exist\n" >&2; exit 255; fi' \
         '      printf "{\"Stacks\":[{\"Outputs\":[{\"OutputKey\":\"InstanceId\",\"OutputValue\":\"%s\"},{\"OutputKey\":\"AvailabilityZone\",\"OutputValue\":\"%s\"}]}]}\n" "$instance_id" "$availability_zone"' \
         '    else' \
         '      printf "ValidationError: Stack does not exist\n" >&2' \
@@ -174,6 +175,9 @@ install_mock_aws() {
         '    printf "{\"InstanceProfile\":{\"Arn\":\"%s\",\"Roles\":[{\"RoleName\":\"%s\"}]}}\n" "$profile_arn" "$profile_role_name"' \
         '    ;;' \
         '  ec2:describe-instances)' \
+        '    image_id=ami-0123456789abcdef0' \
+        '    [[ "${MORROWPAL_MOCK_MISMATCH:-}" == ami ]] && image_id=invalid-image' \
+        '    {' \
         '    instance_environment="$resource_environment"' \
         '    instance_profile_arn="$profile_arn"' \
         '    instance_subnet_id="$subnet_id"' \
@@ -183,6 +187,10 @@ install_mock_aws() {
         '    [[ "${MORROWPAL_MOCK_MISMATCH:-}" == instance-subnet ]] && instance_subnet_id=subnet-other' \
         '    [[ "${MORROWPAL_MOCK_MISMATCH:-}" == instance-security-group ]] && instance_security_group_id=sg-other' \
         '    printf "{\"Reservations\":[{\"Instances\":[{\"InstanceId\":\"%s\",\"SubnetId\":\"%s\",\"Placement\":{\"AvailabilityZone\":\"%s\"},\"IamInstanceProfile\":{\"Arn\":\"%s\"},\"SecurityGroups\":[{\"GroupId\":\"%s\"}],\"State\":{\"Name\":\"running\"},\"Tags\":[{\"Key\":\"Application\",\"Value\":\"morrowpal\"},{\"Key\":\"Environment\",\"Value\":\"%s\"},{\"Key\":\"Name\",\"Value\":\"morrowpal-%s-01\"},{\"Key\":\"aws:cloudformation:stack-name\",\"Value\":\"morrowpal-%s-ec2\"}]}]}]}\n" "$instance_id" "$instance_subnet_id" "$availability_zone" "$instance_profile_arn" "$instance_security_group_id" "$instance_environment" "$resource_environment" "$resource_environment"' \
+        '    } | jq --arg image "$image_id" ".Reservations[0].Instances[0].ImageId = \$image"' \
+        '    ;;' \
+        '  ssm:get-parameter)' \
+        '    if [[ "${MORROWPAL_MOCK_MISMATCH:-}" == new-ec2-ami ]]; then printf "invalid-image\n"; else printf "ami-11111111111111111\n"; fi' \
         '    ;;' \
         '  cloudformation:create-change-set)' \
         '    printf "{\"Id\":\"mock-change-set\"}\n"' \
@@ -402,6 +410,27 @@ main() {
     [[ ! -s "$mock_log" ]] \
         || fail "Invalid MySQL detach option contacted AWS"
 
+    for environment in staging prod; do
+        : >"$mock_log"
+        confirmation=()
+        [[ "$environment" != prod ]] || confirmation=(--confirm-production)
+        run_wrapper "$environment" '' ec2 preserve-current-ami "${confirmation[@]}" >"$output_file"
+        grep -Fq 'ParameterKey=AmiId,ParameterValue=ami-0123456789abcdef0' "$mock_log" \
+            || fail 'EC2 update did not preserve the current AMI'
+        if grep -Fq 'ssm get-parameter' "$mock_log"; then fail 'Routine update resolved a floating AMI'; fi
+    done
+    : >"$mock_log"
+    run_wrapper staging new-ec2 ec2 create-host >"$output_file"
+    grep -Fq 'ParameterKey=AmiId,ParameterValue=ami-11111111111111111' "$mock_log" \
+        || fail 'New EC2 stack did not select the regional Amazon Linux image'
+    grep -Fq -- '--region us-east-1' "$mock_log" || fail 'AMI lookup omitted the staging Region'
+    for mismatch in ami new-ec2-ami; do
+        : >"$mock_log"
+        if run_wrapper staging "$mismatch" ec2 reject-invalid-ami >"$output_file" 2>&1; then
+            fail 'Invalid AMI was accepted'
+        fi
+        if grep -Fq 'cloudformation create-change-set' "$mock_log"; then fail 'Invalid AMI reached change-set creation'; fi
+    done
     printf 'MorrowPal guarded infrastructure change-set validation passed.\n'
 }
 

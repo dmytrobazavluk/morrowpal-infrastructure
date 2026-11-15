@@ -7,6 +7,13 @@ parity audit are complete and production work is explicitly approved. The
 deployment command selects and validates the matching inventory and configuration.
 Apply and validate changes in staging first.
 
+EC2 CloudFormation change sets use an explicit `AmiId`. The guarded
+`morrowpal-infrastructure-change-set.sh` wrapper selects the regional Amazon
+Linux 2023 image when creating a host stack and preserves the validated
+instance's current AMI when updating it. Review any proposed instance
+replacement separately; an AMI upgrade belongs to the host-replacement
+procedure rather than a routine configuration update.
+
 Use this procedure for infrastructure-only changes that do not publish a new
 backend, app, or website image. Examples include changes to:
 

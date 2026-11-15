@@ -17,10 +17,9 @@ Parameters:
       - t3.medium
     Description: EC2 instance type for the container host.
 
-  LatestAmiId:
-    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
-    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
-    Description: Public SSM parameter containing the current Amazon Linux 2023 x86_64 AMI.
+  AmiId:
+    Type: AWS::EC2::Image::Id
+    Description: Explicit AMI ID. Routine updates must preserve the existing instance image.
 
   KeyName:
     Type: AWS::EC2::KeyPair::KeyName
@@ -52,7 +51,7 @@ Resources:
   ProductionInstance:
     Type: AWS::EC2::Instance
     Properties:
-      ImageId: !Ref LatestAmiId
+      ImageId: !Ref AmiId
       InstanceType: !Ref InstanceType
       KeyName: !Ref KeyName
       IamInstanceProfile: !Ref InstanceProfileName
@@ -65,6 +64,7 @@ Resources:
         HttpTokens: required
         InstanceMetadataTags: disabled
       Monitoring: false
+      PropagateTagsToVolumeOnCreation: true
       NetworkInterfaces:
         - AssociatePublicIpAddress: true
           DeleteOnTermination: true

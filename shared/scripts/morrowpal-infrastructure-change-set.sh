@@ -46,7 +46,7 @@ require_command() {
 }
 
 validate_ssh_ingress_cidr() {
-    local cidr="$1"NsT3fOU1*Ef%gPqo
+    local cidr="$1"
     local address
     local octet
     local -a octets=()
@@ -325,6 +325,7 @@ resolve_target_change_type() {
             --region "$MORROWPAL_AWS_REGION" \
             >"$describe_output_file" 2>"$describe_error_file"; then
         change_set_type=UPDATE
+        existing_stack_tags="$(jq --compact-output '.Stacks[0].Tags // []' "$describe_output_file")"
     elif grep -Eqi 'does not exist|not exist' "$describe_error_file"; then
         change_set_type=CREATE
     else
@@ -538,6 +539,7 @@ instance_id=''
 instance_ami_id=''
 instance_availability_zone=''
 change_set_type=''
+existing_stack_tags='[]'
 trap cleanup EXIT
 
 # shellcheck source=morrowpal-runtime-config.sh
@@ -585,6 +587,10 @@ create_change_set=(
     --change-set-type "$change_set_type"
     --template-body "file://$template_path"
     --parameters "${parameters[@]}"
+    --tags "$(jq --compact-output --arg environment "$selected_environment" '
+        map(select(.Key != "Environment" and .Key != "Application"))
+        + [{Key:"Environment",Value:$environment},{Key:"Application",Value:"morrowpal"}]
+    ' <<<"$existing_stack_tags")"
     --region "$MORROWPAL_AWS_REGION"
 )
 if ((${#capabilities[@]} > 0)); then

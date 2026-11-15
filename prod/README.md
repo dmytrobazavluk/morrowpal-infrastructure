@@ -9,7 +9,7 @@ otherwise.
 ## Documentation Index
 
 - [Install production from scratch](./docs/install-from-scratch.md)
-- [Update production infrastructure](./docs/update-infrastructure.md)
+- [Update infrastructure configuration](../shared/docs/update-infrastructure.md)
 - [Update the backend](./docs/update-backend.md)
 - [Postmark operations](./docs/postmark.md)
 - [Firebase app notification operations](./docs/firebase-app-notifications.md)

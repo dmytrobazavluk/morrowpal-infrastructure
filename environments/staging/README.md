@@ -3,6 +3,10 @@
 Run commands from `infrastructure` with AWS credentials for the account and
 Region configured in `environments/staging/vars.yml`.
 
+For Compose, Envoy, service-script, or systemd changes, follow the
+[shared infrastructure update procedure](../../shared/docs/update-infrastructure.md)
+with `ENVIRONMENT=staging`.
+
 ```bash
 shared/scripts/staging-lifecycle.sh status
 shared/scripts/staging-lifecycle.sh stop --dry-run

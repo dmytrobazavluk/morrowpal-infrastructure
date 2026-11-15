@@ -3,6 +3,9 @@
 Run commands from `infrastructure` with AWS credentials for the account and
 Region configured in `environments/staging/vars.yml`.
 
+For a release on the existing environment, follow the
+[staging release checklist](../../shared/docs/staging-release-checklist.md).
+
 For a new environment, begin with the
 [shared installation prerequisites](../../shared/docs/installation-prerequisites.md)
 and [staging-specific checklist](./installation-prerequisites.md).

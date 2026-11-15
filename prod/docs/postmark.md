@@ -4,6 +4,11 @@ Postmark delivers production verification codes and delayed dispatch activity
 notifications. This document records the long-lived production configuration
 and its operational procedures.
 
+Run local commands from `infrastructure`. Production writes, including secret
+refresh and rotation, require completed staging validation, the final parity
+audit, and explicit approval. Use the guarded deployment wrapper's production
+dry run to validate the target before direct Ansible actions.
+
 For a new production environment, follow
 [Install production from scratch](./install-from-scratch.md). For a routine
 application release, follow [Update the backend](./update-backend.md).
@@ -23,8 +28,9 @@ either address is not required. The application uses a
 Postmark Server API Token belonging to this server, not an Account API Token.
 Inbound and broadcast streams are not used for application email.
 
-The non-secret sender, stream, and timeout settings live in
-`../shared/docker-compose.yml`. The backend owns verification-code and dispatch-notification
+The non-secret sender and stream settings live in `environments/prod/vars.yml`;
+the shared runtime templates and `shared/docker-compose.yml` supply them to
+containers. The backend owns verification-code and dispatch-notification
 content. Dispatch notifications are sent only after their configurable queue
 age has elapsed without a successful client synchronization.
 
@@ -60,7 +66,8 @@ their injected token until they are recreated.
    containers:
 
    ```bash
-   ansible 01 -b -m command \
+   ansible morrowpal_hosts -i environments/prod/inventory.ini \
+     -e @environments/prod/vars.yml -b -m command \
      -a '/usr/local/sbin/morrowpal-service refresh-secrets'
    ```
 
@@ -81,7 +88,9 @@ After initial installation, token rotation, or a related backend change:
 1. Confirm service and API readiness:
 
    ```bash
-   ansible 01 -b -m command -a '/usr/local/sbin/morrowpal-service status'
+   ansible morrowpal_hosts -i environments/prod/inventory.ini \
+     -e @environments/prod/vars.yml -b -m command \
+     -a '/usr/local/sbin/morrowpal-service status'
    curl --fail --show-error --silent https://api.morrowpal.com/ready
    ```
 

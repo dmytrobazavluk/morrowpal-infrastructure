@@ -1,6 +1,7 @@
 # Production Database Administration
 
-Run commands from `infrastructure/prod`.
+Run local commands from `infrastructure`. Commands identified as host-side run
+on the production EC2 host.
 
 Agents and automation must never retrieve or print secret values. Automated
 database access must use Secrets Manager dynamic references resolved by
@@ -13,10 +14,10 @@ repository.
 MySQL is not publicly exposed. Connect through the production EC2 instance's
 SSH tunnel:
 
-1. From `infrastructure/prod`, get the current MySQL container address:
+1. From `infrastructure`, get the current MySQL container address:
 
    ```bash
-   ssh -i ../../morrowpal-prod-01.pem ec2-user@3.12.65.199 \
+   ssh -i ../morrowpal-prod-01.pem ec2-user@3.12.65.199 \
      "sudo docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' morrowpal-mysql-1"
    ```
 

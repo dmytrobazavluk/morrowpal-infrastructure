@@ -27,8 +27,8 @@ Provider setup stays in the production-specific guides:
 - [System alerts](./system-alerts.md): `morrowpal-prod-system-alerts` and explicitly
   selected, confirmed recipients.
 
-Those guides describe production provider configuration. Commands in them
-require review for the current inventory/overlay conventions before use.
+Those guides describe production provider configuration and use explicit
+production inventory/overlay bindings for host commands.
 Public frontend configuration belongs in `frontend/config/firebase/prod/` in
 the sibling frontend repository. Do not replace provider values or rotate
 credentials merely to follow this checklist.

@@ -1,5 +1,10 @@
 # Store-review Account Operations
 
+Run local commands from `infrastructure`. Production writes require completed
+staging validation, the final parity audit, and explicit approval. Use the
+guarded deployment wrapper's production dry run to validate the target before
+direct Ansible actions.
+
 The application-store review account uses
 `store-review@morrowpal.com`. Flyway migration
 `V6__add_store_review_account.sql` creates the account and its dispatch state,
@@ -27,12 +32,14 @@ six-character alphabet as ordinary verification codes.
 Never retrieve or print the code through the CLI or agent tools, and never put
 it in a migration, repository file, Ansible variable, or deployment log.
 
-## First production rollout
+## Provision or verify the production configuration
 
-1. Validate and update `morrowpal-prod-runtime-secrets` from
-   `../shared/cloudformation/runtime-secrets.yml`. Review the change set and confirm that
-   it adds only the retained store-review secret, its IAM policy reference,
-   and its output.
+1. Check whether the retained store-review secret already exists. If resource
+   changes are required, use the guarded infrastructure change-set wrapper's
+   `prod runtime-secrets` kind with `--confirm-production` and
+   `shared/cloudformation/runtime-secrets.yml`. Review only the intended secret,
+   scoped IAM, and output changes. Do not recreate an existing secret or rotate
+   its value merely to follow this guide.
 2. In the AWS Secrets Manager console, replace the generated `value` in
    `morrowpal/prod/store-review` with the approved verification code.
 3. Deploy the infrastructure changes using
@@ -56,7 +63,8 @@ required runtime secret is unavailable.
 2. Refresh the host's root-protected runtime secrets:
 
    ```bash
-   ansible 01 -b -m command \
+   ansible morrowpal_hosts -i environments/prod/inventory.ini \
+     -e @environments/prod/vars.yml -b -m command \
      -a '/usr/local/sbin/morrowpal-service refresh-secrets'
    ```
 

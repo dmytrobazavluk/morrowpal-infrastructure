@@ -22,29 +22,32 @@ provider chains.
 
 ## Create the topic and subscriptions
 
-Run from `infrastructure/prod`. Confirm the AWS identity is production account
+Run from `infrastructure`. Production writes require completed staging
+validation, the final parity audit, and explicit approval. Confirm the AWS
+identity is production account
 `384078510608` before any change. Provide one to three team email addresses as
 CloudFormation parameters. Do not put recipient addresses into the template or
 Docker Compose file.
 
 ```bash
-cfn-lint --regions us-east-2 -t ../shared/cloudformation/system-alerts.yml
+cfn-lint --regions us-east-2 -t shared/cloudformation/system-alerts.yml
 aws cloudformation validate-template \
-  --template-body file://../shared/cloudformation/system-alerts.yml \
+  --template-body file://shared/cloudformation/system-alerts.yml \
   --region us-east-2
 
 MORROWPAL_PRIMARY_ALERT_EMAIL="$PRIMARY_ALERT_EMAIL" \
 MORROWPAL_SECONDARY_ALERT_EMAIL="$SECONDARY_ALERT_EMAIL" \
 MORROWPAL_TERTIARY_ALERT_EMAIL="$TERTIARY_ALERT_EMAIL" \
-  ../shared/scripts/morrowpal-infrastructure-change-set.sh \
+  shared/scripts/morrowpal-infrastructure-change-set.sh \
     prod system-alerts initial-system-alerts --confirm-production
 ```
 
 Set `PRIMARY_ALERT_EMAIL` before running the change set. Set
 `SECONDARY_ALERT_EMAIL` and `TERTIARY_ALERT_EMAIL` to empty strings when unused.
 Review the change set before executing it. After it completes, compare the
-`SystemAlertsTopicArn` stack output with `APP_SYSTEM_ALERTS_TOPIC_ARN` in
-`../shared/docker-compose.yml`. Each recipient must confirm the SNS email subscription.
+`SystemAlertsTopicArn` stack output with `morrowpal_system_alerts_topic_arn` in
+`environments/prod/vars.yml`. The runtime template supplies that value to
+`APP_SYSTEM_ALERTS_TOPIC_ARN`. Each recipient must confirm the SNS email subscription.
 Check that each subscription is confirmed before enabling the backend image.
 The stack also grants the EC2 role KMS data-key and decrypt permissions scoped
 to this topic and the AWS-managed SNS key; encrypted-topic publishing requires

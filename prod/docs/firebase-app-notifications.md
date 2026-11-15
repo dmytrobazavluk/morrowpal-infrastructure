@@ -4,6 +4,11 @@ The dispatch worker sends privacy-safe app notifications through Firebase
 Cloud Messaging. The API containers and cleanup worker do not receive Firebase
 credentials.
 
+Run local commands from `infrastructure`. Production writes, including secret
+refresh and rotation, require completed staging validation, the final parity
+audit, and explicit approval. Use the guarded deployment wrapper's production
+dry run to validate the target before direct Ansible actions.
+
 ## Runtime configuration
 
 - Provider: `firebase`
@@ -28,7 +33,9 @@ an issue tracker.
 5. Refresh the materialized runtime secrets without printing their values:
 
    ```bash
-   ansible 01 -b -m command -a '/usr/local/sbin/morrowpal-service refresh-secrets'
+   ansible morrowpal_hosts -i environments/prod/inventory.ini \
+     -e @environments/prod/vars.yml -b -m command \
+     -a '/usr/local/sbin/morrowpal-service refresh-secrets'
    ```
 
 6. Reconcile or redeploy the dispatch worker so it opens the refreshed

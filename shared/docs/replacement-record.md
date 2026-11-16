@@ -156,7 +156,7 @@ Snapshot freshness relative to a clean application stop, database consistency,
 KMS decrypt access and a usable restore must also be verified before relying on
 the backup. Snapshot metadata passing these checks does not prove those facts.
 
-Run the separate host and IP checks as well. Releases, scheduler, quiescence and
+Run the separate host, IP and release-image checks as well. Scheduler, quiescence and
 the remaining guarded cutover/rollback workflow still require implementation
 and rehearsal. These checks neither lock resources nor authorize a handoff.
 
@@ -197,3 +197,36 @@ manually through IONOS and requires separate verification. Run the host and
 storage checks too; IP metadata does not prove host readiness, TLS, routing or
 the other cutover requirements. Recheck immediately before a guarded operation;
 successful output neither locks resources nor authorizes the move.
+
+## Read-only AWS release image checks
+
+Run from `infrastructure` with the selected account's authenticated AWS CLI session:
+
+```bash
+bash shared/scripts/check-replacement-images.sh staging /path/to/record.json
+```
+
+The checker validates a private copy of the record, Region settings and caller
+account. It requires a stable ECR stack in that account and Region. For each of
+`backend-api`, `backend-job`, `app` and `website`, it checks that:
+
+- The stack's repository name and URI outputs match the selected environment's
+  `morrowpal/ENVIRONMENT/COMPONENT` repository in that account and Region.
+- ECR returns exactly that repository with the expected registry ID, ARN and URI,
+  and the `IMMUTABLE` tag setting.
+- The recorded tag exists in that repository and resolves to the exact recorded
+  manifest digest. An explicitly reported inactive image status is rejected.
+
+API and jobs use the same backend release tag; each has its own recorded digest.
+App and website use their respective tags and digests. The record must contain
+registry manifest digests from ECR. The checker uses read-only
+[repository](https://docs.aws.amazon.com/cli/latest/reference/ecr/describe-repositories.html)
+and [image](https://docs.aws.amazon.com/cli/latest/reference/ecr/describe-images.html)
+metadata calls. Missing repositories/images, mismatches and API errors stop it.
+
+This command does not build, publish, copy, pull, log in to Docker or connect to
+a host. It does not verify vulnerability findings, instance pull permissions,
+image platform compatibility or what the containers currently run. The deployment
+wrapper's scan gate and the remaining runtime checks still apply. Image retention
+can remove releases later, so recheck before each guarded deployment or rollback.
+Successful metadata validation does not authorize deployment or cutover.

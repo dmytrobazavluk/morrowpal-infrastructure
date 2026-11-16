@@ -95,6 +95,11 @@ binds the retained allocation/address to the public-IP stack and explicitly
 selected host's primary interface. DNS and service readiness remain separate
 checks.
 
+The [read-only release-image check](replacement-record.md#read-only-aws-release-image-checks)
+binds all four recorded tags/digests to the selected ECR stack and immutable
+repositories. Scan findings, pull permissions and running-container verification
+remain separate requirements.
+
 The MySQL volume, Elastic IP allocation, runtime secrets, repository images, and
 provider identities must survive. Do not format the retained data volume.
 `prepare-storage.yml` requires recovery mode for a retained volume. Supply

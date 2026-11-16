@@ -77,6 +77,11 @@ Prepare a replacement record containing:
 - Environment-specific provider paths, SNS bindings, budget, and, for staging,
   the nightly shutdown target. Replacement must update that target and policy.
 
+Use the [replacement-record schema and local validator](replacement-record.md)
+for the machine-readable identities and release metadata. Keep the supporting
+review notes above alongside that record. Local validation does not replace
+live AWS and filesystem checks before each mutation.
+
 The MySQL volume, Elastic IP allocation, runtime secrets, repository images, and
 provider identities must survive. Do not format the retained data volume.
 `prepare-storage.yml` requires recovery mode for a retained volume. Supply

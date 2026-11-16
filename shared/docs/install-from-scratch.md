@@ -195,7 +195,14 @@ Confirm the volume tags, AZ, and attachment match the selected environment and
 instance before formatting. For a new installation the data volume must be
 empty. A filesystem or retained database means this is recovery, not a fresh
 installation. The playbook formats an empty device as XFS, persists the mount,
-creates the MySQL directory, and prepares a swap file on the encrypted volume:
+creates the MySQL directory, and prepares a swap file on the encrypted volume.
+
+This command uses fresh-install behavior. Retained-volume recovery requires
+`morrowpal_require_existing_mysql_filesystem=true` and the recorded
+`morrowpal_expected_mysql_filesystem_uuid`, as described in the
+[host-replacement guide](./replace-host.md); it must not initialize an empty disk.
+
+For a new, empty data volume:
 
 ```bash
 ansible-playbook shared/playbooks/prepare-storage.yml \

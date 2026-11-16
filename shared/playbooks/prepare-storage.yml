@@ -15,6 +15,26 @@
           - morrowpal_mysql_volume_id is match('^vol-[0-9a-f]+$')
         fail_msg: Pass the encrypted EBS volume ID with -e morrowpal_mysql_volume_id=vol-...
 
+    - name: Validate storage recovery mode
+      ansible.builtin.assert:
+        that:
+          - >-
+            (morrowpal_require_existing_mysql_filesystem | default(false)) is boolean or
+            ((morrowpal_require_existing_mysql_filesystem | default(false)) is string and
+             morrowpal_require_existing_mysql_filesystem in ['true', 'false'])
+        fail_msg: morrowpal_require_existing_mysql_filesystem must be true or false.
+
+    - name: Require the expected filesystem identity for recovery
+      ansible.builtin.assert:
+        that:
+          - morrowpal_expected_mysql_filesystem_uuid is not defined or (morrowpal_require_existing_mysql_filesystem | default(false) | bool)
+          - >-
+            not (morrowpal_require_existing_mysql_filesystem | default(false) | bool) or
+            (morrowpal_expected_mysql_filesystem_uuid is defined and
+             morrowpal_expected_mysql_filesystem_uuid is string and
+             morrowpal_expected_mysql_filesystem_uuid is match('^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'))
+        fail_msg: Recovery requires existing-filesystem mode and the recorded canonical filesystem UUID together.
+
   tasks:
     - name: Install XFS filesystem tools
       ansible.builtin.dnf:
@@ -52,12 +72,22 @@
       changed_when: false
       failed_when: morrowpal_mysql_filesystem.rc not in [0, 2]
 
+    - name: Require an existing XFS filesystem for recovery
+      ansible.builtin.assert:
+        that:
+          - morrowpal_mysql_filesystem.rc == 0
+          - morrowpal_mysql_filesystem.stdout == 'xfs'
+        fail_msg: Recovery requires an existing XFS filesystem; the volume was not formatted.
+      when: morrowpal_require_existing_mysql_filesystem | default(false) | bool
+
     - name: Create the XFS filesystem on the empty data volume
       ansible.builtin.command:
         argv:
           - mkfs.xfs
           - "{{ morrowpal_mysql_device_result.stdout }}"
-      when: morrowpal_mysql_filesystem.rc == 2
+      when:
+        - morrowpal_mysql_filesystem.rc == 2
+        - not (morrowpal_require_existing_mysql_filesystem | default(false) | bool)
       register: morrowpal_mysql_mkfs
       changed_when: morrowpal_mysql_mkfs.rc == 0
 
@@ -79,6 +109,13 @@
           - "{{ morrowpal_mysql_device_result.stdout }}"
       register: morrowpal_mysql_uuid
       changed_when: false
+
+    - name: Verify the retained filesystem UUID before mounting
+      ansible.builtin.assert:
+        that:
+          - morrowpal_mysql_uuid.stdout == morrowpal_expected_mysql_filesystem_uuid
+        fail_msg: Retained filesystem UUID does not match the recovery record; the volume was not mounted.
+      when: morrowpal_require_existing_mysql_filesystem | default(false) | bool
 
     - name: Mount the encrypted data volume persistently
       ansible.posix.mount:

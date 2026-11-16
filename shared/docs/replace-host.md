@@ -79,9 +79,13 @@ Prepare a replacement record containing:
 
 The MySQL volume, Elastic IP allocation, runtime secrets, repository images, and
 provider identities must survive. Do not format the retained data volume.
-`prepare-storage.yml` formats an empty device: verify the expected existing XFS
-filesystem and UUID before using it for recovery. A missing filesystem is a
-stop condition, not permission to initialize a new database.
+`prepare-storage.yml` requires recovery mode for a retained volume. Supply
+`morrowpal_require_existing_mysql_filesystem=true` together with
+`morrowpal_expected_mysql_filesystem_uuid` from the verified recovery record.
+Recovery mode requires existing XFS, never formats, and checks the UUID before
+mounting. A missing filesystem, mismatched UUID or invalid input stops the
+playbook. The default fresh-install mode may format an empty device; do not use
+it for a retained database.
 
 ## Required cutover and rollback design
 

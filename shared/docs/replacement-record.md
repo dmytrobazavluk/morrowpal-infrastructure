@@ -156,6 +156,44 @@ Snapshot freshness relative to a clean application stop, database consistency,
 KMS decrypt access and a usable restore must also be verified before relying on
 the backup. Snapshot metadata passing these checks does not prove those facts.
 
-Run the separate host checks as well. IP, releases, scheduler, quiescence and
+Run the separate host and IP checks as well. Releases, scheduler, quiescence and
 the remaining guarded cutover/rollback workflow still require implementation
 and rehearsal. These checks neither lock resources nor authorize a handoff.
+
+## Read-only AWS Elastic IP checks
+
+Select the host that should currently hold the retained public address. Run
+only the command matching the reviewed handoff stage:
+
+```bash
+bash shared/scripts/check-replacement-ip.sh staging /path/to/record.json original
+bash shared/scripts/check-replacement-ip.sh staging /path/to/record.json candidate
+```
+
+The checker validates a private record copy, rejects conflicting Region settings,
+and checks the caller account. It then checks:
+
+- The public-IP stack has the selected account/Region/name, a stable successful
+  status, the recorded allocation/address outputs, and the selected host's
+  instance ID parameter. That host's recorded EC2 stack must also have a stable
+  successful status and matching instance/AZ outputs.
+- The actual Elastic IP has that allocation/address, environment/application
+  and public-IP stack tags, and an association with the selected instance and
+  an interface owned by the selected account.
+- The associated interface belongs to the expected account, VPC, subnet, AZ and
+  security group. It must be attached to the selected instance at device index
+  zero, with matching allocation, association, public address and primary
+  private address metadata.
+
+The checker reads [Elastic IP](https://docs.aws.amazon.com/cli/latest/reference/ec2/describe-addresses.html)
+and [network interface](https://docs.aws.amazon.com/cli/latest/reference/ec2/describe-network-interfaces.html)
+metadata; it never moves or releases an address. The shared public-IP template
+always requires an association, so there is no `detached` success state. An
+unassociated address, partial handoff or conflicting CloudFormation/AWS state
+fails the check.
+
+This does not query DNS or connect to either host. Public DNS remains managed
+manually through IONOS and requires separate verification. Run the host and
+storage checks too; IP metadata does not prove host readiness, TLS, routing or
+the other cutover requirements. Recheck immediately before a guarded operation;
+successful output neither locks resources nor authorizes the move.

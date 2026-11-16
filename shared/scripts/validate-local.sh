@@ -147,6 +147,7 @@ main() {
     bash "$SCRIPT_DIR/test-morrowpal-replacement-record.sh"
     bash "$SCRIPT_DIR/test-replacement-hosts.sh"
     bash "$SCRIPT_DIR/test-replacement-storage.sh"
+    bash "$SCRIPT_DIR/test-replacement-ip.sh"
     "$SCRIPT_DIR/test-morrowpal-service.sh"
     "$SCRIPT_DIR/test-morrowpal-deploy-release.sh"
     "$SCRIPT_DIR/test-morrowpal-app-website-releases.sh"

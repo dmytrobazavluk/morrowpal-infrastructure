@@ -90,6 +90,10 @@ binds the data volume to the storage stack, verifies the explicitly selected
 attachment state, and checks recovery snapshot ownership/source/completion and
 encryption metadata. Backup freshness, restore usability and filesystem UUID
 still require separate verification.
+The [read-only IP check](replacement-record.md#read-only-aws-elastic-ip-checks)
+binds the retained allocation/address to the public-IP stack and explicitly
+selected host's primary interface. DNS and service readiness remain separate
+checks.
 
 The MySQL volume, Elastic IP allocation, runtime secrets, repository images, and
 provider identities must survive. Do not format the retained data volume.

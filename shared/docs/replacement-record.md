@@ -117,3 +117,45 @@ checks remain separate requirements. Host sizing and runtime parity also remain
 part of the broader alignment audit. Successful output is a point-in-time check,
 not a lock or permission to mutate; repeat the relevant checks immediately before
 each guarded operation.
+
+## Read-only AWS storage checks
+
+Select the expected attachment explicitly; run just the command matching the
+reviewed handoff stage:
+
+```bash
+bash shared/scripts/check-replacement-storage.sh staging /path/to/record.json original
+bash shared/scripts/check-replacement-storage.sh staging /path/to/record.json detached
+bash shared/scripts/check-replacement-storage.sh staging /path/to/record.json candidate
+```
+
+These commands only inspect metadata; they do not detach or attach the disk.
+The checker validates a private record copy, Region settings and caller account
+before reading the selected environment's MySQL storage stack, volume and
+snapshot. It requires:
+
+- A stable storage stack with the recorded volume/AZ and `/dev/sdf` output.
+  Its explicit `AttachVolume` and `InstanceId` parameters must agree with the
+  expected attachment. The shared storage template supplies these parameters.
+- The same encrypted gp3 data volume, AZ and environment/application/stack tags,
+  with multi-attach disabled. Attached states require exactly one completed
+  attachment to the selected recorded host at `/dev/sdf`, with deletion on
+  instance termination disabled. Detached state requires an available volume
+  and no attachments.
+- The recorded snapshot owned by the selected account, sourced from that exact
+  volume, complete and in the standard storage tier. It must be encrypted with
+  the same KMS key, have the same capacity, and carry the selected `Environment`
+  and `Application=morrowpal` tags. Apply these tags when creating the recovery
+  snapshot; the checker never adds them or creates a snapshot.
+
+The [AWS volume](https://docs.aws.amazon.com/cli/latest/reference/ec2/describe-volumes.html)
+and [snapshot](https://docs.aws.amazon.com/cli/latest/reference/ec2/describe-snapshots.html)
+metadata are read through the AWS CLI. No host connection or filesystem operation
+runs. UUID matching still belongs to retained-filesystem recovery on the host.
+Snapshot freshness relative to a clean application stop, database consistency,
+KMS decrypt access and a usable restore must also be verified before relying on
+the backup. Snapshot metadata passing these checks does not prove those facts.
+
+Run the separate host checks as well. IP, releases, scheduler, quiescence and
+the remaining guarded cutover/rollback workflow still require implementation
+and rehearsal. These checks neither lock resources nor authorize a handoff.

@@ -85,6 +85,11 @@ The [read-only host check](replacement-record.md#read-only-aws-host-checks)
 verifies both recorded hosts, their access-stack role, AMI and root disks against
 AWS. It covers only those identities; the complete cutover preflight remains
 pending.
+The [read-only storage check](replacement-record.md#read-only-aws-storage-checks)
+binds the data volume to the storage stack, verifies the explicitly selected
+attachment state, and checks recovery snapshot ownership/source/completion and
+encryption metadata. Backup freshness, restore usability and filesystem UUID
+still require separate verification.
 
 The MySQL volume, Elastic IP allocation, runtime secrets, repository images, and
 provider identities must survive. Do not format the retained data volume.

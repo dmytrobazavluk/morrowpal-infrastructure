@@ -126,6 +126,9 @@ rejects missing, ambiguous, unavailable, or mismatched images. The policy's
 release. Changing the release requires reviewing or removing that exception.
 There is no fallback to a latest-image alias. Routine updates retain the
 existing instance's AMI; this policy does not replace an existing host.
+For a replacement candidate, use the [host-replacement guide](./replace-host.md)
+and its CREATE-only `--candidate-suffix` operation rather than changing the
+active-stack setting to a nonexistent host.
 
 | Order | Stack kind | Expected additions and handoff |
 | --- | --- | --- |

@@ -9,9 +9,11 @@ used to recreate an existing environment's retained resources.
 
 ## Tooling constraints
 
-The infrastructure change-set wrapper resolves the environment's current EC2
-stack and preserves its AMI during routine updates. It has no reviewed AMI
-upgrade/replacement option. The deployment wrapper requires the stable Elastic
+The infrastructure change-set wrapper resolves the selected active EC2 stack
+and preserves its AMI during routine updates. Its `--candidate-suffix` option
+prepares CREATE-only change sets for a separate inactive EC2 stack using the
+shared image policy. It does not perform a host cutover or rollback.
+The deployment wrapper requires the stable Elastic
 IP to be associated with the selected instance and accepts no temporary-IP or
 inventory overrides. Its `initial` mode supplies all component tags but keeps
 those same target checks.
@@ -21,6 +23,40 @@ address, then move the Elastic IP" is not supported by the current wrappers.
 Do not bypass the guards with resource-ID parameters or ad hoc inventories.
 Before execution, choose and implement a guarded replacement strategy that
 accounts for this ordering and CloudFormation's handling of the old instance.
+
+## Prepare a candidate change set
+
+For staging, a reviewed suffix such as `os-align-01` derives the name
+`morrowpal-staging-ec2-os-align-01`. Preview its inputs first:
+
+```bash
+shared/scripts/morrowpal-infrastructure-change-set.sh staging ec2 candidate-os-align-01 \
+  --candidate-suffix os-align-01 --dry-run
+```
+
+After reviewing the preview, prepare the unexecuted change set:
+
+```bash
+shared/scripts/morrowpal-infrastructure-change-set.sh staging ec2 candidate-os-align-01 \
+  --candidate-suffix os-align-01
+```
+
+The wrapper validates the active instance and its environment bindings, then
+resolves the pinned image for the new host. Candidate names must be well formed,
+fit CloudFormation's length limit, differ from the active stack, and not already
+exist. Existing candidates require a new reviewed suffix; this option never
+updates them. Production requires the usual explicit production confirmation
+and approval gates.
+
+Preparing the change set does not launch the host. Executing a reviewed
+candidate change set creates the EC2 host and its root storage; it does not
+transfer the database or stable IP, update the active-stack setting, change
+the shutdown schedule, or deploy applications. Keep those actions gated until
+the cutover and rollback path below has been implemented and reviewed.
+CloudFormation can reserve the name with a REVIEW_IN_PROGRESS stack when the
+CREATE change set is prepared. Review/execute that existing change set rather
+than rerunning candidate creation with the same name. The wrapper will not
+delete or overwrite that reservation automatically.
 
 ## Inputs and preservation requirements
 

@@ -20,6 +20,9 @@ STACK_KIND:
 OPTIONS:
   --confirm-production  Required for prod.
   --dry-run             Resolve and validate bindings without creating a change set.
+  --candidate-suffix SUFFIX
+                        EC2 only: create a new, inactive candidate stack named
+                        morrowpal-ENVIRONMENT-ec2-SUFFIX. Existing stacks are rejected.
   --detach-mysql-volume Remove the MySQL volume attachment. Valid only for
                         mysql-storage; attachment is the default.
   --ssh-public-key-file PATH
@@ -490,7 +493,11 @@ print_resolution() {
         printf 'EC2 role: %s\n' "$role_name"
     fi
     if [[ -n "$instance_id" ]]; then
-        printf 'EC2 instance: %s\n' "$instance_id"
+        if [[ -n "$candidate_suffix" ]]; then
+            printf 'Active EC2 instance retained: %s (stack %s).\n' "$instance_id" "$MORROWPAL_EC2_STACK_NAME"
+        else
+            printf 'EC2 instance: %s\n' "$instance_id"
+        fi
     fi
     if [[ "$stack_kind" == ec2 ]]; then
         printf 'AMI: %s\n' "$instance_ami_id"
@@ -537,6 +544,7 @@ fi
 confirm_production=false
 dry_run=false
 detach_mysql_volume=false
+candidate_suffix=''
 ssh_public_key_file=''
 ssh_ingress_cidr=''
 while (($# > 0)); do
@@ -552,6 +560,14 @@ while (($# > 0)); do
         --detach-mysql-volume)
             detach_mysql_volume=true
             shift
+            ;;
+        --candidate-suffix)
+            (($# >= 2)) || fail '--candidate-suffix requires a suffix'
+            [[ -z "$candidate_suffix" ]] || fail '--candidate-suffix may be provided only once'
+            [[ "$2" =~ ^[A-Za-z0-9]+(-[A-Za-z0-9]+)*$ ]] \
+                || fail 'Candidate suffix must contain alphanumeric groups separated by single hyphens'
+            candidate_suffix="$2"
+            shift 2
             ;;
         --ssh-public-key-file)
             (($# >= 2)) || fail "--ssh-public-key-file requires a path"
@@ -576,6 +592,9 @@ if [[ "$selected_environment" == staging && "$confirm_production" == true ]]; th
 fi
 if [[ "$detach_mysql_volume" == true && "$stack_kind" != mysql-storage ]]; then
     fail "--detach-mysql-volume is valid only for mysql-storage"
+fi
+if [[ -n "$candidate_suffix" && "$stack_kind" != ec2 ]]; then
+    fail '--candidate-suffix is valid only for ec2'
 fi
 if [[ "$stack_kind" == prerequisites ]]; then
     [[ -n "$ssh_public_key_file" ]] \
@@ -619,13 +638,21 @@ require_command jq
 
 load_environment
 if [[ "$stack_kind" == ec2 ]]; then target_stack_name="$MORROWPAL_EC2_STACK_NAME"; fi
+if [[ -n "$candidate_suffix" ]]; then
+    target_stack_name="$MORROWPAL_STACK_PREFIX-ec2-$candidate_suffix"
+    [[ ${#target_stack_name} -le 128 ]] || fail 'Candidate stack name exceeds 128 characters'
+    [[ "$target_stack_name" != "$MORROWPAL_EC2_STACK_NAME" ]] || fail 'Candidate must differ from the active EC2 stack'
+fi
 readonly target_stack_name
 validate_inventory
 validate_account_and_region
 if [[ "$stack_kind" != budget ]]; then validate_platform_bindings; fi
 resolve_target_change_type
+if [[ -n "$candidate_suffix" && "$change_set_type" != CREATE ]]; then
+    fail 'Candidate stack already exists; choose a new suffix instead of updating it'
+fi
 if [[ "$stack_kind" == ec2 && "$change_set_type" == CREATE &&
-      "$MORROWPAL_EC2_STACK_NAME" != "$MORROWPAL_STACK_PREFIX-ec2" ]]; then
+      -z "$candidate_suffix" && "$MORROWPAL_EC2_STACK_NAME" != "$MORROWPAL_STACK_PREFIX-ec2" ]]; then
     fail 'Active candidate EC2 stack does not exist; create and review a candidate before selecting it'
 fi
 
@@ -634,7 +661,7 @@ case "$stack_kind" in
         ;;
     ec2)
         resolve_access_stack
-        if [[ "$change_set_type" == UPDATE ]]; then
+        if [[ "$change_set_type" == UPDATE || -n "$candidate_suffix" ]]; then
             resolve_and_validate_instance
         fi
         ;;

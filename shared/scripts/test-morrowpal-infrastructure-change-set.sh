@@ -162,6 +162,7 @@ install_mock_aws() {
         '    printf "{\"KeyPairs\":[{\"KeyName\":\"%s\"}]}\n" "$key_name"' \
         '    ;;' \
         '  cloudformation:describe-stacks)' \
+        '    if [[ "$joined" == *"--stack-name morrowpal-$environment-ec2-os-align-02"* && "${MORROWPAL_MOCK_MISMATCH:-}" != create-candidate-existing ]]; then printf "Stack does not exist\n" >&2; exit 255; fi' \
         '    if [[ "${MORROWPAL_MOCK_MISMATCH:-}" == stack-tags && "$joined" == *"--stack-name morrowpal-$environment-ecr"* ]]; then' \
         '      printf "%s\n" '\''{"Stacks":[{"Tags":[{"Key":"Owner","Value":"fixture"}]}]}'\''' \
         '      exit 0' \
@@ -531,6 +532,54 @@ main() {
         if run_wrapper staging "$mismatch" ec2 reject-active-stack >"$output_file" 2>&1; then fail "Accepted invalid active stack: $mismatch"; fi
         if grep -Fq 'cloudformation create-change-set' "$mock_log"; then fail 'Invalid active stack reached change-set creation'; fi
     done
+    candidate_config_digest="$(sha256sum "$script_directory/../../environments/"{prod,staging}/vars.yml)"
+    for environment in staging prod; do
+        confirmation=()
+        expected_ami=ami-11111111111111111
+        if [[ "$environment" == prod ]]; then confirmation=(--confirm-production); expected_ami=ami-22222222222222222; fi
+        : >"$mock_log"
+        run_wrapper "$environment" '' ec2 create-inactive-candidate --candidate-suffix os-align-02 "${confirmation[@]}" >"$output_file"
+        grep -Fq "cloudformation create-change-set --stack-name morrowpal-$environment-ec2-os-align-02" "$mock_log" || fail 'Candidate creation targeted the wrong stack'
+        grep -Fq -- '--change-set-type CREATE' "$mock_log" || fail 'Candidate was not CREATE-only'
+        grep -Fq "ParameterKey=AmiId,ParameterValue=$expected_ami" "$mock_log" || fail 'Candidate did not use pinned regional AMI'
+        grep -Fq -- "--stack-name morrowpal-$environment-ec2 " "$mock_log" || fail 'Candidate creation did not validate the active stack'
+        grep -Fq 'Active EC2 instance retained:' "$output_file" || fail 'Candidate plan did not identify the preserved active host'
+        if grep -Eq 'execute-change-set|stop-instances|start-instances|ParameterKey=InstanceId' "$mock_log"; then fail 'Candidate creation attempted a host handoff'; fi
+        : >"$mock_log"
+        run_wrapper "$environment" '' ec2 preview-candidate --candidate-suffix os-align-02 "${confirmation[@]}" --dry-run >"$output_file"
+        if grep -Fq 'cloudformation create-change-set' "$mock_log"; then fail 'Candidate dry run wrote a change set'; fi
+    done
+    : >"$mock_log"
+    run_wrapper staging candidate ec2 create-next-candidate --candidate-suffix os-align-02 >"$output_file"
+    for mismatch in create-candidate-existing candidate-wrong-stack candidate-wrong-tag candidate-unstable candidate-missing instance-environment instance-profile instance-subnet; do
+        : >"$mock_log"
+        if run_wrapper staging "$mismatch" ec2 reject-candidate --candidate-suffix os-align-02 >"$output_file" 2>&1; then fail "Candidate accepted $mismatch"; fi
+        if grep -Fq 'cloudformation create-change-set' "$mock_log"; then fail 'Invalid candidate reached change-set creation'; fi
+    done
+    : >"$mock_log"
+    if run_wrapper staging '' ec2 reject-existing-role-stack --candidate-suffix access >"$output_file" 2>&1; then fail 'Candidate overwrote an existing non-EC2 stack'; fi
+    if grep -Fq 'cloudformation create-change-set' "$mock_log"; then fail 'Existing candidate name reached a write'; fi
+    for suffix in '' '-leading' 'trailing-' 'double--hyphen' 'bad_name' 'bad/name'; do
+        : >"$mock_log"
+        if run_wrapper staging '' ec2 invalid-suffix --candidate-suffix "$suffix" >"$output_file" 2>&1; then fail 'Invalid candidate suffix accepted'; fi
+        [[ ! -s "$mock_log" ]] || fail 'Malformed suffix contacted AWS'
+    done
+    printf -v long_suffix '%0128d' 0
+    : >"$mock_log"
+    if run_wrapper staging '' ec2 long-suffix --candidate-suffix "$long_suffix" >"$output_file" 2>&1; then fail 'Overlong candidate name accepted'; fi
+    [[ ! -s "$mock_log" ]] || fail 'Overlong candidate name contacted AWS'
+    for arguments in 'ec2 no-suffix --candidate-suffix' 'ec2 duplicate --candidate-suffix first --candidate-suffix second' 'ecr wrong-kind --candidate-suffix test'; do
+        read -r -a candidate_arguments <<<"$arguments"
+        : >"$mock_log"
+        if run_wrapper staging '' "${candidate_arguments[@]}" >"$output_file" 2>&1; then fail 'Invalid candidate arguments accepted'; fi
+        [[ ! -s "$mock_log" ]] || fail 'Invalid candidate arguments contacted AWS'
+    done
+    : >"$mock_log"
+    if run_wrapper staging candidate ec2 reject-active-candidate --candidate-suffix os-align-01 >"$output_file" 2>&1; then fail 'Candidate targeted the active stack'; fi
+    [[ ! -s "$mock_log" ]] || fail 'Active-stack collision contacted AWS'
+    if run_wrapper prod '' ec2 unconfirmed-candidate --candidate-suffix os-align-02 >"$output_file" 2>&1; then fail 'Production candidate lacked confirmation'; fi
+    [[ ! -s "$mock_log" ]] || fail 'Unconfirmed production candidate contacted AWS'
+    [[ "$candidate_config_digest" == "$(sha256sum "$script_directory/../../environments/"{prod,staging}/vars.yml)" ]] || fail 'Candidate creation changed active configuration'
     : >"$mock_log"
     run_wrapper staging '' auto-stop nightly-stop >"$output_file"
     grep -Fq -- '--stack-name morrowpal-staging-auto-stop' "$mock_log" || fail 'Auto-stop targeted the wrong stack'

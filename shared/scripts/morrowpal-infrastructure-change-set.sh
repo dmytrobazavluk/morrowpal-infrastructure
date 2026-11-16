@@ -34,8 +34,9 @@ auto-stop is staging-only and stops its validated instance nightly at 1 AM
 America/Chicago.
 
 The wrapper never executes a change set and accepts no resource-ID overrides.
-EC2 creation selects the regional Amazon Linux 2023 image. Updates preserve
-the existing instance AMI; image upgrades require a reviewed host replacement.
+EC2 creation uses the shared/ec2-image.json policy to select a regional image.
+Updates preserve the existing instance AMI; image upgrades require a reviewed
+host replacement.
 EOF
 }
 
@@ -336,6 +337,42 @@ resolve_target_change_type() {
     fi
 }
 
+resolve_creation_ami() {
+    local policy_file="$infrastructure_directory/shared/ec2-image.json"
+    local policy image_name image_owner image_architecture images
+
+    [[ -f "$policy_file" ]] || fail 'Shared EC2 image policy is missing'
+    policy="$(jq --compact-output --exit-status '
+        select(type == "object"
+          and (.name | type == "string" and test("^[A-Za-z0-9._-]+$"))
+          and (.ownerId | type == "string" and test("^[0-9]{12}$"))
+          and .architecture == "x86_64"
+          and ((.deprecatedImageExceptionName // "") | type == "string")
+          and ((.deprecatedImageExceptionName // "") == ""
+               or .deprecatedImageExceptionName == .name))
+    ' "$policy_file")" || fail 'Shared EC2 image policy is invalid'
+    image_name="$(jq --raw-output .name <<<"$policy")"
+    image_owner="$(jq --raw-output .ownerId <<<"$policy")"
+    image_architecture="$(jq --raw-output .architecture <<<"$policy")"
+    images="$(aws ec2 describe-images --owners "$image_owner" \
+        --filters "Name=name,Values=$image_name" "Name=architecture,Values=$image_architecture" \
+        --include-deprecated --region "$MORROWPAL_AWS_REGION" --output json)" \
+        || fail 'Could not resolve the reviewed regional EC2 image'
+    instance_ami_id="$(jq --exit-status --raw-output --argjson policy "$policy" '
+        select((.Images | length) == 1) | .Images[0]
+        | select(.Name == $policy.name and .OwnerId == $policy.ownerId
+            and .Architecture == $policy.architecture and .State == "available"
+            and .RootDeviceType == "ebs" and .VirtualizationType == "hvm"
+            and .ImageAllowed != false)
+        | select(.DeprecationTime == null
+            or (.DeprecationTime | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601) > now
+            or $policy.deprecatedImageExceptionName == $policy.name)
+        | .ImageId | select(test("^ami-([0-9a-f]{8}|[0-9a-f]{17})$"))
+    ' <<<"$images")" \
+        || fail 'Regional image does not uniquely satisfy the reviewed EC2 image policy'
+    printf 'EC2 image policy: %s (%s, %s).\n' "$image_name" "$image_owner" "$image_architecture"
+}
+
 build_parameters() {
     parameters=("ParameterKey=Environment,ParameterValue=$selected_environment")
     capabilities=()
@@ -373,10 +410,7 @@ build_parameters() {
             ;;
         ec2)
             if [[ "$change_set_type" == CREATE ]]; then
-                instance_ami_id="$(aws ssm get-parameter \
-                    --name /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64 \
-                    --query Parameter.Value --output text --region "$MORROWPAL_AWS_REGION")" \
-                    || fail 'Could not resolve the regional Amazon Linux image'
+                resolve_creation_ami
             fi
             [[ "$instance_ami_id" =~ ^ami-([0-9a-f]{8}|[0-9a-f]{17})$ ]] \
                 || fail 'Could not resolve a valid AMI ID for the EC2 change set'

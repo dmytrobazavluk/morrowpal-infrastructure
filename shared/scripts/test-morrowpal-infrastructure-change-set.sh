@@ -193,8 +193,28 @@ install_mock_aws() {
         '    printf "{\"Reservations\":[{\"Instances\":[{\"InstanceId\":\"%s\",\"SubnetId\":\"%s\",\"Placement\":{\"AvailabilityZone\":\"%s\"},\"IamInstanceProfile\":{\"Arn\":\"%s\"},\"SecurityGroups\":[{\"GroupId\":\"%s\"}],\"State\":{\"Name\":\"running\"},\"Tags\":[{\"Key\":\"Application\",\"Value\":\"morrowpal\"},{\"Key\":\"Environment\",\"Value\":\"%s\"},{\"Key\":\"Name\",\"Value\":\"morrowpal-%s-01\"},{\"Key\":\"aws:cloudformation:stack-name\",\"Value\":\"morrowpal-%s-ec2\"}]}]}]}\n" "$instance_id" "$instance_subnet_id" "$availability_zone" "$instance_profile_arn" "$instance_security_group_id" "$instance_environment" "$resource_environment" "$resource_environment"' \
         '    } | jq --arg image "$image_id" ".Reservations[0].Instances[0].ImageId = \$image"' \
         '    ;;' \
-        '  ssm:get-parameter)' \
-        '    if [[ "${MORROWPAL_MOCK_MISMATCH:-}" == new-ec2-ami ]]; then printf "invalid-image\n"; else printf "ami-11111111111111111\n"; fi' \
+        '  ec2:describe-images)' \
+        '    image_id=ami-11111111111111111; [[ "$environment" != prod ]] || image_id=ami-22222222222222222' \
+        '    image_name=al2023-ami-2023.12.20260803.3-kernel-6.1-x86_64; owner=137112412989; architecture=x86_64' \
+        '    state=available; root=ebs; virtualization=hvm; allowed=true; deprecated=2000-01-01T00:00:00.000Z' \
+        '    mismatch="${MORROWPAL_MOCK_MISMATCH:-}"' \
+        '    case "$mismatch" in' \
+        '      new-ec2-ami) image_id=invalid-image ;;' \
+        '      new-ec2-name) image_name=unreviewed-image ;;' \
+        '      new-ec2-owner) owner=000000000000 ;;' \
+        '      new-ec2-architecture) architecture=arm64 ;;' \
+        '      new-ec2-disabled) state=disabled ;;' \
+        '      new-ec2-root) root=instance-store ;;' \
+        '      new-ec2-virtualization) virtualization=paravirtual ;;' \
+        '      new-ec2-blocked) allowed=false ;;' \
+        '      new-ec2-no-deprecation) deprecated="" ;;' \
+        '      new-ec2-future-deprecation) deprecated=2999-01-01T00:00:00.000Z ;;' \
+        '      new-ec2-query-error) exit 254 ;;' \
+        '    esac' \
+        '    jq -n --arg id "$image_id" --arg name "$image_name" --arg owner "$owner" --arg arch "$architecture" \' \
+        '      --arg state "$state" --arg root "$root" --arg virtualization "$virtualization" --arg deprecated "$deprecated" \' \
+        '      --argjson allowed "$allowed" --arg mismatch "$mismatch" \' \
+        '      "{Images:[{ImageId:\$id,Name:\$name,OwnerId:\$owner,Architecture:\$arch,State:\$state,RootDeviceType:\$root,VirtualizationType:\$virtualization,ImageAllowed:\$allowed,DeprecationTime:(if \$deprecated == \"\" then null else \$deprecated end)}]} | if \$mismatch == \"new-ec2-missing\" then .Images=[] elif \$mismatch == \"new-ec2-ambiguous\" then .Images += .Images else . end"' \
         '    ;;' \
         '  cloudformation:create-change-set)' \
         '    printf "{\"Id\":\"mock-change-set\"}\n"' \
@@ -214,7 +234,7 @@ run_wrapper() {
     MORROWPAL_MOCK_LOG="$mock_log" \
     MORROWPAL_MOCK_ENVIRONMENT="$environment" \
     MORROWPAL_MOCK_MISMATCH="$mismatch" \
-        "$wrapper" "$environment" "$@"
+        "${policy_wrapper:-$wrapper}" "$environment" "$@"
 }
 
 main() {
@@ -434,20 +454,58 @@ main() {
         run_wrapper "$environment" '' ec2 preserve-current-ami "${confirmation[@]}" >"$output_file"
         grep -Fq 'ParameterKey=AmiId,ParameterValue=ami-0123456789abcdef0' "$mock_log" \
             || fail 'EC2 update did not preserve the current AMI'
-        if grep -Fq 'ssm get-parameter' "$mock_log"; then fail 'Routine update resolved a floating AMI'; fi
+        if grep -Eq 'ssm get-parameter|ec2 describe-images' "$mock_log"; then fail 'Routine update resolved a new AMI'; fi
     done
-    : >"$mock_log"
-    run_wrapper staging new-ec2 ec2 create-host >"$output_file"
-    grep -Fq 'ParameterKey=AmiId,ParameterValue=ami-11111111111111111' "$mock_log" \
-        || fail 'New EC2 stack did not select the regional Amazon Linux image'
-    grep -Fq -- '--region us-east-1' "$mock_log" || fail 'AMI lookup omitted the staging Region'
-    for mismatch in ami new-ec2-ami; do
+    for environment in staging prod; do
+        : >"$mock_log"
+        confirmation=()
+        expected_region=us-east-1; expected_ami=ami-11111111111111111
+        if [[ "$environment" == prod ]]; then
+            confirmation=(--confirm-production)
+            expected_region=us-east-2; expected_ami=ami-22222222222222222
+        fi
+        run_wrapper "$environment" new-ec2 ec2 create-host "${confirmation[@]}" >"$output_file"
+        grep -Fq "ParameterKey=AmiId,ParameterValue=$expected_ami" "$mock_log" || fail 'New host used the wrong regional image'
+        grep -Fq -- "--region $expected_region" "$mock_log" || fail 'Image lookup omitted the selected Region'
+        grep -Fq -- '--owners 137112412989' "$mock_log" || fail 'Image lookup omitted its trusted owner'
+        grep -Fq 'Name=name,Values=al2023-ami-2023.12.20260803.3-kernel-6.1-x86_64' "$mock_log" || fail 'Image lookup did not pin the exact release'
+        grep -Fq -- '--include-deprecated' "$mock_log" || fail 'Reviewed deprecated image was hidden from lookup'
+        if grep -Fq 'ssm get-parameter' "$mock_log"; then fail 'Creation used a floating image alias'; fi
+    done
+    for mismatch in ami new-ec2-ami new-ec2-name new-ec2-owner new-ec2-architecture new-ec2-disabled new-ec2-root new-ec2-virtualization new-ec2-blocked new-ec2-missing new-ec2-ambiguous new-ec2-query-error; do
         : >"$mock_log"
         if run_wrapper staging "$mismatch" ec2 reject-invalid-ami >"$output_file" 2>&1; then
-            fail 'Invalid AMI was accepted'
+            fail "Invalid AMI was accepted: $mismatch"
         fi
         if grep -Fq 'cloudformation create-change-set' "$mock_log"; then fail 'Invalid AMI reached change-set creation'; fi
     done
+    # Mutate only an isolated policy fixture; never edit the reviewed source policy.
+    policy_fixture="$test_directory/policy-fixture"
+    mkdir -p "$policy_fixture/shared/scripts" "$policy_fixture/shared/cloudformation" \
+        "$policy_fixture/shared/runtime" "$policy_fixture/environments/"{prod,staging}
+    cp "$wrapper" "$script_directory/morrowpal-runtime-config.sh" "$policy_fixture/shared/scripts/"
+    cp "$script_directory/../cloudformation/ec2.yml" "$policy_fixture/shared/cloudformation/"
+    cp "$script_directory/../runtime/cloudformation.env.j2" "$policy_fixture/shared/runtime/"
+    touch "$policy_fixture/environments/"{prod,staging}/{vars.yml,inventory.ini}
+    policy_wrapper="$policy_fixture/shared/scripts/morrowpal-infrastructure-change-set.sh"
+    for expression in '.name="wildcard-*"' '.ownerId="bad-owner"' '.architecture="arm64"' '.deprecatedImageExceptionName="other-release"' 'del(.name)'; do
+        jq "$expression" "$script_directory/../ec2-image.json" >"$policy_fixture/shared/ec2-image.json"
+        : >"$mock_log"
+        if run_wrapper staging new-ec2 ec2 invalid-image-policy >"$output_file" 2>&1; then fail 'Invalid image policy accepted'; fi
+        if grep -Fq 'cloudformation create-change-set' "$mock_log"; then fail 'Invalid policy reached change-set creation'; fi
+    done
+    : >"$mock_log"
+    run_wrapper prod '' ec2 preserve-with-invalid-creation-policy --confirm-production >"$output_file"
+    if grep -Fq 'ec2 describe-images' "$mock_log"; then fail 'Existing host update consulted creation policy'; fi
+    grep -Fq 'ParameterKey=AmiId,ParameterValue=ami-0123456789abcdef0' "$mock_log" || fail 'Existing AMI changed with invalid creation policy'
+    jq 'del(.deprecatedImageExceptionName)' "$script_directory/../ec2-image.json" >"$policy_fixture/shared/ec2-image.json"
+    : >"$mock_log"
+    if run_wrapper staging new-ec2 ec2 reject-unapproved-deprecation >"$output_file" 2>&1; then fail 'Deprecated image accepted without exact exception'; fi
+    if grep -Fq 'cloudformation create-change-set' "$mock_log"; then fail 'Unapproved deprecated image reached change-set creation'; fi
+    for mismatch in new-ec2-no-deprecation new-ec2-future-deprecation; do
+        run_wrapper staging "$mismatch" ec2 available-image >"$output_file"
+    done
+    unset policy_wrapper
     : >"$mock_log"
     run_wrapper staging '' auto-stop nightly-stop >"$output_file"
     grep -Fq -- '--stack-name morrowpal-staging-auto-stop' "$mock_log" || fail 'Auto-stop targeted the wrong stack'

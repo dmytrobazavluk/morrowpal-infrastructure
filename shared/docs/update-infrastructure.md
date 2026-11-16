@@ -21,8 +21,9 @@ Apply and validate changes in staging first.
 Select `ENVIRONMENT=prod` only after that production gate is satisfied.
 
 EC2 CloudFormation change sets use an explicit `AmiId`. The guarded
-`morrowpal-infrastructure-change-set.sh` wrapper selects the regional Amazon
-Linux 2023 image when creating a host stack and preserves the validated
+`morrowpal-infrastructure-change-set.sh` wrapper resolves the Region-local AMI
+using the exact image name, owner, and architecture in `shared/ec2-image.json`
+when creating a host stack. It preserves the validated
 instance's current AMI when updating it. Review any proposed instance
 replacement separately; an AMI upgrade belongs to the host-replacement
 procedure rather than a routine configuration update.

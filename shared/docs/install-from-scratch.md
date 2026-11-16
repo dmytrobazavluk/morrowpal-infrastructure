@@ -119,6 +119,14 @@ aws cloudformation describe-stacks \
 Do not run the recipe as an unattended loop. Complete each output handoff before
 creating the next stack.
 
+New EC2 hosts use the exact Amazon Linux release, trusted owner, and architecture
+in `shared/ec2-image.json`; the wrapper resolves its Region-local AMI ID and
+rejects missing, ambiguous, unavailable, or mismatched images. The policy's
+`deprecatedImageExceptionName` permits only that explicitly reviewed deprecated
+release. Changing the release requires reviewing or removing that exception.
+There is no fallback to a latest-image alias. Routine updates retain the
+existing instance's AMI; this policy does not replace an existing host.
+
 | Order | Stack kind | Expected additions and handoff |
 | --- | --- | --- |
 | 1 | `prerequisites` | Dedicated security group and imported recovery public key. Copy `SecurityGroupId` and `KeyPairName` into the selected overlay. Check the imported key fingerprint. |

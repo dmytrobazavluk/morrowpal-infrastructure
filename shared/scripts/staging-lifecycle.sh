@@ -33,6 +33,9 @@ source "$work_directory/identity.env"
     && "$MORROWPAL_EC2_KEY_NAME" == morrowpal-staging-01 \
     && "${MORROWPAL_SSH_PRIVATE_KEY_FILE##*/}" == morrowpal-staging-01.pem ]] \
     || fail 'Configuration is not the staging environment'
+[[ "${MORROWPAL_EC2_STACK_NAME:-}" =~ ^morrowpal-staging-ec2(-[A-Za-z0-9]+(-[A-Za-z0-9]+)*)?$ &&
+   ${#MORROWPAL_EC2_STACK_NAME} -le 128 ]] \
+    || fail 'Active EC2 stack name does not match staging'
 for variable in AWS_REGION AWS_DEFAULT_REGION; do
     [[ -z "${!variable:-}" || "${!variable}" == "$MORROWPAL_AWS_REGION" ]] \
         || fail "$variable does not match the staging Region"
@@ -61,11 +64,13 @@ output() {
     jq -er --arg key "$2" '.Stacks[0].Outputs[] | select(.OutputKey == $key) | .OutputValue | select(length > 0)' "$work_directory/$1.json"
 }
 validate_target() {
-    local kind profile role allocation
+    local kind profile role allocation stack_name
     for kind in ec2 ec2-access public-ip; do
-        aws cloudformation describe-stacks --stack-name "$MORROWPAL_STACK_PREFIX-$kind" \
+        stack_name="$MORROWPAL_STACK_PREFIX-$kind"
+        if [[ "$kind" == ec2 ]]; then stack_name="$MORROWPAL_EC2_STACK_NAME"; fi
+        aws cloudformation describe-stacks --stack-name "$stack_name" \
             --region "$aws_region" --output json >"$work_directory/$kind.json"
-        jq -e --arg prefix "arn:aws:cloudformation:$aws_region:$MORROWPAL_AWS_ACCOUNT_ID:stack/$MORROWPAL_STACK_PREFIX-$kind/" '
+        jq -e --arg prefix "arn:aws:cloudformation:$aws_region:$MORROWPAL_AWS_ACCOUNT_ID:stack/$stack_name/" '
             (.Stacks | length) == 1 and (.Stacks[0].StackId | startswith($prefix))
             and (.Stacks[0].StackStatus | IN("CREATE_COMPLETE","UPDATE_COMPLETE","UPDATE_ROLLBACK_COMPLETE"))
         ' "$work_directory/$kind.json" >/dev/null || fail 'Stack identity or state does not match staging'
@@ -88,7 +93,7 @@ validate_target() {
     jq -e --arg id "$instance_id" --arg account "$MORROWPAL_AWS_ACCOUNT_ID" \
         --arg vpc "$MORROWPAL_VPC_ID" --arg subnet "$MORROWPAL_SUBNET_ID" --arg group "$MORROWPAL_SECURITY_GROUP_ID" \
         --arg zone "$MORROWPAL_AVAILABILITY_ZONE" --arg key "$MORROWPAL_EC2_KEY_NAME" \
-        --arg name "$MORROWPAL_INSTANCE_NAME" --arg profile "$profile" '
+        --arg name "$MORROWPAL_INSTANCE_NAME" --arg profile "$profile" --arg stack "$MORROWPAL_EC2_STACK_NAME" '
         (.Reservations | length) == 1 and .Reservations[0].OwnerId == $account
         and (.Reservations[0].Instances | length) == 1
         and (.Reservations[0].Instances[0] | .InstanceId == $id and .VpcId == $vpc
@@ -98,7 +103,7 @@ validate_target() {
             and any(.Tags[]; .Key == "Environment" and .Value == "staging")
             and any(.Tags[]; .Key == "Application" and .Value == "morrowpal")
             and any(.Tags[]; .Key == "Name" and .Value == $name)
-            and any(.Tags[]; .Key == "aws:cloudformation:stack-name" and .Value == "morrowpal-staging-ec2")
+            and any(.Tags[]; .Key == "aws:cloudformation:stack-name" and .Value == $stack)
             and (.State.Name | IN("running","stopped","pending","stopping")))
     ' "$work_directory/instance.json" >/dev/null || fail 'Instance does not match staging'
     aws ec2 describe-addresses --allocation-ids "$allocation" --region "$aws_region" \

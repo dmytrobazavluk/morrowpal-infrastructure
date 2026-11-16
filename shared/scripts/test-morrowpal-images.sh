@@ -66,6 +66,9 @@ esac
 account=384078510608
 profile="arn:aws:iam::$account:instance-profile/morrowpal-$environment-profile"
 role="arn:aws:iam::$account:role/morrowpal-$environment-role"
+ec2_stack="morrowpal-$environment-ec2"
+instance_id=i-test
+if [[ "${MORROWPAL_TEST_CANDIDATE:-false}" == true ]]; then ec2_stack="$ec2_stack-os-align-01"; instance_id=i-candidate; fi
 case "${MORROWPAL_TEST_BINDING_FAILURE:-}" in
     key) key=wrong-key ;;
     group) group=wrong-group ;;
@@ -82,11 +85,12 @@ case "$service $operation" in
         case "$stack" in
             *-ec2-access) outputs="$(jq -n --arg profile "$profile" --arg role "$role" '[{OutputKey:"InstanceProfileArn",OutputValue:$profile},{OutputKey:"RoleArn",OutputValue:$role}]')" ;;
             *-public-ip) outputs="$(jq -n --arg ip "$ip" '[{OutputKey:"PublicIp",OutputValue:$ip},{OutputKey:"AllocationId",OutputValue:"eipalloc-test"}]')" ;;
-            *-ec2) outputs="$(jq -n --arg zone "$zone" '[{OutputKey:"InstanceId",OutputValue:"i-test"},{OutputKey:"AvailabilityZone",OutputValue:$zone}]')" ;;
+            "$ec2_stack") outputs="$(jq -n --arg id "$instance_id" --arg zone "$zone" '[{OutputKey:"InstanceId",OutputValue:$id},{OutputKey:"AvailabilityZone",OutputValue:$zone}]')" ;;
             *) exit 93 ;;
         esac
         status=CREATE_COMPLETE
         if [[ "${MORROWPAL_TEST_BINDING_FAILURE:-}" == stack ]]; then status=UPDATE_IN_PROGRESS; fi
+        if [[ "${MORROWPAL_TEST_BINDING_FAILURE:-}" == ec2-stack && "$stack" == "$ec2_stack" ]]; then stack="morrowpal-$environment-ec2-wrong"; fi
         jq -n --arg id "arn:aws:cloudformation:$region:$account:stack/$stack/test" --arg status "$status" \
             --argjson outputs "$outputs" '{Stacks:[{StackId:$id,StackStatus:$status,Outputs:$outputs}]}' ;;
     'iam get-instance-profile')
@@ -96,17 +100,19 @@ case "$service $operation" in
         tag_environment="$environment"; state=running
         if [[ "${MORROWPAL_TEST_BINDING_FAILURE:-}" == environment ]]; then tag_environment=other; fi
         if [[ "${MORROWPAL_TEST_BINDING_FAILURE:-}" == stopped ]]; then state=stopped; fi
-        jq -n --arg account "$account" --arg ip "$ip" --arg zone "$zone" --arg vpc "$vpc" \
+        if [[ "${MORROWPAL_TEST_BINDING_FAILURE:-}" == instance-stack ]]; then ec2_stack="morrowpal-$environment-ec2-wrong"; fi
+        jq -n --arg id "$instance_id" --arg stack "$ec2_stack" --arg account "$account" --arg ip "$ip" --arg zone "$zone" --arg vpc "$vpc" \
             --arg subnet "$subnet" --arg group "$group" --arg key "$key" --arg profile "$profile" \
             --arg environment "$tag_environment" --arg selected "$environment" --arg state "$state" '
-            {Reservations:[{OwnerId:$account,Instances:[{InstanceId:"i-test",State:{Name:$state},
+            {Reservations:[{OwnerId:$account,Instances:[{InstanceId:$id,State:{Name:$state},
                 PublicIpAddress:$ip,VpcId:$vpc,SubnetId:$subnet,SecurityGroups:[{GroupId:$group}],
                 Placement:{AvailabilityZone:$zone},KeyName:$key,IamInstanceProfile:{Arn:$profile},
                 Tags:[{Key:"Application",Value:"morrowpal"},{Key:"Environment",Value:$environment},
                     {Key:"Name",Value:("morrowpal-"+$selected+"-01")},
-                    {Key:"aws:cloudformation:stack-name",Value:("morrowpal-"+$selected+"-ec2")}]}]}]}' ;;
+                    {Key:"aws:cloudformation:stack-name",Value:$stack}]}]}]}' ;;
     'ec2 describe-addresses')
-        instance=i-test
+        instance="$instance_id"
+        if [[ "${MORROWPAL_TEST_BINDING_FAILURE:-}" == old-ip ]]; then instance=i-test; fi
         if [[ "${MORROWPAL_TEST_BINDING_FAILURE:-}" == association ]]; then instance=i-other; fi
         jq -n --arg ip "$ip" --arg instance "$instance" '{Addresses:[{AllocationId:"eipalloc-test",PublicIp:$ip,InstanceId:$instance}]}' ;;
     'ecr describe-repositories') printf '%s\n' "${MORROWPAL_TEST_MUTABILITY:-IMMUTABLE}" ;;
@@ -364,6 +370,38 @@ for component in backend app website; do
     grep -Fq 'morrowpal/staging/' "$MORROWPAL_TEST_LOG"
     grep -Fq 'morrowpal/prod/' "$MORROWPAL_TEST_LOG"
     if grep -Eq 'docker:build|gradle:|flutter:|dart:' "$MORROWPAL_TEST_LOG"; then fail 'Push rebuilt an image'; fi
+done
+: >"$MORROWPAL_TEST_LOG"
+tag="$app_tag"
+for environment in staging prod; do
+    vars="$fixture/environments/$environment/vars.yml"
+    sed "s/^morrowpal_ec2_stack_name:.*/morrowpal_ec2_stack_name: morrowpal-$environment-ec2-os-align-01/" \
+        "$repository_directory/environments/$environment/vars.yml" >"$vars"
+    confirmation=()
+    [[ "$environment" != prod ]] || confirmation=(--confirm-production)
+    : >"$MORROWPAL_TEST_LOG"
+    MORROWPAL_TEST_CANDIDATE=true "$deploy" "$environment" app "$tag" "${confirmation[@]}" --dry-run >"$test_directory/push.log" 2>&1 \
+        || { cat "$test_directory/push.log" >&2; exit 1; }
+    grep -Fq -- "--stack-name morrowpal-$environment-ec2-os-align-01" "$MORROWPAL_TEST_LOG" || fail 'Deployment did not resolve active candidate stack'
+    grep -Fq -- '--instance-ids i-candidate' "$MORROWPAL_TEST_LOG" || fail 'Deployment did not resolve candidate instance'
+    for binding in ec2-stack instance-stack old-ip; do
+        : >"$MORROWPAL_TEST_LOG"
+        if MORROWPAL_TEST_CANDIDATE=true MORROWPAL_TEST_BINDING_FAILURE="$binding" \
+            "$deploy" "$environment" app "$tag" "${confirmation[@]}" >"$test_directory/rejected.log" 2>&1; then fail "Candidate accepted $binding"; fi
+        if grep -Eq 'deploy:|get-login-password|docker:.*push ' "$MORROWPAL_TEST_LOG"; then fail 'Candidate mismatch reached a write'; fi
+    done
+    : >"$MORROWPAL_TEST_LOG"
+    MORROWPAL_TEST_CANDIDATE=true "$deploy" "$environment" app "$tag" "${confirmation[@]}" >"$test_directory/push.log" 2>&1 \
+        || { cat "$test_directory/push.log" >&2; exit 1; }
+    grep -Fq 'deploy:' "$MORROWPAL_TEST_LOG" || fail 'Validated candidate was not deployed'
+    for invalid_stack in "morrowpal-other-ec2" "morrowpal-$environment-ecr" ''; do
+        sed "s/^morrowpal_ec2_stack_name:.*/morrowpal_ec2_stack_name: $invalid_stack/" \
+            "$repository_directory/environments/$environment/vars.yml" >"$vars"
+        : >"$MORROWPAL_TEST_LOG"
+        if "$deploy" "$environment" app "$tag" "${confirmation[@]}" >"$test_directory/rejected.log" 2>&1; then fail 'Invalid deployment stack name accepted'; fi
+        if grep -Eq '^aws:|^deploy:' "$MORROWPAL_TEST_LOG"; then fail 'Invalid stack name reached AWS or host'; fi
+    done
+    cp "$repository_directory/environments/$environment/vars.yml" "$vars"
 done
 : >"$MORROWPAL_TEST_LOG"
 if MORROWPAL_TEST_HIGH=1 "$deploy" staging app "$tag" >"$test_directory/rejected.log" 2>&1; then fail 'High findings accepted'; fi

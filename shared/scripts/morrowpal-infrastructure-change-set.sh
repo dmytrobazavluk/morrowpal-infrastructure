@@ -97,6 +97,12 @@ stack_output() {
         --output json \
         --region "$MORROWPAL_AWS_REGION")" \
         || fail "Could not read required stack: $1"
+    if [[ "$1" == "$MORROWPAL_EC2_STACK_NAME" ]]; then
+        jq --exit-status --arg prefix "arn:aws:cloudformation:$MORROWPAL_AWS_REGION:$MORROWPAL_AWS_ACCOUNT_ID:stack/$MORROWPAL_EC2_STACK_NAME/" '
+            (.Stacks | length) == 1 and (.Stacks[0].StackId | startswith($prefix))
+            and (.Stacks[0].StackStatus | IN("CREATE_COMPLETE", "UPDATE_COMPLETE", "UPDATE_ROLLBACK_COMPLETE"))
+        ' <<<"$stack_json" >/dev/null || fail 'Active EC2 stack identity or state does not match the selected environment'
+    fi
     jq --exit-status --raw-output --arg output_key "$output_key" '
         .Stacks[0].Outputs[]
         | select(.OutputKey == $output_key)
@@ -134,6 +140,7 @@ load_environment() {
         MORROWPAL_AWS_REGION \
         MORROWPAL_AVAILABILITY_ZONE \
         MORROWPAL_STACK_PREFIX \
+        MORROWPAL_EC2_STACK_NAME \
         MORROWPAL_VPC_ID \
         MORROWPAL_SUBNET_ID \
         MORROWPAL_SECURITY_GROUP_ID \
@@ -152,6 +159,9 @@ load_environment() {
         || fail "Overlay environment does not match $selected_environment"
     [[ "$MORROWPAL_STACK_PREFIX" == "morrowpal-$selected_environment" ]] \
         || fail "Stack prefix does not match $selected_environment"
+    [[ "$MORROWPAL_EC2_STACK_NAME" =~ ^morrowpal-${selected_environment}-ec2(-[A-Za-z0-9]+(-[A-Za-z0-9]+)*)?$ &&
+       ${#MORROWPAL_EC2_STACK_NAME} -le 128 ]] \
+        || fail 'Active EC2 stack name does not match the selected environment'
 }
 
 validate_inventory() {
@@ -283,8 +293,8 @@ resolve_access_stack() {
 resolve_and_validate_instance() {
     local instance_json
 
-    instance_id="$(stack_output "$MORROWPAL_STACK_PREFIX-ec2" InstanceId)"
-    instance_availability_zone="$(stack_output "$MORROWPAL_STACK_PREFIX-ec2" AvailabilityZone)"
+    instance_id="$(stack_output "$MORROWPAL_EC2_STACK_NAME" InstanceId)"
+    instance_availability_zone="$(stack_output "$MORROWPAL_EC2_STACK_NAME" AvailabilityZone)"
     instance_json="$(aws ec2 describe-instances \
         --instance-ids "$instance_id" \
         --output json \
@@ -294,7 +304,7 @@ resolve_and_validate_instance() {
     jq --exit-status \
         --arg environment "$selected_environment" \
         --arg instance_name "$MORROWPAL_INSTANCE_NAME" \
-        --arg stack_name "$MORROWPAL_STACK_PREFIX-ec2" \
+        --arg stack_name "$MORROWPAL_EC2_STACK_NAME" \
         --arg subnet_id "$MORROWPAL_SUBNET_ID" \
         --arg security_group_id "$MORROWPAL_SECURITY_GROUP_ID" \
         --arg availability_zone "$instance_availability_zone" \
@@ -579,10 +589,9 @@ elif [[ -n "$ssh_public_key_file" || -n "$ssh_ingress_cidr" ]]; then
 fi
 
 readonly inventory_file="$infrastructure_directory/environments/$selected_environment/inventory.ini"
-readonly target_stack_name="morrowpal-$selected_environment-$stack_kind"
+target_stack_name="morrowpal-$selected_environment-$stack_kind"
 readonly template_path="$cloudformation_directory/$stack_kind.yml"
 readonly change_set_name
-readonly target_stack_name
 readonly template_path
 
 declare -a cleanup_files=()
@@ -609,10 +618,16 @@ require_command jq
 [[ -f "$template_path" ]] || fail "CloudFormation template not found: $template_path"
 
 load_environment
+if [[ "$stack_kind" == ec2 ]]; then target_stack_name="$MORROWPAL_EC2_STACK_NAME"; fi
+readonly target_stack_name
 validate_inventory
 validate_account_and_region
 if [[ "$stack_kind" != budget ]]; then validate_platform_bindings; fi
 resolve_target_change_type
+if [[ "$stack_kind" == ec2 && "$change_set_type" == CREATE &&
+      "$MORROWPAL_EC2_STACK_NAME" != "$MORROWPAL_STACK_PREFIX-ec2" ]]; then
+    fail 'Active candidate EC2 stack does not exist; create and review a candidate before selecting it'
+fi
 
 case "$stack_kind" in
     prerequisites|ecr|ec2-access|budget)

@@ -55,6 +55,8 @@ install_mock_ansible() {
         'fi' \
         'overlay_environment="$environment"' \
         'stack_prefix="morrowpal-$environment"' \
+        'ec2_stack="morrowpal-$environment-ec2"' \
+        'case "${MORROWPAL_MOCK_MISMATCH:-}" in candidate*) ec2_stack="$ec2_stack-os-align-01" ;; active-stack-foreign) ec2_stack=morrowpal-other-ec2 ;; active-stack-empty) ec2_stack="" ;; esac' \
         'if [[ "${MORROWPAL_MOCK_MISMATCH:-}" == overlay ]]; then overlay_environment=prod; fi' \
         'if [[ "${MORROWPAL_MOCK_MISMATCH:-}" == prefix ]]; then stack_prefix=morrowpal-wrong; fi' \
         'printf "%s\n" \' \
@@ -63,6 +65,7 @@ install_mock_ansible() {
         '  "MORROWPAL_AWS_REGION=\"$aws_region\"" \' \
         '  "MORROWPAL_AVAILABILITY_ZONE=\"$availability_zone\"" \' \
         '  "MORROWPAL_STACK_PREFIX=\"$stack_prefix\"" \' \
+        '  "MORROWPAL_EC2_STACK_NAME=\"$ec2_stack\"" \' \
         '  "MORROWPAL_VPC_ID=\"$vpc_id\"" \' \
         '  "MORROWPAL_SUBNET_ID=\"$subnet_id\"" \' \
         '  "MORROWPAL_SECURITY_GROUP_ID=\"$security_group_id\"" \' \
@@ -125,6 +128,8 @@ install_mock_aws() {
         'role_name="morrowpal-$resource_environment-role"' \
         'role_arn="arn:aws:iam::384078510608:role/$role_name"' \
         'instance_id="i-$resource_environment"' \
+        'ec2_stack="morrowpal-$environment-ec2"' \
+        'case "${MORROWPAL_MOCK_MISMATCH:-}" in candidate*) ec2_stack="$ec2_stack-os-align-01"; instance_id="$instance_id-candidate" ;; esac' \
         'case "$service:$operation" in' \
         '  sts:get-caller-identity)' \
         '    if [[ "${MORROWPAL_MOCK_MISMATCH:-}" == account ]]; then printf "000000000000\n"; else printf "384078510608\n"; fi' \
@@ -166,8 +171,11 @@ install_mock_aws() {
         '      [[ "${MORROWPAL_MOCK_MISMATCH:-}" == access-account ]] && output_role_arn="arn:aws:iam::000000000000:role/$role_name"' \
         '      printf "{\"Stacks\":[{\"Outputs\":[{\"OutputKey\":\"InstanceProfileName\",\"OutputValue\":\"%s\"},{\"OutputKey\":\"InstanceProfileArn\",\"OutputValue\":\"%s\"},{\"OutputKey\":\"RoleArn\",\"OutputValue\":\"%s\"}]}]}\n" "$profile_name" "$profile_arn" "$output_role_arn"' \
         '    elif [[ "$joined" == *"--stack-name morrowpal-$environment-ec2"* ]]; then' \
-        '      if [[ "${MORROWPAL_MOCK_MISMATCH:-}" == new-ec2* ]]; then printf "Stack does not exist\n" >&2; exit 255; fi' \
-        '      printf "{\"Stacks\":[{\"Outputs\":[{\"OutputKey\":\"InstanceId\",\"OutputValue\":\"%s\"},{\"OutputKey\":\"AvailabilityZone\",\"OutputValue\":\"%s\"}]}]}\n" "$instance_id" "$availability_zone"' \
+        '      if [[ "${MORROWPAL_MOCK_MISMATCH:-}" == new-ec2* || "${MORROWPAL_MOCK_MISMATCH:-}" == candidate-missing ]]; then printf "Stack does not exist\n" >&2; exit 255; fi' \
+        '      output_stack="$ec2_stack"; output_status=CREATE_COMPLETE' \
+        '      [[ "${MORROWPAL_MOCK_MISMATCH:-}" == candidate-wrong-stack ]] && output_stack="morrowpal-$environment-ec2"' \
+        '      [[ "${MORROWPAL_MOCK_MISMATCH:-}" == candidate-unstable ]] && output_status=UPDATE_IN_PROGRESS' \
+        '      jq -n --arg id "$instance_id" --arg zone "$availability_zone" --arg stack "$output_stack" --arg status "$output_status" --arg environment "$environment" "{Stacks:[{StackId:(\"arn:aws:cloudformation:us-east-\" + (if \$environment == \"prod\" then \"2\" else \"1\" end) + \":384078510608:stack/\" + \$stack + \"/test\"),StackStatus:\$status,Outputs:[{OutputKey:\"InstanceId\",OutputValue:\$id},{OutputKey:\"AvailabilityZone\",OutputValue:\$zone}]}]}"' \
         '    else' \
         '      printf "ValidationError: Stack does not exist\n" >&2' \
         '      exit 255' \
@@ -181,6 +189,8 @@ install_mock_aws() {
         '  ec2:describe-instances)' \
         '    image_id=ami-0123456789abcdef0' \
         '    [[ "${MORROWPAL_MOCK_MISMATCH:-}" == ami ]] && image_id=invalid-image' \
+        '    instance_stack="$ec2_stack"' \
+        '    [[ "${MORROWPAL_MOCK_MISMATCH:-}" == candidate-wrong-tag ]] && instance_stack="morrowpal-$environment-ec2"' \
         '    {' \
         '    instance_environment="$resource_environment"' \
         '    instance_profile_arn="$profile_arn"' \
@@ -191,7 +201,7 @@ install_mock_aws() {
         '    [[ "${MORROWPAL_MOCK_MISMATCH:-}" == instance-subnet ]] && instance_subnet_id=subnet-other' \
         '    [[ "${MORROWPAL_MOCK_MISMATCH:-}" == instance-security-group ]] && instance_security_group_id=sg-other' \
         '    printf "{\"Reservations\":[{\"Instances\":[{\"InstanceId\":\"%s\",\"SubnetId\":\"%s\",\"Placement\":{\"AvailabilityZone\":\"%s\"},\"IamInstanceProfile\":{\"Arn\":\"%s\"},\"SecurityGroups\":[{\"GroupId\":\"%s\"}],\"State\":{\"Name\":\"running\"},\"Tags\":[{\"Key\":\"Application\",\"Value\":\"morrowpal\"},{\"Key\":\"Environment\",\"Value\":\"%s\"},{\"Key\":\"Name\",\"Value\":\"morrowpal-%s-01\"},{\"Key\":\"aws:cloudformation:stack-name\",\"Value\":\"morrowpal-%s-ec2\"}]}]}]}\n" "$instance_id" "$instance_subnet_id" "$availability_zone" "$instance_profile_arn" "$instance_security_group_id" "$instance_environment" "$resource_environment" "$resource_environment"' \
-        '    } | jq --arg image "$image_id" ".Reservations[0].Instances[0].ImageId = \$image"' \
+        '    } | jq --arg image "$image_id" --arg stack "$instance_stack" ".Reservations[0].Instances[0].ImageId = \$image | .Reservations[0].Instances[0].Tags |= map(if .Key == \"aws:cloudformation:stack-name\" then .Value = \$stack else . end)"' \
         '    ;;' \
         '  ec2:describe-images)' \
         '    image_id=ami-11111111111111111; [[ "$environment" != prod ]] || image_id=ami-22222222222222222' \
@@ -506,6 +516,21 @@ main() {
         run_wrapper staging "$mismatch" ec2 available-image >"$output_file"
     done
     unset policy_wrapper
+    for environment in staging prod; do
+        confirmation=()
+        [[ "$environment" != prod ]] || confirmation=(--confirm-production)
+        : >"$mock_log"
+        run_wrapper "$environment" candidate mysql-storage candidate-consumer "${confirmation[@]}" >"$output_file"
+        grep -Fq "ParameterKey=InstanceId,ParameterValue=i-$environment-candidate" "$mock_log" || fail 'Consumer did not bind the candidate instance'
+        : >"$mock_log"
+        run_wrapper "$environment" candidate ec2 candidate-update "${confirmation[@]}" >"$output_file"
+        grep -Fq "cloudformation create-change-set --stack-name morrowpal-$environment-ec2-os-align-01" "$mock_log" || fail 'EC2 update targeted the canonical stack instead of the active candidate'
+    done
+    for mismatch in active-stack-foreign active-stack-empty candidate-wrong-stack candidate-wrong-tag candidate-unstable candidate-missing; do
+        : >"$mock_log"
+        if run_wrapper staging "$mismatch" ec2 reject-active-stack >"$output_file" 2>&1; then fail "Accepted invalid active stack: $mismatch"; fi
+        if grep -Fq 'cloudformation create-change-set' "$mock_log"; then fail 'Invalid active stack reached change-set creation'; fi
+    done
     : >"$mock_log"
     run_wrapper staging '' auto-stop nightly-stop >"$output_file"
     grep -Fq -- '--stack-name morrowpal-staging-auto-stop' "$mock_log" || fail 'Auto-stop targeted the wrong stack'

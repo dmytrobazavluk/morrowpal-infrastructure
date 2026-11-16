@@ -38,9 +38,10 @@ shared/scripts/staging-lifecycle.sh start --dry-run
 shared/scripts/staging-lifecycle.sh start
 ```
 
-The wrapper supports staging only. It resolves the instance from the staging
-CloudFormation stack and validates its account, Region, network, recovery key,
-instance profile and role, tags, inventory, and Elastic IP association. It
+The wrapper supports staging only. It resolves the instance from the EC2 stack
+selected by `morrowpal_ec2_stack_name` in the staging overlay and validates its
+account, Region, network, recovery key, instance profile and role, tags,
+inventory, and Elastic IP association. It
 accepts no instance, inventory, overlay, or production overrides. A dry run
 validates AWS metadata without changing resources or connecting to the host.
 
@@ -155,13 +156,15 @@ primary interface:
 ```bash
 (
 test "$(aws sts get-caller-identity --query Account --output text)" = 384078510608 || exit 1
-instance_id=$(aws cloudformation describe-stacks --stack-name morrowpal-staging-ec2 \
+ec2_stack_name=$(awk '$1=="morrowpal_ec2_stack_name:" {gsub(/"/,"",$2); print $2}' environments/staging/vars.yml)
+[[ "$ec2_stack_name" =~ ^morrowpal-staging-ec2(-[A-Za-z0-9]+(-[A-Za-z0-9]+)*)?$ && ${#ec2_stack_name} -le 128 ]] || exit 1
+instance_id=$(aws cloudformation describe-stacks --stack-name "$ec2_stack_name" \
   --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`InstanceId`].OutputValue | [0]' --output text) || exit 1
 host=$(aws ec2 describe-instances --instance-ids "$instance_id" --region us-east-1 --output json) || exit 1
-jq -e '.Reservations[0].OwnerId=="384078510608" and (.Reservations[0].Instances[0] |
+jq -e --arg stack "$ec2_stack_name" '.Reservations[0].OwnerId=="384078510608" and (.Reservations[0].Instances[0] |
   any(.Tags[]; .Key=="Environment" and .Value=="staging")
   and any(.Tags[]; .Key=="Application" and .Value=="morrowpal")
-  and any(.Tags[]; .Key=="aws:cloudformation:stack-name" and .Value=="morrowpal-staging-ec2"))' <<<"$host" >/dev/null || exit 1
+  and any(.Tags[]; .Key=="aws:cloudformation:stack-name" and .Value==$stack))' <<<"$host" >/dev/null || exit 1
 interface_id=$(jq -er '.Reservations[0].Instances[0].NetworkInterfaces[] |
   select(.Attachment.DeviceIndex==0) | .NetworkInterfaceId' <<<"$host") || exit 1
 aws ec2 create-tags --resources "$interface_id" --region us-east-1 \

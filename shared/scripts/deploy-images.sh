@@ -171,6 +171,9 @@ ansible localhost -i localhost, --connection local --module-name ansible.builtin
 source "$work_directory/identity.env"
 [[ "$MORROWPAL_ENVIRONMENT" == "$environment" && "$MORROWPAL_STACK_PREFIX" == "morrowpal-$environment" ]] \
     || fail 'Overlay environment or stack prefix does not match the selected environment'
+[[ "${MORROWPAL_EC2_STACK_NAME:-}" =~ ^morrowpal-${environment}-ec2(-[A-Za-z0-9]+(-[A-Za-z0-9]+)*)?$ &&
+   ${#MORROWPAL_EC2_STACK_NAME} -le 128 ]] \
+    || fail 'Active EC2 stack name does not match the selected environment'
 [[ "$MORROWPAL_ECR_REPOSITORY_PREFIX" == "morrowpal/$environment" \
     && "$MORROWPAL_SECRETS_PREFIX" == "morrowpal/$environment" ]] \
     || fail 'Overlay resource paths do not match the selected environment'
@@ -213,6 +216,7 @@ stack_output() {
 validate_target() {
     for kind in ec2 ec2-access public-ip; do
         stack_name="$MORROWPAL_STACK_PREFIX-$kind"
+        if [[ "$kind" == ec2 ]]; then stack_name="$MORROWPAL_EC2_STACK_NAME"; fi
         aws cloudformation describe-stacks --stack-name "$stack_name" --region "$aws_region" \
             --output json >"$work_directory/$kind.json"
         jq --exit-status --arg prefix "arn:aws:cloudformation:$aws_region:$actual_account:stack/$stack_name/" '
@@ -239,7 +243,7 @@ validate_target() {
     aws ec2 describe-instances --instance-ids "$instance_id" --region "$aws_region" \
         --output json >"$work_directory/instance.json"
     jq --exit-status --arg id "$instance_id" --arg environment "$environment" --arg account "$actual_account" \
-        --arg name "$MORROWPAL_INSTANCE_NAME" --arg stack "$MORROWPAL_STACK_PREFIX-ec2" \
+        --arg name "$MORROWPAL_INSTANCE_NAME" --arg stack "$MORROWPAL_EC2_STACK_NAME" \
         --arg ip "$MORROWPAL_PUBLIC_IPV4" --arg vpc "$MORROWPAL_VPC_ID" --arg subnet "$MORROWPAL_SUBNET_ID" \
         --arg group "$MORROWPAL_SECURITY_GROUP_ID" --arg zone "$MORROWPAL_AVAILABILITY_ZONE" \
         --arg key "$MORROWPAL_EC2_KEY_NAME" --arg profile "$profile_arn" '

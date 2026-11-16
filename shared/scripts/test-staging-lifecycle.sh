@@ -12,6 +12,7 @@ unset AWS_REGION AWS_DEFAULT_REGION ANSIBLE_INVENTORY ANSIBLE_PRIVATE_KEY_FILE A
 cat >"$work_directory/identity.env" <<'ENV'
 MORROWPAL_ENVIRONMENT=staging
 MORROWPAL_STACK_PREFIX=morrowpal-staging
+MORROWPAL_EC2_STACK_NAME=morrowpal-staging-ec2
 MORROWPAL_AWS_ACCOUNT_ID=123456789012
 MORROWPAL_AWS_REGION=us-east-1
 MORROWPAL_AVAILABILITY_ZONE=us-east-1a
@@ -36,6 +37,9 @@ if [[ "$1" == localhost ]]; then
     case "${LIFECYCLE_CASE:-}" in
         overlay) echo MORROWPAL_ENVIRONMENT=prod >>"${BASH_REMATCH[1]}" ;;
         key) echo MORROWPAL_EC2_KEY_NAME=prod-key >>"${BASH_REMATCH[1]}" ;;
+        candidate*) echo MORROWPAL_EC2_STACK_NAME=morrowpal-staging-ec2-os-align-01 >>"${BASH_REMATCH[1]}" ;;
+        active-foreign) echo MORROWPAL_EC2_STACK_NAME=morrowpal-prod-ec2 >>"${BASH_REMATCH[1]}" ;;
+        active-empty) echo 'MORROWPAL_EC2_STACK_NAME=""' >>"${BASH_REMATCH[1]}" ;;
     esac
 elif [[ "${LIFECYCLE_CASE:-}" == shutdown && "$*" == *'systemctl stop'* ]]; then
     exit 1
@@ -54,6 +58,9 @@ cat >"$work_directory/bin/aws" <<'MOCK'
 #!/usr/bin/env bash
 set -eu
 printf 'aws %s\n' "$*" >>"$LIFECYCLE_FIXTURES/calls"
+active_stack=morrowpal-staging-ec2
+instance_id=i-staging
+case "${LIFECYCLE_CASE:-}" in candidate*) active_stack="$active_stack-os-align-01"; instance_id=i-candidate ;; esac
 case "$1 $2" in
     'sts get-caller-identity')
         if [[ "${LIFECYCLE_CASE:-}" == account ]]; then echo 999999999999; else echo 123456789012; fi ;;
@@ -64,31 +71,31 @@ case "$1 $2" in
             shift
         done
         case "$stack" in
-            morrowpal-staging-ec2) outputs='{"InstanceId":"i-staging","AvailabilityZone":"us-east-1a"}' ;;
             morrowpal-staging-ec2-access) outputs='{"InstanceProfileArn":"arn:aws:iam::123456789012:instance-profile/staging","RoleArn":"arn:aws:iam::123456789012:role/staging"}' ;;
+            "$active_stack") outputs="$(jq -n --arg id "$instance_id" '{InstanceId:$id,AvailabilityZone:"us-east-1a"}')" ;;
             morrowpal-staging-public-ip) outputs='{"AllocationId":"eipalloc-staging","PublicIp":"192.0.2.10"}' ;;
             *) exit 2 ;;
         esac
         jq -n --arg stack "$stack" --arg mismatch "${LIFECYCLE_CASE:-}" --argjson outputs "$outputs" '
         {Stacks:[{StackId:("arn:aws:cloudformation:us-east-1:123456789012:stack/" +
-            (if $mismatch == "stack" then "morrowpal-prod-ec2" else $stack end) + "/id"),
+            (if $mismatch == "stack" then "morrowpal-prod-ec2" elif $mismatch == "candidate-wrong-stack" then "morrowpal-staging-ec2" else $stack end) + "/id"),
         StackStatus:"CREATE_COMPLETE",Outputs:($outputs | to_entries | map({OutputKey:.key,OutputValue:.value}))}]}' ;;
     'iam get-instance-profile')
         jq -n --arg role "${LIFECYCLE_CASE:-}" '{InstanceProfile:{Arn:"arn:aws:iam::123456789012:instance-profile/staging",
             Roles:[{Arn:("arn:aws:iam::123456789012:role/" + (if $role == "role" then "prod" else "staging" end))}]}}' ;;
     'ec2 describe-instances')
         if [[ "${LIFECYCLE_CASE:-}" == rebind && -e "$LIFECYCLE_FIXTURES/rebound" ]]; then LIFECYCLE_CASE=tag; fi
-        jq -n --arg state "$(cat "$LIFECYCLE_FIXTURES/state")" --arg mismatch "${LIFECYCLE_CASE:-}" '
-        {Reservations:[{OwnerId:"123456789012",Instances:[{InstanceId:"i-staging",State:{Name:$state},
+        jq -n --arg id "$instance_id" --arg stack "$active_stack" --arg state "$(cat "$LIFECYCLE_FIXTURES/state")" --arg mismatch "${LIFECYCLE_CASE:-}" '
+        {Reservations:[{OwnerId:"123456789012",Instances:[{InstanceId:$id,State:{Name:$state},
         VpcId:"vpc-staging",SubnetId:"subnet-staging",SecurityGroups:[{GroupId:(if $mismatch == "group" then "sg-prod" else "sg-staging" end)}],
         Placement:{AvailabilityZone:"us-east-1a"},KeyName:"morrowpal-staging-01",
         IamInstanceProfile:{Arn:"arn:aws:iam::123456789012:instance-profile/staging"},
         Tags:[{Key:"Environment",Value:(if $mismatch == "tag" then "prod" else "staging" end)},
         {Key:"Application",Value:"morrowpal"},{Key:"Name",Value:"morrowpal-staging-01"},
-        {Key:"aws:cloudformation:stack-name",Value:"morrowpal-staging-ec2"}]}]}]}' ;;
+        {Key:"aws:cloudformation:stack-name",Value:(if $mismatch == "candidate-wrong-tag" then "morrowpal-staging-ec2" else $stack end)}]}]}]}' ;;
     'ec2 describe-addresses')
-        jq -n --arg mismatch "${LIFECYCLE_CASE:-}" '{Addresses:[{AllocationId:"eipalloc-staging",PublicIp:"192.0.2.10",
-            InstanceId:(if $mismatch == "ip" then "i-prod" else "i-staging" end)}]}' ;;
+        jq -n --arg id "$instance_id" --arg mismatch "${LIFECYCLE_CASE:-}" '{Addresses:[{AllocationId:"eipalloc-staging",PublicIp:"192.0.2.10",
+            InstanceId:(if $mismatch == "ip" then "i-prod" elif $mismatch == "candidate-old-ip" then "i-staging" else $id end)}]}' ;;
     'ec2 stop-instances') echo stopped >"$LIFECYCLE_FIXTURES/state" ;;
     'ec2 start-instances') echo running >"$LIFECYCLE_FIXTURES/state" ;;
     'ec2 wait') ;;
@@ -107,7 +114,7 @@ assert_no_action() {
         echo 'Unexpected lifecycle mutation or host connection' >&2; exit 1
     fi
 }
-for mismatch in account inventory stack role group tag ip overlay key; do
+for mismatch in account inventory stack role group tag ip overlay key active-foreign active-empty candidate-wrong-stack candidate-wrong-tag candidate-old-ip; do
     reset_case "$mismatch"
     if "$wrapper" stop >"$work_directory/output" 2>&1; then echo "Accepted mismatch: $mismatch" >&2; exit 1; fi
     assert_no_action
@@ -139,6 +146,14 @@ grep -q '^aws ec2 wait instance-stopped' "$work_directory/calls"
 grep -q '^aws ec2 wait instance-running' "$work_directory/calls"
 grep -q 'ansible.builtin.wait_for_connection' "$work_directory/calls"
 grep -q 'systemctl is-active --quiet morrowpal.service' "$work_directory/calls"
+reset_case candidate
+"$wrapper" stop --dry-run >/dev/null
+assert_no_action
+grep -q -- '--stack-name morrowpal-staging-ec2-os-align-01' "$work_directory/calls"
+"$wrapper" stop >/dev/null
+grep -q 'ec2 stop-instances --instance-ids i-candidate' "$work_directory/calls"
+"$wrapper" start >/dev/null
+grep -q 'ec2 start-instances --instance-ids i-candidate' "$work_directory/calls"
 reset_case
 echo stopped >"$work_directory/state"
 "$wrapper" status >/dev/null

@@ -32,6 +32,12 @@ Zone, network, capacity, resource names, provider identities, and domains.
 `inventory.ini` in that directory defines SSH access. Keep both files consistent;
 the guarded wrappers reject conflicting bindings. Private keys stay outside Git.
 
+`morrowpal_ec2_stack_name` selects the active host stack. Infrastructure,
+deployment, and staging lifecycle guards resolve that existing stack and verify
+its instance ownership. Keep the canonical name until a candidate has been
+created and a guarded cutover is ready; selecting a missing candidate does not
+create it or transfer its data/IP.
+
 Before creating stacks, identify the existing VPC and internet-connected public
 subnet in the selected account, Region, and Availability Zone. These resources
 are prerequisites, not resources created by the shared templates. Do not assume

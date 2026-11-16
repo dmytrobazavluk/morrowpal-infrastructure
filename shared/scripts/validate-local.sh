@@ -145,6 +145,7 @@ main() {
     "$REPOSITORY_DIR/scripts/validate-environments.sh"
     bash "$SCRIPT_DIR/test-morrowpal-storage-recovery.sh"
     bash "$SCRIPT_DIR/test-morrowpal-replacement-record.sh"
+    bash "$SCRIPT_DIR/test-replacement-hosts.sh"
     "$SCRIPT_DIR/test-morrowpal-service.sh"
     "$SCRIPT_DIR/test-morrowpal-deploy-release.sh"
     "$SCRIPT_DIR/test-morrowpal-app-website-releases.sh"

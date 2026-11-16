@@ -81,6 +81,10 @@ Use the [replacement-record schema and local validator](replacement-record.md)
 for the machine-readable identities and release metadata. Keep the supporting
 review notes above alongside that record. Local validation does not replace
 live AWS and filesystem checks before each mutation.
+The [read-only host check](replacement-record.md#read-only-aws-host-checks)
+verifies both recorded hosts, their access-stack role, AMI and root disks against
+AWS. It covers only those identities; the complete cutover preflight remains
+pending.
 
 The MySQL volume, Elastic IP allocation, runtime secrets, repository images, and
 provider identities must survive. Do not format the retained data volume.

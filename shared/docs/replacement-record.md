@@ -82,3 +82,38 @@ It does not prove snapshot completion, image availability, current attachments,
 IAM scope, scheduler state or filesystem UUID. The guarded cutover/rollback path
 must revalidate those identities and state against AWS and the host before each
 mutation. This validator does not authorize or implement cutover.
+
+## Read-only AWS host checks
+
+With an authenticated AWS CLI session for the selected account, run:
+
+```bash
+bash shared/scripts/check-replacement-hosts.sh staging /path/to/record.json
+```
+
+This first validates a private temporary copy of the local record. It rejects
+conflicting `AWS_REGION` or `AWS_DEFAULT_REGION` settings and checks the caller
+account before looking up resources. Then it checks both hosts against AWS:
+
+- Each recorded stack has the expected account/Region/name, a stable successful
+  status, and matching instance/AZ outputs.
+- Each instance belongs to that account and stack, has the selected environment,
+  application and name tags, and matches the recorded AMI, network and key.
+  Its profile and single role must match the environment's access stack.
+- Each host is running or stopped, with its recorded root disk attached at its
+  root device. Each root disk must be encrypted gp3, in the same AZ, and attached
+  only to that host at that device.
+- The candidate AMI ID resolves to the shared release name, owner and architecture,
+  uses EBS/HVM, and is available without an explicit Allowed AMIs rejection.
+
+All AWS calls are reads. This command does not connect to either host, refresh
+authentication, stop instances or move resources. A stopped original host is
+still required before data handoff; accepting a running host here does not
+establish that it is safe to detach storage.
+
+This is one part of the future cutover preflight. Data volume/UUID, stable IP,
+snapshot completion, release digests, scheduler target and actual OS/kernel
+checks remain separate requirements. Host sizing and runtime parity also remain
+part of the broader alignment audit. Successful output is a point-in-time check,
+not a lock or permission to mutate; repeat the relevant checks immediately before
+each guarded operation.

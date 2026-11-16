@@ -64,15 +64,22 @@ validate_regional_identity() {
     local environment
     local expected_registry
     local expected_topic_arn
+    local ec2_stack_name
+    local expected_ec2_stack_name
     local region
 
     environment="$(read_scalar "$file" morrowpal_environment)"
     account_id="$(read_scalar "$file" morrowpal_aws_account_id)"
     region="$(read_scalar "$file" morrowpal_aws_region)"
     availability_zone="$(read_scalar "$file" morrowpal_availability_zone)"
+    ec2_stack_name="$(read_scalar "$file" morrowpal_ec2_stack_name)"
+    expected_ec2_stack_name="morrowpal-$environment-ec2"
     expected_registry="${account_id}.dkr.ecr.${region}.amazonaws.com"
     expected_topic_arn="arn:aws:sns:${region}:${account_id}:morrowpal-${environment}-system-alerts"
 
+    [[ ${#ec2_stack_name} -le 128 &&
+       "$ec2_stack_name" =~ ^${expected_ec2_stack_name}(-[A-Za-z0-9]+(-[A-Za-z0-9]+)*)?$ ]] \
+        || fail "EC2 stack name must select the current environment's canonical or candidate host stack in ${file#$REPOSITORY_DIR/}"
     [[ "$availability_zone" =~ ^${region}[a-z]$ ]] \
         || fail "Availability Zone does not belong to the configured Region in ${file#$REPOSITORY_DIR/}"
     [[ "$(read_scalar "$file" morrowpal_ecr_registry)" == "$expected_registry" ]] \
@@ -93,6 +100,7 @@ validate_vars_file() {
         morrowpal_security_group_id
         morrowpal_ec2_key_name
         morrowpal_stack_prefix
+        morrowpal_ec2_stack_name
         morrowpal_ecr_registry
         morrowpal_ecr_repository_prefix
         morrowpal_secrets_prefix

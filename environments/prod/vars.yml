@@ -9,6 +9,7 @@ morrowpal_security_group_id: sg-0103b42f143676fda
 morrowpal_ec2_key_name: "01"
 
 morrowpal_stack_prefix: morrowpal-prod
+morrowpal_ec2_stack_name: morrowpal-prod-ec2
 morrowpal_ecr_registry: 384078510608.dkr.ecr.us-east-2.amazonaws.com
 morrowpal_ecr_repository_prefix: morrowpal/prod
 morrowpal_secrets_prefix: morrowpal/prod

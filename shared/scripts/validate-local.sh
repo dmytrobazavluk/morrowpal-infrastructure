@@ -141,6 +141,7 @@ main() {
     require_command jq
     require_command sha256sum
 
+    bash "$SCRIPT_DIR/test-morrowpal-ec2-stack-setting.sh"
     "$REPOSITORY_DIR/scripts/validate-environments.sh"
     "$SCRIPT_DIR/test-morrowpal-service.sh"
     "$SCRIPT_DIR/test-morrowpal-deploy-release.sh"

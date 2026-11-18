@@ -22,6 +22,8 @@ mkdir -p "$fixture/shared/scripts" "$fixture/shared/runtime" "$fixture/environme
     "$fixture/build-numbers" "$test_directory/bin" "$test_directory/backend" \
     "$test_directory/frontend" "$test_directory/www"
 cp "$script_directory/build-images.sh" "$script_directory/deploy-images.sh" "$fixture/shared/scripts/"
+# Offline deployment tests must not acquire the live staging maintenance lock.
+sed -i "s|/tmp/morrowpal-staging-host-handoff.lock|$test_directory/handoff.lock|g" "$fixture/shared/scripts/deploy-images.sh"
 cp "$repository_directory/shared/runtime/compose.env.j2" "$fixture/shared/runtime/"
 cp "$repository_directory/shared/runtime/cloudformation.env.j2" "$fixture/shared/runtime/"
 cp "$repository_directory/ansible.cfg" "$fixture/"
@@ -30,6 +32,8 @@ cp "$repository_directory/shared/playbooks/deploy.yml" "$fixture/shared/playbook
 for environment in prod staging; do
     mkdir "$fixture/environments/$environment"
     cp "$repository_directory/environments/$environment/vars.yml" "$fixture/environments/$environment/"
+    # Establish the canonical fixture before separately exercising candidate stacks.
+    sed -i "s/^morrowpal_ec2_stack_name:.*/morrowpal_ec2_stack_name: morrowpal-$environment-ec2/" "$fixture/environments/$environment/vars.yml"
     cp "$repository_directory/environments/$environment/inventory.ini" "$fixture/environments/$environment/"
     touch "$test_directory/morrowpal-$environment-01.pem"
 done

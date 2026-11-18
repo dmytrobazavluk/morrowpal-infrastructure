@@ -163,6 +163,10 @@ for variable in ANSIBLE_INVENTORY ANSIBLE_PRIVATE_KEY_FILE ANSIBLE_REMOTE_USER \
 done
 
 # Snapshot reviewed inputs so validation and deployment use the same files.
+if [[ "$environment" == staging ]]; then
+    exec 8>/tmp/morrowpal-staging-host-handoff.lock
+    flock --shared --nonblock 8 || fail 'Staging host handoff is running'
+fi
 cp "environments/$environment/vars.yml" "$work_directory/vars.yml"
 load_deployment_environment "$environment" "$infrastructure_directory"
 ansible localhost -i localhost, --connection local --module-name ansible.builtin.template \

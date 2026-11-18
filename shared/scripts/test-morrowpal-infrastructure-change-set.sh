@@ -585,6 +585,13 @@ main() {
     grep -Fq -- '--stack-name morrowpal-staging-auto-stop' "$mock_log" || fail 'Auto-stop targeted the wrong stack'
     grep -Fq 'ParameterKey=InstanceId,ParameterValue=i-staging' "$mock_log" || fail 'Auto-stop omitted the validated staging instance'
     grep -Fq -- '--capabilities CAPABILITY_IAM' "$mock_log" || fail 'Auto-stop omitted IAM capability'
+    grep -Fq 'ParameterKey=ScheduleState,ParameterValue=ENABLED' "$mock_log" || fail 'Auto-stop omitted the enabled schedule state'
+    : >"$mock_log"
+    run_wrapper staging '' auto-stop pause-for-recovery --disable-auto-stop >"$output_file"
+    grep -Fq 'ParameterKey=ScheduleState,ParameterValue=DISABLED' "$mock_log" || fail 'Auto-stop did not pause for recovery'
+    : >"$mock_log"
+    if run_wrapper staging '' public-ip reject-pause --disable-auto-stop >"$output_file" 2>&1; then fail 'Shutdown pause accepted for another stack kind'; fi
+    [[ ! -s "$mock_log" ]] || fail 'Invalid shutdown-pause option contacted AWS'
     : >"$mock_log"
     run_wrapper staging '' auto-stop preview-nightly-stop --dry-run >"$output_file"
     if grep -Fq 'cloudformation create-change-set' "$mock_log"; then fail 'Auto-stop dry run mutated AWS'; fi

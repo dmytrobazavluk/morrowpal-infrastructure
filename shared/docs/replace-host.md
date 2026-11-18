@@ -1,10 +1,11 @@
 # Plan a host replacement
 
-**Execution gate:** this is a planning checklist, not an executable replacement
-procedure. The guarded replacement path must be implemented and rehearsed in
-staging before replacing either environment's host. Production additionally
-requires completed staging validation, the final parity audit, and explicit
-approval. The [fresh installation guide](./install-from-scratch.md) must not be
+The [staging replacement runbook](staging-host-replacement.md) provides the
+guarded staging handoff and rollback commands. This document is the shared
+planning checklist. Production replacement remains gated on completed staging
+validation/rehearsal, the final parity audit, a reviewed production procedure and
+explicit approval. The staging-only commands reject production targets.
+The [fresh installation guide](./install-from-scratch.md) must not be
 used to recreate an existing environment's retained resources.
 
 ## Tooling constraints
@@ -21,8 +22,8 @@ those same target checks.
 Consequently, the sequence "create a replacement, deploy through its temporary
 address, then move the Elastic IP" is not supported by the current wrappers.
 Do not bypass the guards with resource-ID parameters or ad hoc inventories.
-Before execution, choose and implement a guarded replacement strategy that
-accounts for this ordering and CloudFormation's handling of the old instance.
+The staging runbook follows this order and preserves the original EC2 stack
+for rollback. Use the retained-filesystem recovery mode described below.
 
 ## Prepare a candidate change set
 

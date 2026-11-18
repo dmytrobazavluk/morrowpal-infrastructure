@@ -230,3 +230,22 @@ image platform compatibility or what the containers currently run. The deploymen
 wrapper's scan gate and the remaining runtime checks still apply. Image retention
 can remove releases later, so recheck before each guarded deployment or rollback.
 Successful metadata validation does not authorize deployment or cutover.
+
+## Read-only nightly shutdown checks
+
+```bash
+bash shared/scripts/check-replacement-shutdown.sh staging /path/to/record.json candidate DISABLED
+```
+
+Select `original` or `candidate` and `ENABLED` or `DISABLED` explicitly. The
+checker verifies the staging shutdown stack, schedule group/name, selected
+instance and state, 1 AM America/Chicago timing, normal-stop input and retry
+policy. It also verifies the execution role's exact Scheduler trust and
+instance/tag-scoped stop permission, rejecting extra inline/managed policies.
+It supports staging only and makes no changes. The handoff pauses and retargets
+this control through reviewed CloudFormation changes; preparation waits out
+the maximum retry age before starting the target.
+
+The [staging replacement runbook](staging-host-replacement.md) combines these
+checks with the guarded execution, retained-filesystem preparation and rollback
+path. Metadata checks remain only part of that workflow.

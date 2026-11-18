@@ -25,6 +25,8 @@ OPTIONS:
                         morrowpal-ENVIRONMENT-ec2-SUFFIX. Existing stacks are rejected.
   --detach-mysql-volume Remove the MySQL volume attachment. Valid only for
                         mysql-storage; attachment is the default.
+  --disable-auto-stop   Pause the staging shutdown schedule during recovery.
+                        Valid only for auto-stop; otherwise it is enabled.
   --ssh-public-key-file PATH
                         Public key to import. Required only for prerequisites.
   --ssh-ingress-cidr CIDR
@@ -404,6 +406,7 @@ build_parameters() {
         auto-stop)
             capabilities=(CAPABILITY_IAM)
             parameters+=("ParameterKey=InstanceId,ParameterValue=$instance_id")
+            parameters+=("ParameterKey=ScheduleState,ParameterValue=$auto_stop_state")
             ;;
         budget)
             [[ "${MORROWPAL_MONTHLY_BUDGET_USD:-}" =~ ^[0-9]+([.][0-9]{1,2})?$ ]] \
@@ -544,6 +547,7 @@ fi
 confirm_production=false
 dry_run=false
 detach_mysql_volume=false
+auto_stop_state=ENABLED
 candidate_suffix=''
 ssh_public_key_file=''
 ssh_ingress_cidr=''
@@ -559,6 +563,10 @@ while (($# > 0)); do
             ;;
         --detach-mysql-volume)
             detach_mysql_volume=true
+            shift
+            ;;
+        --disable-auto-stop)
+            auto_stop_state=DISABLED
             shift
             ;;
         --candidate-suffix)
@@ -592,6 +600,9 @@ if [[ "$selected_environment" == staging && "$confirm_production" == true ]]; th
 fi
 if [[ "$detach_mysql_volume" == true && "$stack_kind" != mysql-storage ]]; then
     fail "--detach-mysql-volume is valid only for mysql-storage"
+fi
+if [[ "$auto_stop_state" == DISABLED && "$stack_kind" != auto-stop ]]; then
+    fail '--disable-auto-stop is valid only for auto-stop'
 fi
 if [[ -n "$candidate_suffix" && "$stack_kind" != ec2 ]]; then
     fail '--candidate-suffix is valid only for ec2'

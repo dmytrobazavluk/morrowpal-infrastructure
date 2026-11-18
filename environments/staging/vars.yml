@@ -9,7 +9,7 @@ morrowpal_security_group_id: sg-082dc509f3354457a
 morrowpal_ec2_key_name: morrowpal-staging-01
 
 morrowpal_stack_prefix: morrowpal-staging
-morrowpal_ec2_stack_name: morrowpal-staging-ec2
+morrowpal_ec2_stack_name: morrowpal-staging-ec2-os-align-01
 morrowpal_ecr_registry: 384078510608.dkr.ecr.us-east-1.amazonaws.com
 morrowpal_ecr_repository_prefix: morrowpal/staging
 morrowpal_secrets_prefix: morrowpal/staging

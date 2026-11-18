@@ -13,6 +13,11 @@ Parameters:
   InstanceId:
     Type: AWS::EC2::Instance::Id
     Description: Staging instance resolved and validated by the deployment wrapper.
+  ScheduleState:
+    Type: String
+    Default: ENABLED
+    AllowedValues: [ENABLED, DISABLED]
+    Description: Pause nightly shutdown during a guarded staging host handoff.
 
 Resources:
   ScheduleGroup:
@@ -68,7 +73,7 @@ Resources:
       ScheduleExpressionTimezone: America/Chicago
       FlexibleTimeWindow:
         Mode: 'OFF'
-      State: ENABLED
+      State: !Ref ScheduleState
       Target:
         Arn: !Sub 'arn:${AWS::Partition}:scheduler:::aws-sdk:ec2:stopInstances'
         RoleArn: !GetAtt ExecutionRole.Arn

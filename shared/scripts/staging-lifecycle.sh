@@ -9,6 +9,8 @@ if [[ $# == 1 && ( "$1" == --help || "$1" == -h ) ]]; then usage; exit 0; fi
 [[ $# == 1 || ( $# == 2 && "$2" == --dry-run ) ]] || { usage >&2; exit 2; }
 readonly action="$1" dry_run="${2:-}"
 case "$action" in start|stop|status) ;; *) usage >&2; exit 2 ;; esac
+exec 8>/tmp/morrowpal-staging-host-handoff.lock
+flock --shared --nonblock 8 || { printf 'Staging host handoff is running.\n' >&2; exit 1; }
 for command in aws jq ansible ansible-inventory flock; do
     command -v "$command" >/dev/null || fail "Required command not found: $command"
 done

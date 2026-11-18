@@ -1,9 +1,15 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 readonly script_directory="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-readonly wrapper="$script_directory/staging-lifecycle.sh"
 work_directory=$(mktemp -d)
 trap 'rm -rf -- "$work_directory"' EXIT
+fixture="$work_directory/infrastructure"
+mkdir -p "$fixture/shared/scripts" "$fixture/environments/staging"
+readonly wrapper="$fixture/shared/scripts/staging-lifecycle.sh"
+cp "$script_directory/staging-lifecycle.sh" "$wrapper"
+cp "$script_directory/../../environments/staging/vars.yml" "$fixture/environments/staging/vars.yml"
+# Keep mocked lifecycle calls independent of a real host handoff in progress.
+sed -i "s|/tmp/morrowpal-staging-host-handoff.lock|$work_directory/handoff.lock|g" "$wrapper"
 mkdir "$work_directory/bin"
 export LIFECYCLE_FIXTURES="$work_directory"
 export PATH="$work_directory/bin:$PATH"

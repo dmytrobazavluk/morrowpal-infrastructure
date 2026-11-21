@@ -7,6 +7,25 @@ are initially unchecked. The refactor's first promotion also requires the
 template-promotion phases below; routine later releases can mark those phases
 not applicable when no stack changes are needed.
 
+For this refactor, the user accepted staging sign-in/out, email delivery and
+reply-creation checks and explicitly deferred browser notification delivery to
+production on 2026-11-20. Record that delivery check as unverified and include it
+in production follow-up; it does not block this promotion. This exception does
+not waive data recovery readiness, migration review or production approval.
+The eight common production stacks were promoted to the shared templates on
+2026-11-21 under separate execution approval. That completed the first refactor's
+CloudFormation phase; host/image deployment remains separate. See the
+[execution record](../../../artifacts/production-promotion-review-2026-11-20/production-parity-review-20261121T051524Z/execution/summary.json).
+
+The user-approved one-time production SQL dump and local restore verification
+completed on 2026-11-21. The separate local restore schema preserved the existing
+local application database; all 18 tables and 536 rows matched the dump and passed
+SQL table checks. See the
+[recovery record](../../../artifacts/production-sql-backup-2026-11-21/summary.json).
+The private dump is stored locally outside the component repositories. Its
+recovery point is the time of the dump; assess whether it needs refreshing before
+disruptive rollout. This does not approve host or image deployment.
+
 ## 1. Complete the staging gate and select the release
 
 - [ ] Select the tested infrastructure revision and affected components. Record
@@ -14,9 +33,9 @@ not applicable when no stack changes are needed.
   and job images share a tag but have separate digests. Component build numbers
   may differ; retain unchanged components' production tags.
 - [ ] Complete required staging functional, rollout/rollback, schema, and live
-  delivery checks. The deferred controlled-client notification check remains a
-  gate. A same-tag deployment or provider console test does not prove rollout
-  or application notification delivery.
+  delivery checks, recording explicitly accepted deferrals. Apply the current
+  refactor's browser-notification exception above. A same-tag deployment or
+  provider console test does not prove rollout or application notification delivery.
 - [ ] Complete the final parity audit and resolve unexplained differences.
   Document environment values, capacity, external network ownership, and
   staging-only cost controls. Keep the host-replacement execution limitation

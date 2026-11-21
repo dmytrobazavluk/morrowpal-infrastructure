@@ -5,6 +5,12 @@ and ends before production promotion. Use it for an existing staging host;
 [first installation](./install-from-scratch.md) and
 [host replacement](./replace-host.md) are separate workflows.
 
+Current refactor decision, 2026-11-20: the user completed sign-in/out, live email
+and reply-creation checks and accepted deferring browser notification delivery
+to production. Keep that delivery check unverified; its deferral does not block
+this refactor's staging gate. Other required checks and production approvals
+remain in place.
+
 ## 1. Choose the change and prepare a release record
 
 - [ ] Record the infrastructure revision and affected components: backend, app,
@@ -150,8 +156,8 @@ production publication. Deployment never builds images or increments counters.
   notification registration/delivery using controlled staging accounts/devices.
   Use the normal dispatch path; do not substitute a provider console test for
   application delivery or silently change scheduling data to accelerate it.
-  The refactor's outstanding controlled-client notification check must pass
-  before production promotion, even if unrelated release steps pass.
+  For the current refactor, browser notification delivery is explicitly deferred
+  under the user decision above. Do not mark it passed without observed delivery.
 - [ ] Exercise rollback for affected components using the previous tested tags
   and their guide. For backend, after confirming schema compatibility:
 

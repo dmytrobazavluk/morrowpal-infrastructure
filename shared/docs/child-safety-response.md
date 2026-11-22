@@ -165,7 +165,8 @@ record.
 
 Until a restricted moderation dashboard or automatic alert is deployed, the
 designated contact must run the following read-only query at least twice daily
-through the approved production database administration path. Replace the
+through the approved [production database access procedure](./database-access.md).
+Replace the
 timestamp below with the UTC time of the last successfully completed review.
 After an interruption, use the last recorded review time rather than an
 arbitrary recent window so that no reports are skipped.

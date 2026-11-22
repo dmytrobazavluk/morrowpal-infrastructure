@@ -1,4 +1,4 @@
-# Production Database Administration
+# Database Access
 
 Run local commands from `infrastructure`. Commands identified as host-side run
 on the production EC2 host.
@@ -64,13 +64,3 @@ AWS_REGION=us-east-2 asm-exec -- mysql \
 Run that command only from a network location that can reach the private MySQL
 container, such as the production host. Do not place the resolved value in a
 shell variable.
-
-## Queries
-
-- [Recently registered users with correspondences](./queries/recent-users-correspondences.md)
-- [Request statistics for an account](./queries/account-request-statistics.md)
-- [Correspondences and participants for an account](./queries/account-correspondence-participants.md)
-- [Existing simple-exchange partners of an account](./queries/account-simple-exchange-partners.md)
-- [Accounts blocked in either direction](./queries/account-blocked-accounts.md)
-- [Remove a correspondence and its related records](./queries/remove-correspondence.md)
-- [Remove an account and its related records](./queries/remove-account.md)

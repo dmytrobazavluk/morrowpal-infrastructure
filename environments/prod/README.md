@@ -25,8 +25,8 @@ validation, the final parity audit, and explicit approval.
 - [Update the website](../../shared/docs/update-website.md)
 - [TLS certificates and renewal](../../shared/docs/tls.md)
 - [Host-replacement planning and execution gate](../../shared/docs/replace-host.md)
-- [Production database administration](../../prod/docs/admin.md)
-- [Recently registered users query](../../prod/docs/queries/recent-users-correspondences.md)
+- [Database access](../../shared/docs/database-access.md)
+- [Recently registered users query](../../../backend/admin/queries/recent-users-correspondences.md)
 
 ## Environment
 
@@ -111,7 +111,7 @@ Do not use mutable tags such as `latest` in production.
 4. Never retrieve secret values with AWS CLI, SDK, or agent tools.
 5. Use Secrets Manager dynamic references with `asm-exec` for automated secret
    resolution. Human-only GUI access is documented separately in
-   [database administration](../../prod/docs/admin.md).
+   [database administration](../../shared/docs/database-access.md).
 6. Publish and scan an immutable image before deploying its tag.
 7. Use the guarded `shared/scripts/deploy-images.sh prod` command with the
    component, selected tag where required, and `--confirm-production`. It

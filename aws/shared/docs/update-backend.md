@@ -28,24 +28,44 @@ source:
 git -C ../../backend status --short
 ```
 
-Confirm AWS identity and host connectivity:
+Use credentials for the account configured in `environments/staging/vars.yml`
+and confirm AWS identity:
 
 ```bash
 aws sts get-caller-identity
-ansible morrowpal_hosts -i environments/staging/inventory.ini \
-  -e @environments/staging/vars.yml -m ping
 ```
-
-Use credentials for the account configured in `environments/staging/vars.yml`.
-Start stopped staging with `shared/scripts/staging-lifecycle.sh start` before
-checking connectivity. Finish testing and deployments before its nightly
-1 AM America/Chicago shutdown.
 
 The shared deploy playbook requires the sibling frontend checkout to read public
 web runtime settings, including for a backend-only deployment. Use
 `--frontend-directory PATH` if that checkout is elsewhere.
 
 ## 2. Build and deploy to staging
+
+Staging must be running before deployment, including the deployment dry run.
+The deployment script requires a running instance and does not start it
+automatically. A stopped instance triggers
+`Error: Instance does not match the selected environment bindings`; the same
+error can also indicate other environment mismatches. Check staging status and
+start it before deployment:
+
+```bash
+shared/scripts/staging-lifecycle.sh status
+shared/scripts/staging-lifecycle.sh start
+```
+
+The start command waits for EC2, SSH, automatic application startup, and
+readiness checks. It also checks readiness if the instance is already running.
+Allow several minutes and continue only after the command succeeds. Then check
+host connectivity:
+
+```bash
+ansible morrowpal_hosts -i environments/staging/inventory.ini \
+  -e @environments/staging/vars.yml -m ping
+```
+
+Finish testing and deployments before staging's nightly **1 AM
+America/Chicago** shutdown. See the staging operations guide for
+[start, stop, and status commands](../../environments/staging/README.md#start-stop-and-status).
 
 The builder runs backend unit, API and job tests, then creates local Linux AMD64
 API and job images with one immutable `build-N-GITSHA` tag. It exports

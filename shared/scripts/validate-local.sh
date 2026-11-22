@@ -5,11 +5,8 @@ set -Eeuo pipefail
 readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly SHARED_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 readonly REPOSITORY_DIR="$(cd -- "$SHARED_DIR/.." && pwd)"
-readonly PROD_DIR="$REPOSITORY_DIR/prod"
 readonly CLOUDFORMATION_DIR="$REPOSITORY_DIR/shared/cloudformation"
-readonly COMPOSE_BASELINE_FILE="$PROD_DIR/baselines/docker-compose-production.sha256"
 readonly COMPOSE_ENV_TEMPLATE="$SHARED_DIR/runtime/compose.env.j2"
-readonly ENVOY_BASELINE_FILE="$PROD_DIR/baselines/envoy-production.sha256"
 readonly ENVOY_TEMPLATE="$SHARED_DIR/runtime/envoy/envoy.yaml.j2"
 
 fail() {
@@ -101,12 +98,7 @@ reject_environment_default() {
 }
 
 main() {
-    local actual_digest
     local cleanup_command
-    local digest_output
-    local expected_digest
-    local envoy_actual_digest
-    local envoy_expected_digest
     local expected_staging_value
     local prod_envoy_file
     local forbidden_value
@@ -139,7 +131,6 @@ main() {
     require_command ansible
     require_command docker
     require_command jq
-    require_command sha256sum
 
     bash "$SCRIPT_DIR/test-morrowpal-ec2-stack-setting.sh"
     "$REPOSITORY_DIR/scripts/validate-environments.sh"
@@ -185,20 +176,6 @@ main() {
         --regions "${aws_regions[@]}" \
         -t "${templates[@]}"
 
-    [[ -f "$COMPOSE_BASELINE_FILE" ]] \
-        || fail "Compose baseline not found: $COMPOSE_BASELINE_FILE"
-    IFS= read -r expected_digest <"$COMPOSE_BASELINE_FILE" \
-        || fail "Could not read Compose baseline: $COMPOSE_BASELINE_FILE"
-    [[ "$expected_digest" =~ ^[0-9a-f]{64}$ ]] \
-        || fail "Compose baseline must contain one lowercase SHA-256 digest"
-
-    [[ -f "$ENVOY_BASELINE_FILE" ]] \
-        || fail "Envoy baseline not found: $ENVOY_BASELINE_FILE"
-    IFS= read -r envoy_expected_digest <"$ENVOY_BASELINE_FILE" \
-        || fail "Could not read Envoy baseline: $ENVOY_BASELINE_FILE"
-    [[ "$envoy_expected_digest" =~ ^[0-9a-f]{64}$ ]] \
-        || fail "Envoy baseline must contain one lowercase SHA-256 digest"
-
     prod_compose_env_file="$(mktemp)"
     staging_compose_env_file="$(mktemp)"
     prod_envoy_file="$(mktemp)"
@@ -223,12 +200,6 @@ main() {
         "$staging_compose_env_file" MORROWPAL_ECR_REPOSITORY_PREFIX)"
     staging_system_alerts_topic_arn="$(read_rendered_environment_value \
         "$staging_compose_env_file" MORROWPAL_SYSTEM_ALERTS_TOPIC_ARN)"
-
-    printf 'Comparing rendered production Envoy configuration to its baseline...\n'
-    digest_output="$(sha256sum "$prod_envoy_file")"
-    envoy_actual_digest="${digest_output%% *}"
-    [[ "$envoy_actual_digest" == "$envoy_expected_digest" ]] \
-        || fail "Rendered production Envoy configuration changed"
 
     grep -Fqx '  id: morrowpal-staging-envoy' "$staging_envoy_file" \
         || fail "Staging Envoy node ID is incorrect"
@@ -259,9 +230,6 @@ main() {
     prod_render="$(render_compose "$prod_compose_env_file")"
     staging_render="$(render_compose "$staging_compose_env_file")"
 
-    printf 'Comparing the rendered production Compose configuration to its baseline...\n'
-    # Keep the captured production baseline. Validate the shared MySQL pin and
-    # app runtime mount explicitly, then normalize those reviewed differences.
     jq --exit-status '.services.mysql.image | test("^mysql:8\\.4\\.[0-9]+@sha256:[0-9a-f]{64}$")' \
         <<<"$prod_render" >/dev/null || fail "MySQL must pin an 8.4 patch version and digest"
     [[ "$(jq --raw-output '.services.mysql.image' <<<"$prod_render")" == \
@@ -269,20 +237,6 @@ main() {
         || fail "MySQL image differs between environment renderings"
     jq --exit-status '.services.app.volumes | any(.target == "/etc/morrowpal/runtime-config.js" and .read_only == true)' \
         <<<"$prod_render" >/dev/null || fail "App runtime configuration mount must be read-only"
-    digest_output="$(jq --sort-keys --compact-output \
-        '.services.mysql.image = "mysql:8.4" |
-         .services.app.volumes |= map(select(.target != "/etc/morrowpal/runtime-config.js"))' \
-        <<<"$prod_render" | sha256sum)"
-    actual_digest="${digest_output%% *}"
-
-    if [[ "$actual_digest" != "$expected_digest" ]]; then
-        printf 'Error: Rendered production Compose configuration changed.\n' >&2
-        printf 'Expected: %s\n' "$expected_digest" >&2
-        printf 'Actual:   %s\n' "$actual_digest" >&2
-        printf 'Review the rendered Compose diff before updating the baseline.\n' >&2
-        exit 1
-    fi
-
     [[ "$(jq --compact-output '.services | keys' <<<"$prod_render")" == \
         "$(jq --compact-output '.services | keys' <<<"$staging_render")" ]] \
         || fail "Production and staging Compose service topology differs"

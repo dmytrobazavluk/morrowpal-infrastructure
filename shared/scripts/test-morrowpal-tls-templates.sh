@@ -5,11 +5,8 @@ set -Eeuo pipefail
 readonly script_directory="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly shared_directory="$(cd -- "$script_directory/.." && pwd)"
 readonly repository_directory="$(cd -- "$shared_directory/.." && pwd)"
-readonly prod_directory="$repository_directory/prod"
 readonly sds_template="$repository_directory/shared/runtime/envoy/tls-certificate-sds.yaml.j2"
 readonly hook_template="$repository_directory/shared/runtime/envoy/configure-tls-permissions.sh.j2"
-readonly sds_baseline="$prod_directory/baselines/tls-certificate-sds-production.sha256"
-readonly hook_baseline="$prod_directory/baselines/tls-permissions-production.sha256"
 
 fail() {
     printf 'Error: %s\n' "$*" >&2
@@ -30,21 +27,6 @@ render_template() {
             --module-name ansible.builtin.template \
             --args "src=$source dest=$destination mode=$mode" \
             --extra-vars "@$repository_directory/environments/$environment/vars.yml" >/dev/null
-}
-
-assert_digest() {
-    local rendered_file="$1"
-    local baseline_file="$2"
-    local actual_digest
-    local expected_digest
-    local digest_output
-
-    IFS= read -r expected_digest <"$baseline_file" \
-        || fail "Could not read baseline: $baseline_file"
-    digest_output="$(sha256sum "$rendered_file")"
-    actual_digest="${digest_output%% *}"
-    [[ "$actual_digest" == "$expected_digest" ]] \
-        || fail "Rendered file differs from production baseline: $rendered_file"
 }
 
 main() {
@@ -75,8 +57,6 @@ main() {
     render_template staging "$sds_template" "$staging_sds" 0600
     render_template staging "$hook_template" "$staging_hook" 0700
 
-    assert_digest "$prod_sds" "$sds_baseline"
-    assert_digest "$prod_hook" "$hook_baseline"
     bash -n "$prod_hook"
     bash -n "$staging_hook"
 

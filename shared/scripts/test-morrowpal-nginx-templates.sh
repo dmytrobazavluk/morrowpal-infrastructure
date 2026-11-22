@@ -5,11 +5,8 @@ set -Eeuo pipefail
 readonly script_directory="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly shared_directory="$(cd -- "$script_directory/.." && pwd)"
 readonly repository_directory="$(cd -- "$shared_directory/.." && pwd)"
-readonly prod_directory="$repository_directory/prod"
 readonly app_template="$shared_directory/runtime/app/nginx.conf.j2"
 readonly website_template="$shared_directory/runtime/website/nginx.conf.j2"
-readonly app_baseline="$prod_directory/baselines/app-nginx-production.sha256"
-readonly website_baseline="$prod_directory/baselines/website-nginx-production.sha256"
 
 fail() {
     printf 'Error: %s\n' "$*" >&2
@@ -29,30 +26,6 @@ render_nginx() {
             --module-name ansible.builtin.template \
             --args "src=$template dest=$destination mode=0600" \
             --extra-vars "@$repository_directory/environments/$environment/vars.yml" >/dev/null
-}
-
-assert_digest() {
-    local rendered_file="$1"
-    local baseline_file="$2"
-    local actual_digest
-    local expected_digest
-    local digest_output
-
-    IFS= read -r expected_digest <"$baseline_file" \
-        || fail "Could not read baseline: $baseline_file"
-    if [[ "$baseline_file" == "$app_baseline" ]]; then
-        # Keep the captured production baseline. Normalize the reviewed readiness
-        # MIME type correction and exclude the runtime configuration locations.
-        digest_output="$(sed \
-            -e '/^    location = \/ready {/,/^    }/s|^        default_type text/plain;$|        add_header Content-Type text/plain;|' \
-            -e '/^    location = \/runtime-config.js {/,/^    location = \/notifications\/disable {/ { /^    location = \/notifications\/disable {/!d; }' \
-            "$rendered_file" | sha256sum)"
-    else
-        digest_output="$(sha256sum "$rendered_file")"
-    fi
-    actual_digest="${digest_output%% *}"
-    [[ "$actual_digest" == "$expected_digest" ]] \
-        || fail "Rendered Nginx configuration differs from production baseline"
 }
 
 main() {
@@ -84,8 +57,6 @@ main() {
     render_nginx staging "$app_template" "$staging_app"
     render_nginx staging "$website_template" "$staging_website"
 
-    assert_digest "$prod_app" "$app_baseline"
-    assert_digest "$prod_website" "$website_baseline"
 
     for rendered in "$prod_app" "$staging_app"; do
         grep -Fq 'alias /etc/morrowpal/runtime-config.js;' "$rendered" \

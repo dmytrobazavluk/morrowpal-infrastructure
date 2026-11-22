@@ -9,24 +9,24 @@ validation, the final parity audit, and explicit approval.
 
 ## Documentation Index
 
-- [Production promotion checklist](../shared/docs/production-promotion-checklist.md)
-- [Staging/production refactor completion and recovery record](../shared/docs/staging-production-refactor-completion.md)
-- [Staging release checklist before promotion](../shared/docs/staging-release-checklist.md)
-- [Installation prerequisites](../shared/docs/installation-prerequisites.md)
-- [Production installation prerequisites](./docs/installation-prerequisites.md)
-- [Resource creation and host preparation](../shared/docs/install-from-scratch.md)
-- [Update infrastructure configuration](../shared/docs/update-infrastructure.md)
-- [Update the backend](../shared/docs/update-backend.md)
-- [Postmark operations](./docs/postmark.md)
-- [Firebase app notification operations](./docs/firebase-app-notifications.md)
-- [Internal system alerts](./docs/system-alerts.md)
-- [Child safety incident response](./docs/child-safety-response.md)
-- [Update the app](../shared/docs/update-app.md)
-- [Update the website](../shared/docs/update-website.md)
-- [TLS certificates and renewal](../shared/docs/tls.md)
-- [Host-replacement planning and execution gate](../shared/docs/replace-host.md)
-- [Production database administration](./docs/admin.md)
-- [Recently registered users query](./docs/queries/recent-users-correspondences.md)
+- [Production promotion checklist](../../shared/docs/production-promotion-checklist.md)
+- [Staging/production refactor completion and recovery record](../../shared/docs/staging-production-refactor-completion.md)
+- [Staging release checklist before promotion](../../shared/docs/staging-release-checklist.md)
+- [Installation prerequisites](../../shared/docs/installation-prerequisites.md)
+- [Production installation prerequisites](../../prod/docs/installation-prerequisites.md)
+- [Resource creation and host preparation](../../shared/docs/install-from-scratch.md)
+- [Update infrastructure configuration](../../shared/docs/update-infrastructure.md)
+- [Update the backend](../../shared/docs/update-backend.md)
+- [Postmark operations](../../prod/docs/postmark.md)
+- [Firebase app notification operations](../../prod/docs/firebase-app-notifications.md)
+- [Internal system alerts](../../prod/docs/system-alerts.md)
+- [Child safety incident response](../../prod/docs/child-safety-response.md)
+- [Update the app](../../shared/docs/update-app.md)
+- [Update the website](../../shared/docs/update-website.md)
+- [TLS certificates and renewal](../../shared/docs/tls.md)
+- [Host-replacement planning and execution gate](../../shared/docs/replace-host.md)
+- [Production database administration](../../prod/docs/admin.md)
+- [Recently registered users query](../../prod/docs/queries/recent-users-correspondences.md)
 
 ## Environment
 
@@ -61,7 +61,7 @@ chmod 400 ../morrowpal-prod-01.pem
 
 All names on the production certificate resolve to the stable production IPv4
 address. They must not have AAAA records until the production edge supports
-IPv6. See the [shared TLS guide](../shared/docs/tls.md).
+IPv6. See the [shared TLS guide](../../shared/docs/tls.md).
 
 ## Runtime Architecture
 
@@ -111,7 +111,7 @@ Do not use mutable tags such as `latest` in production.
 4. Never retrieve secret values with AWS CLI, SDK, or agent tools.
 5. Use Secrets Manager dynamic references with `asm-exec` for automated secret
    resolution. Human-only GUI access is documented separately in
-   [database administration](./docs/admin.md).
+   [database administration](../../prod/docs/admin.md).
 6. Publish and scan an immutable image before deploying its tag.
 7. Use the guarded `shared/scripts/deploy-images.sh prod` command with the
    component, selected tag where required, and `--confirm-production`. It

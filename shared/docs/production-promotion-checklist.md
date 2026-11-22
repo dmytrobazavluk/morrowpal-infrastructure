@@ -64,7 +64,7 @@ bash shared/scripts/validate-local.sh
   `--frontend-directory PATH` on deployment commands if it is elsewhere.
 - [ ] Record current production service/endpoint health, image tags, storage and
   IP identity, and operational alarms using read-only procedures in the
-  [production index](../../prod/README.md). Do not change production to obtain
+  [production index](../../environments/prod/README.md). Do not change production to obtain
   a healthy baseline; diagnose failures before promotion.
   Resolve unexpected mixed API slot tags before selecting rollback artifacts.
 - [ ] For the first template promotion, create change sets using the guarded

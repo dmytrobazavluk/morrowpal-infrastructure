@@ -5,12 +5,14 @@ environment:
 
 - [Development](./dev/README.md) contains the local Docker Compose stack,
   service layout, scaling, logs, and health checks.
-- [Production](./prod/README.md) contains installation, deployment, TLS,
+- [Production](./environments/prod/README.md) contains installation, deployment, TLS,
   host operations, and administration procedures.
+- [Staging](./environments/staging/README.md) contains test-environment operations,
+  lifecycle controls, and release verification procedures.
 
 Choose the environment before running commands. Development commands operate
-only on the local Compose stack; production commands target AWS and the
-production EC2 host.
+only on the local Compose stack; staging and production commands target their
+selected AWS environment.
 
 ## AWS environment overlays
 
@@ -23,8 +25,7 @@ ansible-inventory -i environments/prod/inventory.ini --list
 ansible-inventory -i environments/staging/inventory.ini --list
 ```
 
-Pass the matching variable overlay when a playbook has been updated to consume
-environment variables:
+Pass the matching variable overlay for direct playbook commands:
 
 ```bash
 ansible-playbook \
@@ -33,5 +34,6 @@ ansible-playbook \
   PLAYBOOK
 ```
 
-Private SSH keys remain outside this repository. Staging inventory and public
-IP values intentionally remain placeholders until the staging host exists.
+For deployments, use the guarded `shared/scripts/deploy-images.sh` wrapper with
+an explicit environment, as documented in the environment's operations guide.
+Private SSH keys remain outside this repository.

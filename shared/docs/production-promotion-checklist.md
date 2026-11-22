@@ -31,10 +31,13 @@ Only Envoy was recreated in each environment; the other seven container IDs and
 start times and both database mounts were preserved. Repeated public content
 checks passed, and the live clusters contain only current Docker addresses.
 See the [DNS correction record](../../../artifacts/envoy-dns-retirement-2026-11-22/summary.json).
-All implementation and production promotion work is complete. The agreed
-technical scope is [signed off](../../../artifacts/envoy-dns-retirement-2026-11-22/parity-signoff.md);
-reviewed cleanup of obsolete staging rollback resources remains before closing
-the refactor.
+Implementation, promotion and the separately approved cleanup are complete.
+The agreed technical scope is
+[signed off](../../../artifacts/envoy-dns-retirement-2026-11-22/parity-signoff.md).
+The retired staging host/root/interface and eight rehearsal snapshots were
+removed. Current staging is stopped with its active disks/IP/schedule retained;
+production is healthy and its SQL backups/rollback records remain retained.
+See the [cleanup result](../../../artifacts/staging-cleanup-review-2026-11-22/execution/summary.json).
 
 ## 1. Complete the staging gate and select the release
 

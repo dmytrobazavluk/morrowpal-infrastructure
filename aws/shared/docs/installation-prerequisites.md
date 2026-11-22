@@ -1,0 +1,94 @@
+# Installation prerequisites
+
+Use this checklist before installing a new environment. Existing production
+uses the update procedures; do not recreate its stacks, network, or provider
+identities. Production writes require completed staging validation, the final
+parity audit, and explicit approval.
+
+Run local commands from `infrastructure/aws`. Select the environment explicitly:
+
+```bash
+ENVIRONMENT=staging
+case "$ENVIRONMENT" in
+  staging|prod) ;;
+  *) printf 'Select staging or prod.\n' >&2; exit 1 ;;
+esac
+```
+
+Read the corresponding environment documentation:
+
+- [Staging operations](../../environments/staging/README.md)
+- [Production operations](../../environments/prod/README.md)
+
+## Local tools and configuration
+
+Have AWS CLI, Ansible, cfn-lint, Docker with Compose, jq, Bash, and the sibling
+backend, frontend, and website source directories available. Building the app
+also requires Flutter and Dart; backend builds use the Gradle wrapper and its
+required Java toolchain. Release images target Linux AMD64.
+
+`environments/ENVIRONMENT/vars.yml` defines the account, Region, Availability
+Zone, network, capacity, resource names, provider identities, and domains.
+`inventory.ini` in that directory defines SSH access. Keep both files consistent;
+the guarded wrappers reject conflicting bindings. Private keys stay outside Git.
+
+`morrowpal_ec2_stack_name` selects the active host stack. Infrastructure,
+deployment, and staging lifecycle guards resolve that existing stack and verify
+its instance ownership. Keep the canonical name until a candidate has been
+created and a guarded cutover is ready; selecting a missing candidate does not
+create it or transfer its data/IP.
+
+Before creating stacks, identify the existing VPC and internet-connected public
+subnet in the selected account, Region, and Availability Zone. These resources
+are prerequisites, not resources created by the shared templates. Do not assume
+a default VPC or subnet exists in a new account or Region.
+
+For a new environment, `prerequisites.yml` creates a dedicated security group
+and imports the public half of its recovery SSH key. The change-set wrapper's
+`prerequisites` kind requires a public-key file and reviewed SSH ingress CIDR.
+After creation, copy its output bindings into the overlay before creating the
+other stacks. An existing production security group and key must not be
+recreated or imported as part of routine installation documentation changes.
+
+Validate local configuration without contacting the hosts:
+
+```bash
+scripts/validate-environments.sh
+bash shared/scripts/validate-local.sh
+```
+
+Use AWS credentials for the account in the selected overlay. Every AWS command
+must specify its configured Region; generic commands must not assume production.
+Use the guarded change-set wrapper to resolve cross-stack bindings, then review
+each change set before explicit execution. A fresh installation requires CREATE
+operations; stop if an existing environment or retained resource needs recovery.
+
+## Provider and DNS preparation
+
+Use the environment README for Postmark, Firebase, SNS recipients, public
+frontend configuration, DNS, and certificate registration. Both environments
+use live email and app notifications. Staging must use its own provider identity
+and Firebase project while sharing the Postmark account allowance.
+Follow the [Postmark](./postmark.md),
+[Firebase](./firebase-app-notifications.md), [system alerts](./system-alerts.md)
+and [store-review account](./store-review-account.md) guides for setup and
+verification using the selected environment's bindings.
+
+The runtime-secrets template defines six secrets. It generates MySQL and JWT
+values, a Postmark placeholder, and a store-review code; the Firebase service
+account secret needs its JSON value supplied separately. Populate provider
+values using the human-operated AWS console workflow for the selected secret
+path and Region. Never put values in this checklist, shell arguments, Git,
+Ansible variables, or logs. Runtime resolution uses dynamic references through
+`asm-exec`; do not retrieve secret values with CLI or agent tools.
+
+## Installation sequence status
+
+Continue with [resource creation and host preparation](./install-from-scratch.md).
+It includes the guarded first deployment and verification.
+
+For the first deployment, `deploy-images.sh ENVIRONMENT initial BACKEND_TAG APP_TAG
+WEBSITE_TAG` publishes all four images and supplies all three component tags in
+one playbook invocation. Routine backend/app/website deployments select one
+component afterward. Do not attempt the initial installation by running three
+routine component deployments against a host without recorded tags.

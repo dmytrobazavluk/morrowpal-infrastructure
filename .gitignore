@@ -1,4 +1,3 @@
 dev/mysql/data/
-prod/known_hosts
-environments/*/known_hosts
+aws/environments/*/known_hosts
 *.pem

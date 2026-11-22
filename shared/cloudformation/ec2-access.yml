@@ -1,0 +1,67 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: IAM instance profile for MorrowPal EC2 container access.
+
+Parameters:
+  Environment:
+    Type: String
+    AllowedValues:
+      - prod
+      - staging
+    Description: Deployment environment used to scope ECR repository access.
+
+Resources:
+  ProductionEc2Role:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: Allows a MorrowPal EC2 host to pull approved ECR images.
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: morrowpal
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: EcrPullApprovedRepositories
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: EcrAuthorization
+                Effect: Allow
+                Action: ecr:GetAuthorizationToken
+                Resource: '*'
+              - Sid: EcrImagePull
+                Effect: Allow
+                Action:
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:BatchGetImage
+                  - ecr:GetDownloadUrlForLayer
+                Resource:
+                  - !Sub arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/morrowpal/${Environment}/app
+                  - !Sub arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/morrowpal/${Environment}/website
+                  - !Sub arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/morrowpal/${Environment}/backend-api
+                  - !Sub arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/morrowpal/${Environment}/backend-job
+
+  ProductionEc2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref ProductionEc2Role
+
+Outputs:
+  InstanceProfileArn:
+    Description: ARN of the instance profile for MorrowPal EC2 hosts.
+    Value: !GetAtt ProductionEc2InstanceProfile.Arn
+
+  InstanceProfileName:
+    Description: Name used to associate the instance profile with an existing EC2 instance.
+    Value: !Ref ProductionEc2InstanceProfile
+
+  RoleArn:
+    Description: ARN of the least-privilege EC2 role.
+    Value: !GetAtt ProductionEc2Role.Arn

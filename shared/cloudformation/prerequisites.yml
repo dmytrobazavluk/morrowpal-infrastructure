@@ -1,0 +1,115 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: MorrowPal EC2 host prerequisites with isolated ingress and an imported recovery public key.
+
+Metadata:
+  AWSToolsMetrics:
+    AWSAgentToolkit: aws-cloudformation@1
+
+Parameters:
+  Environment:
+    Type: String
+    AllowedValues:
+      - prod
+      - staging
+    Description: Deployment environment used for names and resource tags.
+
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: Existing environment VPC that contains the selected public subnet.
+
+  KeyName:
+    Type: String
+    MinLength: 1
+    MaxLength: 255
+    AllowedPattern: '[A-Za-z0-9._-]+'
+    Description: Environment-specific EC2 recovery key-pair name.
+
+  SshPublicKeyMaterial:
+    Type: String
+    MinLength: 32
+    MaxLength: 4096
+    AllowedPattern: 'ssh-(rsa|ed25519) [A-Za-z0-9+/=]+( .*)?'
+    Description: Public half of a locally generated recovery key; never provide private key material.
+
+  SshIngressCidr:
+    Type: String
+    AllowedPattern: '(\d{1,3}\.){3}\d{1,3}/([0-9]|[12][0-9]|3[0-2])'
+    Description: Trusted operator IPv4 CIDR allowed to use SSH; use a narrow range whenever possible.
+
+Resources:
+  HostSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: Isolates one environment's public host ingress from every other environment.
+        must:
+          - HTTPS stays public for application traffic.
+          - SSH source comes only from the reviewed operator CIDR.
+          - HTTP port 80 remains owned by the separate certificate-validation stack.
+        mutable: change-with-constraints
+    Properties:
+      GroupDescription: !Sub MorrowPal ${Environment} container host ingress.
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - Description: Allow public HTTPS application traffic.
+          IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+        - Description: Allow recovery SSH from the reviewed operator network.
+          IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Ref SshIngressCidr
+      SecurityGroupEgress:
+        - Description: Allow host access to package, container, and external service endpoints.
+          IpProtocol: '-1'
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-host
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: morrowpal
+
+  RecoveryKeyPair:
+    Type: AWS::EC2::KeyPair
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: Imports only a reviewed public key for emergency EC2 access; private material stays local.
+        must:
+          - Never place private key material in CloudFormation parameters, logs, or repository files.
+          - Key name and tags remain bound to the selected environment.
+        mutable: review-required
+    Properties:
+      KeyName: !Ref KeyName
+      PublicKeyMaterial: !Ref SshPublicKeyMaterial
+      Tags:
+        - Key: Name
+          Value: !Ref KeyName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: morrowpal
+
+Outputs:
+  VpcId:
+    Description: VPC containing the environment host security group.
+    Value: !Ref VpcId
+
+  SecurityGroupId:
+    Description: Dedicated security group passed to the environment EC2 stack.
+    Value: !Ref HostSecurityGroup
+
+  KeyPairName:
+    Description: Recovery key-pair name passed to the environment EC2 stack.
+    Value: !Ref RecoveryKeyPair
+
+  KeyPairId:
+    Description: Regional identifier of the imported recovery key pair.
+    Value: !GetAtt RecoveryKeyPair.KeyPairId
+
+  KeyFingerprint:
+    Description: Public-key fingerprint used to verify the imported recovery key.
+    Value: !GetAtt RecoveryKeyPair.KeyFingerprint

@@ -1,0 +1,2 @@
+// Public client settings. Never put server credentials in this file.
+self.MORROWPAL_RUNTIME_CONFIG = {{ {'environment': morrowpal_environment, 'apiBaseUrl': morrowpal_public_urls.api, 'firebase': morrowpal_web_firebase_config} | to_json | to_json }};

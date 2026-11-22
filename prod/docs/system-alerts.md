@@ -22,49 +22,40 @@ provider chains.
 
 ## Create the topic and subscriptions
 
-Run from `infrastructure/prod`. Confirm the AWS identity is production account
+Run from `infrastructure`. Production writes require completed staging
+validation, the final parity audit, and explicit approval. Confirm the AWS
+identity is production account
 `384078510608` before any change. Provide one to three team email addresses as
 CloudFormation parameters. Do not put recipient addresses into the template or
 Docker Compose file.
 
 ```bash
-cfn-lint --regions us-east-2 -t ./cloudformation/system-alerts.yml
+cfn-lint --regions us-east-2 -t shared/cloudformation/system-alerts.yml
 aws cloudformation validate-template \
-  --template-body file://./cloudformation/system-alerts.yml \
+  --template-body file://shared/cloudformation/system-alerts.yml \
   --region us-east-2
 
-PRODUCTION_EC2_ROLE_ARN="$(aws cloudformation describe-stacks \
-  --stack-name morrowpal-prod-ec2-access \
-  --query 'Stacks[0].Outputs[?OutputKey==`RoleArn`].OutputValue' \
-  --output text --region us-east-2)"
-PRODUCTION_EC2_ROLE_NAME="${PRODUCTION_EC2_ROLE_ARN##*/}"
-
-aws cloudformation create-change-set \
-  --stack-name morrowpal-prod-system-alerts \
-  --change-set-name initial-system-alerts \
-  --change-set-type CREATE \
-  --template-body file://./cloudformation/system-alerts.yml \
-  --parameters \
-    "ParameterKey=ProductionEc2RoleName,ParameterValue=$PRODUCTION_EC2_ROLE_NAME" \
-    "ParameterKey=PrimaryAlertEmail,ParameterValue=$PRIMARY_ALERT_EMAIL" \
-    "ParameterKey=SecondaryAlertEmail,ParameterValue=$SECONDARY_ALERT_EMAIL" \
-    "ParameterKey=TertiaryAlertEmail,ParameterValue=$TERTIARY_ALERT_EMAIL" \
-  --capabilities CAPABILITY_IAM \
-  --region us-east-2
+MORROWPAL_PRIMARY_ALERT_EMAIL="$PRIMARY_ALERT_EMAIL" \
+MORROWPAL_SECONDARY_ALERT_EMAIL="$SECONDARY_ALERT_EMAIL" \
+MORROWPAL_TERTIARY_ALERT_EMAIL="$TERTIARY_ALERT_EMAIL" \
+  shared/scripts/morrowpal-infrastructure-change-set.sh \
+    prod system-alerts initial-system-alerts --confirm-production
 ```
 
 Set `PRIMARY_ALERT_EMAIL` before running the change set. Set
 `SECONDARY_ALERT_EMAIL` and `TERTIARY_ALERT_EMAIL` to empty strings when unused.
 Review the change set before executing it. After it completes, compare the
-`SystemAlertsTopicArn` stack output with `APP_SYSTEM_ALERTS_TOPIC_ARN` in
-`docker-compose.yml`. Each recipient must confirm the SNS email subscription.
+`SystemAlertsTopicArn` stack output with `morrowpal_system_alerts_topic_arn` in
+`environments/prod/vars.yml`. The runtime template supplies that value to
+`APP_SYSTEM_ALERTS_TOPIC_ARN`. Each recipient must confirm the SNS email subscription.
 Check that each subscription is confirmed before enabling the backend image.
 The stack also grants the EC2 role KMS data-key and decrypt permissions scoped
 to this topic and the AWS-managed SNS key; encrypted-topic publishing requires
 both those permissions and `sns:Publish`.
 
-For updates, use an `UPDATE` change set, review its replacement and deletion
-actions, and confirm any newly added email subscriptions.
+For updates, run the same guarded wrapper with a new change-set name. It detects
+that the stack exists and creates an `UPDATE` change set. Review its replacement
+and deletion actions and confirm any newly added email subscriptions.
 
 ## Verify
 

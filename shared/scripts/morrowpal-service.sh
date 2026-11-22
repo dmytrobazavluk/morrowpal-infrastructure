@@ -1,0 +1,300 @@
+#!/usr/bin/env bash
+
+set -Eeuo pipefail
+
+readonly environment_file=/etc/morrowpal/environment
+readonly runtime_config_library=/usr/local/libexec/morrowpal/runtime-config
+
+[[ -r "$environment_file" ]] || {
+    printf 'Environment configuration is missing: %s\n' "$environment_file" >&2
+    exit 1
+}
+[[ -r "$runtime_config_library" ]] || {
+    printf 'Runtime configuration library is missing: %s\n' "$runtime_config_library" >&2
+    exit 1
+}
+
+set -a
+# shellcheck source=/dev/null
+source "$environment_file"
+set +a
+# shellcheck source=morrowpal-runtime-config.sh
+source "$runtime_config_library"
+
+readonly -a required_environment_variables=(
+    MORROWPAL_AWS_REGION
+    MORROWPAL_ECR_REGISTRY
+    MORROWPAL_ECR_REPOSITORY_PREFIX
+    MORROWPAL_SECRETS_PREFIX
+    MORROWPAL_DEPLOYMENT_ROOT
+    MORROWPAL_MYSQL_DATA_MOUNT
+    MORROWPAL_APP_DOMAIN
+    MORROWPAL_WEBSITE_DOMAIN
+)
+morrowpal_require_environment_values "${required_environment_variables[@]}"
+
+readonly aws_region="$MORROWPAL_AWS_REGION"
+readonly registry="$MORROWPAL_ECR_REGISTRY"
+readonly secrets_prefix="$MORROWPAL_SECRETS_PREFIX"
+readonly deployment_root="$MORROWPAL_DEPLOYMENT_ROOT"
+readonly app_domain="$MORROWPAL_APP_DOMAIN"
+readonly website_domain="$MORROWPAL_WEBSITE_DOMAIN"
+readonly compose_file="$deployment_root/docker-compose.yml"
+readonly blue_tag_file="$deployment_root/api-blue-image-tag"
+readonly green_tag_file="$deployment_root/api-green-image-tag"
+readonly job_tag_file="$deployment_root/job-image-tag"
+readonly app_tag_file="$deployment_root/app-image-tag"
+readonly website_tag_file="$deployment_root/website-image-tag"
+
+for tag_file in "$blue_tag_file" "$green_tag_file" "$job_tag_file" "$app_tag_file" "$website_tag_file"; do
+    [[ -r "$tag_file" ]] || {
+        printf 'Image tag file is missing: %s\n' "$tag_file" >&2
+        exit 1
+    }
+done
+
+blue_tag="$(<"$blue_tag_file")"
+green_tag="$(<"$green_tag_file")"
+job_tag="$(<"$job_tag_file")"
+app_tag="$(<"$app_tag_file")"
+website_tag="$(<"$website_tag_file")"
+for image_tag in "$blue_tag" "$green_tag" "$job_tag" "$app_tag" "$website_tag"; do
+    [[ "$image_tag" =~ ^build-[1-9][0-9]*-[0-9a-f]{7}$ ]] || {
+        printf 'Invalid image tag: %s\n' "$image_tag" >&2
+        exit 1
+    }
+done
+
+compose() {
+    API_BLUE_IMAGE_TAG="$blue_tag" \
+    API_GREEN_IMAGE_TAG="$green_tag" \
+    JOB_IMAGE_TAG="$job_tag" \
+    APP_IMAGE_TAG="$app_tag" \
+    WEBSITE_IMAGE_TAG="$website_tag" \
+        docker compose \
+        --env-file "$environment_file" \
+        --project-directory "$deployment_root" \
+        --file "$compose_file" \
+        "$@"
+}
+
+action="${1:-start}"
+recreate_envoy=false
+recreate_app=false
+recreate_website=false
+
+case "$action" in
+    stop)
+        compose down --remove-orphans
+        rm -rf /run/morrowpal/secrets
+        exit 0
+        ;;
+    status)
+        compose ps
+        curl --fail --silent --show-error http://127.0.0.1:8080/ready
+        printf '\n'
+        exit 0
+        ;;
+    start)
+        ;;
+    refresh-secrets)
+        [[ $# -eq 1 ]] || {
+            printf 'Usage: %s refresh-secrets\n' "$0" >&2
+            exit 2
+        }
+        exec 9>/run/morrowpal-deploy.lock
+        flock --exclusive --nonblock 9 || {
+            printf 'Another MorrowPal deployment is already running.\n' >&2
+            exit 1
+        }
+        systemctl is-active --quiet morrowpal.service || {
+            printf 'morrowpal.service must be active before refreshing secrets.\n' >&2
+            exit 1
+        }
+        ;;
+    reconcile)
+        for option in "${@:2}"; do
+            case "$option" in
+                --recreate-envoy)
+                    recreate_envoy=true
+                    ;;
+                --recreate-app)
+                    recreate_app=true
+                    ;;
+                --recreate-website)
+                    recreate_website=true
+                    ;;
+                *)
+                    printf 'Usage: %s reconcile [--recreate-envoy] [--recreate-app] [--recreate-website]\n' "$0" >&2
+                    exit 2
+                    ;;
+            esac
+        done
+        exec 9>/run/morrowpal-deploy.lock
+        flock --exclusive --nonblock 9 || {
+            printf 'Another MorrowPal deployment is already running.\n' >&2
+            exit 1
+        }
+        systemctl is-active --quiet morrowpal.service || {
+            printf 'morrowpal.service must be active before reconciliation.\n' >&2
+            exit 1
+        }
+        ;;
+    *)
+        printf 'Usage: %s [start|stop|status|refresh-secrets|reconcile [--recreate-envoy] [--recreate-app] [--recreate-website]]\n' "$0" >&2
+        exit 2
+        ;;
+esac
+
+wait_for_mysql() {
+    local mysql_container_id
+    local mysql_status=""
+
+    for _ in {1..60}; do
+        mysql_container_id="$(compose ps -q mysql)"
+        if [[ -n "$mysql_container_id" ]]; then
+            mysql_status="$(docker inspect --format '{{.State.Health.Status}}' "$mysql_container_id" 2>/dev/null || true)"
+        fi
+        [[ "$mysql_status" == healthy ]] && return 0
+        sleep 5
+    done
+
+    printf 'MySQL did not become healthy. Last status: %s\n' "$mysql_status" >&2
+    return 1
+}
+
+wait_for_api() {
+    for _ in {1..60}; do
+        if curl --fail --silent --show-error http://127.0.0.1:8080/ready >/dev/null 2>&1; then
+            return 0
+        fi
+        sleep 5
+    done
+
+    printf 'Envoy did not find a ready backend API.\n' >&2
+    return 1
+}
+
+wait_for_app() {
+    for _ in {1..30}; do
+        if curl --fail --silent --show-error \
+                --resolve "${app_domain}:443:127.0.0.1" \
+                "https://${app_domain}/ready" >/dev/null 2>&1; then
+            return 0
+        fi
+        sleep 2
+    done
+
+    printf 'Envoy did not find a ready app.\n' >&2
+    return 1
+}
+
+wait_for_website() {
+    for _ in {1..30}; do
+        if curl --fail --silent --show-error \
+                --resolve "${website_domain}:443:127.0.0.1" \
+                "https://${website_domain}/ready" >/dev/null 2>&1 && \
+                curl --fail --silent --show-error \
+                    --resolve "${website_domain}:443:127.0.0.1" \
+                    "https://${website_domain}/" >/dev/null 2>&1; then
+            return 0
+        fi
+        sleep 2
+    done
+
+    printf 'Envoy did not find a ready website landing page.\n' >&2
+    return 1
+}
+
+logged_in=false
+cleanup() {
+    if [[ "$logged_in" == true ]]; then
+        docker logout "$registry" >/dev/null 2>&1 || true
+    fi
+}
+trap cleanup EXIT
+
+export AWS_REGION="$aws_region"
+export MYSQL_APP_PASSWORD="$(morrowpal_secret_reference "$secrets_prefix/mysql" password)"
+export MYSQL_ROOT_PASSWORD="$(morrowpal_secret_reference "$secrets_prefix/mysql-root" password)"
+export JWT_SIGNING_SECRET="$(morrowpal_secret_reference "$secrets_prefix/jwt" value)"
+export POSTMARK_SERVER_TOKEN="$(morrowpal_secret_reference "$secrets_prefix/postmark" serverToken)"
+export FIREBASE_SERVICE_ACCOUNT_JSON="$(morrowpal_secret_reference "$secrets_prefix/firebase-service-account")"
+export STORE_REVIEW_VERIFICATION_CODE="$(morrowpal_secret_reference "$secrets_prefix/store-review" value)"
+
+secrets_resolved=false
+for _ in {1..6}; do
+    if /usr/local/bin/asm-exec -- /usr/local/libexec/morrowpal/write-runtime-secrets; then
+        secrets_resolved=true
+        break
+    fi
+    sleep 10
+done
+[[ "$secrets_resolved" == true ]] || {
+    printf 'Runtime secrets could not be resolved after six attempts.\n' >&2
+    exit 1
+}
+
+unset MYSQL_APP_PASSWORD MYSQL_ROOT_PASSWORD JWT_SIGNING_SECRET POSTMARK_SERVER_TOKEN FIREBASE_SERVICE_ACCOUNT_JSON STORE_REVIEW_VERIFICATION_CODE
+
+if [[ "$action" == refresh-secrets ]]; then
+    exit 0
+fi
+
+if [[ "$action" == reconcile ]]; then
+    aws ecr get-login-password --region "$aws_region" \
+        | docker login --username AWS --password-stdin "$registry"
+    logged_in=true
+    compose pull mysql app website envoy backend-job-dispatch backend-job-cleanup
+    docker logout "$registry" >/dev/null 2>&1
+    logged_in=false
+
+    # API containers are deliberately excluded. The release command shifts
+    # traffic, drains, and recreates them one slot at a time.
+    compose up \
+        --detach \
+        --no-deps \
+        --remove-orphans \
+        --wait \
+        --wait-timeout 300 \
+        mysql \
+        app \
+        website \
+        envoy \
+        backend-job-dispatch \
+        backend-job-cleanup
+    if [[ "$recreate_app" == true ]]; then
+        compose up --detach --no-deps --force-recreate app
+    fi
+    if [[ "$recreate_website" == true ]]; then
+        compose up --detach --no-deps --force-recreate website
+    fi
+    if [[ "$recreate_envoy" == true ]]; then
+        compose up --detach --no-deps --force-recreate envoy
+    fi
+    wait_for_mysql
+    wait_for_api
+    wait_for_app
+    wait_for_website
+    compose ps
+    exit 0
+fi
+
+aws ecr get-login-password --region "$aws_region" \
+    | docker login --username AWS --password-stdin "$registry"
+logged_in=true
+
+compose pull
+docker logout "$registry" >/dev/null 2>&1
+logged_in=false
+
+compose up -d --remove-orphans mysql
+wait_for_mysql
+
+compose up -d app website backend-api-blue backend-api-green envoy
+wait_for_api
+wait_for_app
+wait_for_website
+
+compose up -d backend-job-dispatch backend-job-cleanup
+compose ps

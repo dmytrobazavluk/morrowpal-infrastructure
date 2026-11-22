@@ -1,0 +1,25 @@
+---
+- name: Prepare MySQL for a future RDS migration
+  hosts: morrowpal_hosts
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Require the MorrowPal deployment directory
+      ansible.builtin.stat:
+        path: "{{ morrowpal_deployment_root }}"
+      register: morrowpal_root_stat
+
+    - name: Validate the MorrowPal deployment directory
+      ansible.builtin.assert:
+        that:
+          - morrowpal_root_stat.stat.isdir | default(false)
+        fail_msg: Run prepare-host.yml before preparing MySQL.
+
+    - name: Install the migration-ready MySQL configuration
+      ansible.builtin.copy:
+        src: ../runtime/mysql/migration-ready.cnf
+        dest: "{{ morrowpal_deployment_root }}/mysql-migration-ready.cnf"
+        owner: root
+        group: root
+        mode: "0644"

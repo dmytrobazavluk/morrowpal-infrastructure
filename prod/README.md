@@ -3,22 +3,28 @@
 This file is the canonical index for MorrowPal production installation,
 deployment, and administration procedures.
 
-Run commands from `infrastructure/prod` unless a document explicitly says
-otherwise.
+Run local commands from `infrastructure` unless a document explicitly identifies
+commands to run on the EC2 host. Production writes require completed staging
+validation, the final parity audit, and explicit approval.
 
 ## Documentation Index
 
-- [Install production from scratch](./docs/install-from-scratch.md)
-- [Update production infrastructure](./docs/update-infrastructure.md)
-- [Update the backend](./docs/update-backend.md)
+- [Production promotion checklist](../shared/docs/production-promotion-checklist.md)
+- [Staging/production refactor completion and recovery record](../shared/docs/staging-production-refactor-completion.md)
+- [Staging release checklist before promotion](../shared/docs/staging-release-checklist.md)
+- [Installation prerequisites](../shared/docs/installation-prerequisites.md)
+- [Production installation prerequisites](./docs/installation-prerequisites.md)
+- [Resource creation and host preparation](../shared/docs/install-from-scratch.md)
+- [Update infrastructure configuration](../shared/docs/update-infrastructure.md)
+- [Update the backend](../shared/docs/update-backend.md)
 - [Postmark operations](./docs/postmark.md)
 - [Firebase app notification operations](./docs/firebase-app-notifications.md)
 - [Internal system alerts](./docs/system-alerts.md)
 - [Child safety incident response](./docs/child-safety-response.md)
-- [Update the app](./docs/update-app.md)
-- [Update the website](./docs/update-website.md)
-- [Production TLS](./docs/tls.md)
-- [Replace the production host](./docs/replace-host.md)
+- [Update the app](../shared/docs/update-app.md)
+- [Update the website](../shared/docs/update-website.md)
+- [TLS certificates and renewal](../shared/docs/tls.md)
+- [Host-replacement planning and execution gate](../shared/docs/replace-host.md)
 - [Production database administration](./docs/admin.md)
 - [Recently registered users query](./docs/queries/recent-users-correspondences.md)
 
@@ -29,16 +35,18 @@ otherwise.
 - Production Availability Zone: `us-east-2c`
 - Production host: `3.12.65.199`
 - SSH user: `ec2-user`
-- Ansible inventory group: `production`
+- Ansible inventory group: `morrowpal_hosts`
+- Inventory: `environments/prod/inventory.ini`
+- Overlay: `environments/prod/vars.yml`
 - Ansible host alias: `01`
 - Deployment root on EC2: `/opt/morrowpal`
 - MySQL data mount: `/var/lib/morrowpal`
 
 The private SSH key is stored outside the infrastructure repository at
-`../../morrowpal-prod-01.pem`. Keep it readable only by its owner:
+`../morrowpal-prod-01.pem` from `infrastructure`. Keep it readable only by its owner:
 
 ```bash
-chmod 400 ../../morrowpal-prod-01.pem
+chmod 400 ../morrowpal-prod-01.pem
 ```
 
 ## Public Hostnames
@@ -53,7 +61,7 @@ chmod 400 ../../morrowpal-prod-01.pem
 
 All names on the production certificate resolve to the stable production IPv4
 address. They must not have AAAA records until the production edge supports
-IPv6. See [Production TLS](./docs/tls.md).
+IPv6. See the [shared TLS guide](../shared/docs/tls.md).
 
 ## Runtime Architecture
 
@@ -95,7 +103,7 @@ Do not use mutable tags such as `latest` in production.
 1. Confirm the AWS identity before any AWS mutation:
 
    ```bash
-   aws sts get-caller-identity
+   aws sts get-caller-identity --region us-east-2
    ```
 
 2. Validate CloudFormation locally and with AWS before creating a change set.
@@ -105,8 +113,9 @@ Do not use mutable tags such as `latest` in production.
    resolution. Human-only GUI access is documented separately in
    [database administration](./docs/admin.md).
 6. Publish and scan an immutable image before deploying its tag.
-7. Prefer the Ansible deployment playbook over direct host commands because it
-   also reconciles infrastructure files and verifies readiness.
+7. Use the guarded `shared/scripts/deploy-images.sh prod` command with the
+   component, selected tag where required, and `--confirm-production`. It
+   validates the target and invokes Ansible with matching configuration.
 
 ## Deployment Behavior
 
@@ -133,20 +142,25 @@ operator action, or recovery.
 Verify Ansible access:
 
 ```bash
-ansible production -m ping
+ansible morrowpal_hosts -i environments/prod/inventory.ini \
+  -e @environments/prod/vars.yml -m ping
 ```
 
 Connect directly when necessary:
 
 ```bash
-ssh -i ../../morrowpal-prod-01.pem ec2-user@3.12.65.199
+ssh -i ../morrowpal-prod-01.pem ec2-user@3.12.65.199
 ```
 
 Inspect the production service without exposing secrets:
 
 ```bash
-ansible 01 -b -m command -a 'systemctl status morrowpal --no-pager'
-ansible 01 -b -m command -a '/usr/local/sbin/morrowpal-service status'
+ansible morrowpal_hosts -i environments/prod/inventory.ini \
+  -e @environments/prod/vars.yml -b -m command \
+  -a 'systemctl status morrowpal --no-pager'
+ansible morrowpal_hosts -i environments/prod/inventory.ini \
+  -e @environments/prod/vars.yml -b -m command \
+  -a '/usr/local/sbin/morrowpal-service status'
 ```
 
 ### Direct Docker Compose Access
@@ -167,14 +181,17 @@ The production Compose project and its image-tag files are stored under
     └── tls-certificate-sds.yaml
 ```
 
-For routine status checks, prefer the service helper:
+Run the following commands on the production EC2 host. For routine status
+checks, prefer the service helper:
 
 ```bash
 sudo /usr/local/sbin/morrowpal-service status
 ```
 
-To run read-only Docker Compose commands directly, enter a root shell and load
-the immutable image tags required by the Compose file:
+The shared runtime installs public environment bindings in
+`/etc/morrowpal/environment`. After that runtime is installed, run read-only
+Docker Compose commands from a root shell with those bindings and the recorded
+immutable image tags:
 
 ```bash
 sudo -i
@@ -186,10 +203,10 @@ export JOB_IMAGE_TAG="$(<job-image-tag)"
 export APP_IMAGE_TAG="$(<app-image-tag)"
 export WEBSITE_IMAGE_TAG="$(<website-image-tag)"
 
-docker compose ps
-docker compose logs --tail=200 app
-docker compose logs --tail=200 website
-docker compose logs --tail=200 envoy
+docker compose --env-file /etc/morrowpal/environment ps
+docker compose --env-file /etc/morrowpal/environment logs --tail=200 app
+docker compose --env-file /etc/morrowpal/environment logs --tail=200 website
+docker compose --env-file /etc/morrowpal/environment logs --tail=200 envoy
 ```
 
 Do not inspect files under `/run/morrowpal/secrets`. Do not use

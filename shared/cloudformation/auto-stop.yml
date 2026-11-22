@@ -1,0 +1,91 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Stop MorrowPal staging nightly at 1 AM America/Chicago.
+
+Metadata:
+  AWSToolsMetrics:
+    AWSAgentToolkit: aws-cloudformation@1
+
+Parameters:
+  Environment:
+    Type: String
+    AllowedValues: [staging]
+    Description: Automatic shutdown is supported only for staging.
+  InstanceId:
+    Type: AWS::EC2::Instance::Id
+    Description: Staging instance resolved and validated by the deployment wrapper.
+  ScheduleState:
+    Type: String
+    Default: ENABLED
+    AllowedValues: [ENABLED, DISABLED]
+    Description: Pause nightly shutdown during a guarded staging host handoff.
+
+Resources:
+  ScheduleGroup:
+    Type: AWS::Scheduler::ScheduleGroup
+    Properties:
+      Name: !Ref AWS::StackName
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: morrowpal
+
+  ExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: scheduler.amazonaws.com
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+              ArnEquals:
+                aws:SourceArn: !GetAtt ScheduleGroup.Arn
+      Policies:
+        - PolicyName: StopStagingInstance
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: ec2:StopInstances
+                Resource: !Sub 'arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:instance/${InstanceId}'
+                Condition:
+                  StringEquals:
+                    ec2:ResourceTag/Environment: !Ref Environment
+                    ec2:ResourceTag/Application: morrowpal
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: morrowpal
+
+  NightlyStop:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: !Sub '${AWS::StackName}-nightly'
+      GroupName: !Ref ScheduleGroup
+      Description: Request a normal stop of staging every night at 1 AM America/Chicago.
+      ScheduleExpression: cron(0 1 * * ? *)
+      ScheduleExpressionTimezone: America/Chicago
+      FlexibleTimeWindow:
+        Mode: 'OFF'
+      State: !Ref ScheduleState
+      Target:
+        Arn: !Sub 'arn:${AWS::Partition}:scheduler:::aws-sdk:ec2:stopInstances'
+        RoleArn: !GetAtt ExecutionRole.Arn
+        Input: !Sub '{"InstanceIds":["${InstanceId}"],"Force":false}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 300
+          MaximumRetryAttempts: 2
+
+Outputs:
+  ScheduleGroupName:
+    Value: !Ref ScheduleGroup
+  ScheduleName:
+    Value: !Sub '${AWS::StackName}-nightly'
+  ExecutionRoleArn:
+    Value: !GetAtt ExecutionRole.Arn

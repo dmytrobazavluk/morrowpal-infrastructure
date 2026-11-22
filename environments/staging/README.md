@@ -3,6 +3,9 @@
 Run commands from `infrastructure` with AWS credentials for the account and
 Region configured in `environments/staging/vars.yml`.
 
+The [refactor completion record](../../shared/docs/staging-production-refactor-completion.md)
+documents the initial parity verification, retained staging resources and cleanup.
+
 For a release on the existing environment, follow the
 [staging release checklist](../../shared/docs/staging-release-checklist.md).
 After staging verification, use the separate

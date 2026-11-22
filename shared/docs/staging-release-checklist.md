@@ -38,7 +38,7 @@ bash shared/scripts/validate-local.sh
   America/Chicago** shutdown. Avoid concurrent deployments/lifecycle operations.
   A test waiting for delayed dispatch remains incomplete until delivery occurs.
 
-Keep a release record in `artifacts/` with revisions, previous/selected image
+Keep a tracked release record in `shared/docs/releases/` with revisions, previous/selected image
 tags and digests, change-set IDs, checks/results, outstanding items, and final
 staging state. Exclude credentials, verification codes, private key contents,
 and private user data. Mark steps unrelated to the change as not applicable.

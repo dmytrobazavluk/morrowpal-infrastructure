@@ -12,32 +12,11 @@ accepted by the user. Browser notification delivery remains an explicitly
 accepted, unverified production follow-up. This exception does not waive data
 recovery readiness, migration review or production approval.
 
-The eight common production CloudFormation stacks and the reviewed shared host
-configuration have been promoted. Production now runs the exact tested staging
-artifacts: API/jobs `build-34-2ae804f`, app `build-30-5c22961`, website
-`build-14-4e89de1`. All four production scans passed. The retained database
-volume/server identity, migration history and all 18 table row counts were
-preserved, and table integrity checks passed. The recent private SQL dump and
-original host rollback files remain retained. See the
-[production execution record](../../../artifacts/production-host-rollout-final-2026-11-22/summary.json)
-and [local restore verification](../../../artifacts/production-sql-backup-2026-11-21/summary.json).
-
-Post-rollout content checks found stale Envoy upstream addresses after app/website
-Docker IP reuse. A restart of the same Envoy container cleared the cross-routing;
-public app content, client build and runtime settings now pass verification.
-The shared DNS-removal correction has since passed an isolated regression test,
-the full local validation suite and staging-first deployment, then production.
-Only Envoy was recreated in each environment; the other seven container IDs and
-start times and both database mounts were preserved. Repeated public content
-checks passed, and the live clusters contain only current Docker addresses.
-See the [DNS correction record](../../../artifacts/envoy-dns-retirement-2026-11-22/summary.json).
-Implementation, promotion and the separately approved cleanup are complete.
-The agreed technical scope is
-[signed off](../../../artifacts/envoy-dns-retirement-2026-11-22/parity-signoff.md).
-The retired staging host/root/interface and eight rehearsal snapshots were
-removed. Current staging is stopped with its active disks/IP/schedule retained;
-production is healthy and its SQL backups/rollback records remain retained.
-See the [cleanup result](../../../artifacts/staging-cleanup-review-2026-11-22/execution/summary.json).
+The initial refactor, production promotion and cleanup completed on 2026-11-22.
+The tracked [completion record](./staging-production-refactor-completion.md)
+records the verified releases, data preservation, backup/recovery locations,
+DNS correction and accepted verification limit. Use this checklist for each
+subsequent promotion; historical results do not establish a new release's health.
 
 ## 1. Complete the staging gate and select the release
 
@@ -62,7 +41,7 @@ See the [cleanup result](../../../artifacts/staging-cleanup-review-2026-11-22/ex
   production write, including image publication. The CLI confirmation flag is
   an execution guard, not a substitute for this approval.
 
-Keep a promotion record in `artifacts/` with the approved scope, revisions,
+Keep a tracked promotion record in `shared/docs/releases/` with the approved scope, revisions,
 baseline and selected tags/digests, migration/rollback decisions, reviewed
 change sets, approvals, results, and remaining issues. Exclude secret values
 and private user data. Do not rotate secrets or provider credentials as a side

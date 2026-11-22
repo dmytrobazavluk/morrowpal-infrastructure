@@ -15,10 +15,10 @@ case "$ENVIRONMENT" in
 esac
 ```
 
-Read the corresponding environment checklist:
+Read the corresponding environment documentation:
 
-- [Staging prerequisites](../../environments/staging/installation-prerequisites.md)
-- [Production prerequisites](../../prod/docs/installation-prerequisites.md)
+- [Staging operations](../../environments/staging/README.md)
+- [Production operations](../../environments/prod/README.md)
 
 ## Local tools and configuration
 
@@ -65,10 +65,14 @@ operations; stop if an existing environment or retained resource needs recovery.
 
 ## Provider and DNS preparation
 
-Use the environment checklist for Postmark, Firebase, SNS recipients, public
+Use the environment README for Postmark, Firebase, SNS recipients, public
 frontend configuration, DNS, and certificate registration. Both environments
 use live email and app notifications. Staging must use its own provider identity
 and Firebase project while sharing the Postmark account allowance.
+Follow the [Postmark](./postmark.md),
+[Firebase](./firebase-app-notifications.md), [system alerts](./system-alerts.md)
+and [store-review account](./store-review-account.md) guides for setup and
+verification using the selected environment's bindings.
 
 The runtime-secrets template defines six secrets. It generates MySQL and JWT
 values, a Postmark placeholder, and a store-review code; the Firebase service
@@ -81,9 +85,7 @@ Ansible variables, or logs. Runtime resolution uses dynamic references through
 ## Installation sequence status
 
 Continue with [resource creation and host preparation](./install-from-scratch.md).
-It includes the guarded first deployment and verification. The
-[production installation page](../../prod/docs/install-from-scratch.md)
-links to the same shared sequence.
+It includes the guarded first deployment and verification.
 
 For the first deployment, `deploy-images.sh ENVIRONMENT initial BACKEND_TAG APP_TAG
 WEBSITE_TAG` publishes all four images and supplies all three component tags in

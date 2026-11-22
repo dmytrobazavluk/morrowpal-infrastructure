@@ -2,9 +2,9 @@
 
 Use this guide for a new installation after completing the
 [shared prerequisites](./installation-prerequisites.md) and the selected
-environment's checklist. Both current environments already exist. Do not
-recreate their stacks or retained resources; use the update or host-replacement
-procedure instead. Production writes require completed staging validation,
+environment's README linked there. Both current environments already exist.
+Do not recreate their stacks or retained resources; use the update or
+host-replacement procedure instead. Production writes require completed staging validation,
 the final parity audit, and explicit approval.
 
 The initial deployment uses one guarded command with all three component tags.

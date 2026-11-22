@@ -153,7 +153,8 @@ production publication. Deployment never builds images or increments counters.
   store links, and the email confirmation flow using the
   [website guide](./update-website.md).
 - [ ] Verify affected live Postmark email, confirmed SNS delivery, and Firebase
-  notification registration/delivery using controlled staging accounts/devices.
+  notification registration/delivery using controlled staging accounts/devices
+  and the [Firebase operations guide](./firebase-app-notifications.md).
   Use the normal dispatch path; do not substitute a provider console test for
   application delivery or silently change scheduling data to accelerate it.
   For the current refactor, browser notification delivery is explicitly deferred

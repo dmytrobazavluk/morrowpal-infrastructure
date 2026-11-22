@@ -13,15 +13,16 @@ After staging verification, use the separate
 and its approval gates.
 
 For a new environment, begin with the
-[shared installation prerequisites](../../shared/docs/installation-prerequisites.md)
-and [staging-specific checklist](./installation-prerequisites.md).
-Then follow the [shared installation guide](../../shared/docs/install-from-scratch.md),
+[shared installation prerequisites](../../shared/docs/installation-prerequisites.md),
+then follow the [shared installation guide](../../shared/docs/install-from-scratch.md),
 including its guarded initial deployment with all three component tags.
+Existing staging uses the update or replacement procedures; do not recreate
+its stacks or retained resources by following a fresh installation.
 
 Use the [shared TLS guide](../../shared/docs/tls.md) for certificate operations.
 Read the [host-replacement planning checklist](../../shared/docs/replace-host.md)
-before planning a replacement; its execution path still requires implementation
-and a staging rehearsal.
+and [staging replacement runbook](../../shared/docs/staging-host-replacement.md)
+before planning a replacement.
 
 For Compose, Envoy, service-script, or systemd changes, follow the
 [shared infrastructure update procedure](../../shared/docs/update-infrastructure.md)
@@ -32,6 +33,33 @@ Component releases follow the shared guides, starting with their staging steps:
 - [Update the backend](../../shared/docs/update-backend.md)
 - [Update the app](../../shared/docs/update-app.md)
 - [Update the website](../../shared/docs/update-website.md)
+- [Postmark operations](../../shared/docs/postmark.md)
+- [Firebase app notification operations](../../shared/docs/firebase-app-notifications.md)
+- [Store-review account operations](../../shared/docs/store-review-account.md)
+- [Internal system alerts](../../shared/docs/system-alerts.md)
+
+## Environment bindings and external services
+
+Use [vars.yml](./vars.yml) for account, Region, network, resource names, provider
+identities and domains, and [inventory.ini](./inventory.ini) for SSH access.
+Verify bindings against the selected stacks' outputs. If the Elastic IP changes,
+update the inventory, overlay public IPv4 and TLS expected IPv4 together, then
+update the staging DNS records at IONOS using the [TLS guide](../../shared/docs/tls.md).
+
+The [environment contract](../../ENVIRONMENTS.md#external-service-safety) records
+the dedicated staging Postmark server and sender identities. Verify its sending
+domain or signatures before testing email. The
+[Postmark guide](../../shared/docs/postmark.md) covers setup, token rotation and
+delivery checks for the selected environment. Follow
+the [Firebase guide](../../shared/docs/firebase-app-notifications.md) for staging
+project setup and delivery checks. Keep web/native client registrations in the
+selected project.
+
+Use staging test accounts, the staging store-review secret and the overlay's
+staging SNS topic. Choose alert recipients explicitly and confirm every
+subscription; do not inherit production recipients or provider credentials.
+
+## Start, stop and status
 
 ```bash
 shared/scripts/staging-lifecycle.sh status

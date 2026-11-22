@@ -17,7 +17,7 @@ This procedure updates all backend runtime components:
 
 The API and job images receive the same immutable backend tag. For Postmark
 configuration, delivery checks, and token rotation, see
-[Postmark operations](../../prod/docs/postmark.md).
+[Postmark operations](./postmark.md).
 
 ## 1. Preconditions
 

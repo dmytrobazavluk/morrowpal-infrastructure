@@ -234,6 +234,8 @@ The current application delivery providers are:
 - Firebase Cloud Messaging for app push notifications
 
 Prod and staging share one Postmark account and its monthly message allowance.
+See the [Postmark operations guide](shared/docs/postmark.md) for environment
+selection, sender setup, token rotation and delivery verification.
 They use separate live Postmark servers:
 
 - `MorrowPal Production`

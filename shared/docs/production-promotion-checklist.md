@@ -172,7 +172,9 @@ Do not use the fresh-host `initial` mode for a routine component promotion.
   or [website](./update-website.md) guide for detailed verification.
 - [ ] Verify service/container state, all public readiness endpoints, public
   TLS, affected authenticated flows and dispatch/cleanup behavior, production API/Firebase settings,
-  live provider delivery when affected, and operational alarms/logs. Avoid
+  live provider delivery when affected using the
+  [Firebase operations guide](./firebase-app-notifications.md) for push checks,
+  and operational alarms/logs. Avoid
   production mutations solely to repeat staging fault-injection tests.
 - [ ] Confirm the published image digests equal the staging record and unchanged
   components retain their approved tags. Check stack drift/focused resource

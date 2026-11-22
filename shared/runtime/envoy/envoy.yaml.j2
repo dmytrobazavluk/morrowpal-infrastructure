@@ -243,6 +243,7 @@ static_resources:
   clusters:
     - name: website
       type: STRICT_DNS
+      ignore_health_on_host_removal: true
       connect_timeout: 2s
       dns_lookup_family: V4_ONLY
       lb_policy: ROUND_ROBIN
@@ -266,6 +267,7 @@ static_resources:
 
     - name: app
       type: STRICT_DNS
+      ignore_health_on_host_removal: true
       connect_timeout: 2s
       dns_lookup_family: V4_ONLY
       lb_policy: ROUND_ROBIN
@@ -289,6 +291,7 @@ static_resources:
 
     - name: backend_api_blue
       type: STRICT_DNS
+      ignore_health_on_host_removal: true
       connect_timeout: 2s
       dns_lookup_family: V4_ONLY
       lb_policy: ROUND_ROBIN
@@ -323,6 +326,7 @@ static_resources:
 
     - name: backend_api_green
       type: STRICT_DNS
+      ignore_health_on_host_removal: true
       connect_timeout: 2s
       dns_lookup_family: V4_ONLY
       lb_policy: ROUND_ROBIN

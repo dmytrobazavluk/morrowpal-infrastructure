@@ -7,39 +7,29 @@ are initially unchecked. The refactor's first promotion also requires the
 template-promotion phases below; routine later releases can mark those phases
 not applicable when no stack changes are needed.
 
-For this refactor, the user accepted staging sign-in/out, email delivery and
-reply-creation checks and explicitly deferred browser notification delivery to
-production on 2026-11-20. Record that delivery check as unverified and include it
-in production follow-up; it does not block this promotion. This exception does
-not waive data recovery readiness, migration review or production approval.
-The eight common production stacks were promoted to the shared templates on
-2026-11-21 under separate execution approval. That completed the first refactor's
-CloudFormation phase; host/image deployment remains separate. See the
-[execution record](../../../artifacts/production-promotion-review-2026-11-20/production-parity-review-20261121T051524Z/execution/summary.json).
+For this refactor, staging sign-in/out, email delivery and reply creation were
+accepted by the user. Browser notification delivery remains an explicitly
+accepted, unverified production follow-up. This exception does not waive data
+recovery readiness, migration review or production approval.
 
-The user-approved one-time production SQL dump and local restore verification
-completed on 2026-11-21. The separate local restore schema preserved the existing
-local application database; all 18 tables and 536 rows matched the dump and passed
-SQL table checks. See the
-[recovery record](../../../artifacts/production-sql-backup-2026-11-21/summary.json).
-The private dump is stored locally outside the component repositories. Its
-recovery point is the time of the dump; assess whether it needs refreshing before
-disruptive rollout. This does not approve host or image deployment.
+The eight common production CloudFormation stacks and the reviewed shared host
+configuration have been promoted. Production now runs the exact tested staging
+artifacts: API/jobs `build-34-2ae804f`, app `build-30-5c22961`, website
+`build-14-4e89de1`. All four production scans passed. The retained database
+volume/server identity, migration history and all 18 table row counts were
+preserved, and table integrity checks passed. The recent private SQL dump and
+original host rollback files remain retained. See the
+[production execution record](../../../artifacts/production-host-rollout-final-2026-11-22/summary.json)
+and [local restore verification](../../../artifacts/production-sql-backup-2026-11-21/summary.json).
 
-The user subsequently approved the reviewed host/image rollout on 2026-11-21.
-Its API image was published to production ECR, then the wrapper stopped on five
-HIGH scan findings before any host deployment. Production remained on its original
-releases with unchanged containers and healthy endpoints. See the
-[stopped execution record](../../../artifacts/production-host-rollout-review-2026-11-21/execution/summary.json).
-Resolve the backend image findings and verify the replacement artifact in staging
-before reviewing a retry; keep the scan gate enabled.
-
-The replacement API/job release `build-34-2ae804f` subsequently passed staging
-scans with no findings and the guarded staging rollout on 2026-11-21. Its JARs
-match the previously tested application bytes; only runtime packages changed.
-See the [production retry review](../../../artifacts/backend-runtime-refresh-2026-11-21/production-retry-review.md)
-for the updated artifact selection. Production scanning and deployment remain
-to be performed; the original failed artifact must not be substituted for it.
+Post-rollout content checks found stale Envoy upstream addresses after app/website
+Docker IP reuse. A restart of the same Envoy container cleared the cross-routing;
+public app content, client build and runtime settings now pass verification.
+The shared DNS-removal behavior still needs a small configuration correction,
+validated in staging before production, prior to final parity sign-off and
+cleanup. See the
+[DNS finding](../../../artifacts/production-host-rollout-final-2026-11-22/envoy-dns-finding.json).
+That correction is not yet deployed; avoid declaring the entire refactor complete.
 
 ## 1. Complete the staging gate and select the release
 

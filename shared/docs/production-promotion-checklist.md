@@ -25,11 +25,16 @@ and [local restore verification](../../../artifacts/production-sql-backup-2026-1
 Post-rollout content checks found stale Envoy upstream addresses after app/website
 Docker IP reuse. A restart of the same Envoy container cleared the cross-routing;
 public app content, client build and runtime settings now pass verification.
-The shared DNS-removal behavior still needs a small configuration correction,
-validated in staging before production, prior to final parity sign-off and
-cleanup. See the
-[DNS finding](../../../artifacts/production-host-rollout-final-2026-11-22/envoy-dns-finding.json).
-That correction is not yet deployed; avoid declaring the entire refactor complete.
+The shared DNS-removal correction has since passed an isolated regression test,
+the full local validation suite and staging-first deployment, then production.
+Only Envoy was recreated in each environment; the other seven container IDs and
+start times and both database mounts were preserved. Repeated public content
+checks passed, and the live clusters contain only current Docker addresses.
+See the [DNS correction record](../../../artifacts/envoy-dns-retirement-2026-11-22/summary.json).
+All implementation and production promotion work is complete. The agreed
+technical scope is [signed off](../../../artifacts/envoy-dns-retirement-2026-11-22/parity-signoff.md);
+reviewed cleanup of obsolete staging rollback resources remains before closing
+the refactor.
 
 ## 1. Complete the staging gate and select the release
 

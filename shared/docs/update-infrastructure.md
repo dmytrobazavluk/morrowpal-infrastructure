@@ -125,7 +125,15 @@ ansible morrowpal_hosts -i "environments/$ENVIRONMENT/inventory.ini" \
 curl --fail --show-error --silent "https://api.$PUBLIC_DOMAIN/ready"
 curl --fail --show-error --silent "https://app.$PUBLIC_DOMAIN/ready"
 curl --fail --show-error --silent "https://$PUBLIC_DOMAIN/ready"
+curl --fail --show-error --silent "https://app.$PUBLIC_DOMAIN/version.json"
 ```
+
+Verify that the app root serves the web client, its version matches the selected
+release, and the website serves the expected landing page. Both web services
+answer `/ready`, so content checks also establish that requests reached the
+intended service. Envoy's Docker DNS clusters retire addresses removed from
+service discovery even when another container reuses that address and answers
+its health check.
 
 For an Envoy change, also inspect its recent logs:
 

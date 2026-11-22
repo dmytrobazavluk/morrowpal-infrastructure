@@ -29,11 +29,16 @@ cp "$repository_directory/shared/runtime/cloudformation.env.j2" "$fixture/shared
 cp "$repository_directory/ansible.cfg" "$fixture/"
 mkdir "$fixture/shared/playbooks"
 cp "$repository_directory/shared/playbooks/deploy.yml" "$fixture/shared/playbooks/"
+restore_fixture_vars() {
+    local environment="$1"
+    # Normal cases use the mock's canonical host; candidate cases opt in below.
+    sed "s/^morrowpal_ec2_stack_name:.*/morrowpal_ec2_stack_name: morrowpal-$environment-ec2/" \
+        "$repository_directory/environments/$environment/vars.yml" \
+        >"$fixture/environments/$environment/vars.yml"
+}
 for environment in prod staging; do
     mkdir "$fixture/environments/$environment"
-    cp "$repository_directory/environments/$environment/vars.yml" "$fixture/environments/$environment/"
-    # Establish the canonical fixture before separately exercising candidate stacks.
-    sed -i "s/^morrowpal_ec2_stack_name:.*/morrowpal_ec2_stack_name: morrowpal-$environment-ec2/" "$fixture/environments/$environment/vars.yml"
+    restore_fixture_vars "$environment"
     cp "$repository_directory/environments/$environment/inventory.ini" "$fixture/environments/$environment/"
     touch "$test_directory/morrowpal-$environment-01.pem"
 done
@@ -292,7 +297,7 @@ if "$deploy" staging backend "$tag" --dry-run >"$test_directory/rejected.log" 2>
 cp "$repository_directory/environments/staging/inventory.ini" "$fixture/environments/staging/inventory.ini"
 cp "$fixture/environments/prod/vars.yml" "$fixture/environments/staging/vars.yml"
 if "$deploy" staging backend "$tag" --dry-run >"$test_directory/rejected.log" 2>&1; then fail 'Mixed overlay accepted'; fi
-cp "$repository_directory/environments/staging/vars.yml" "$fixture/environments/staging/vars.yml"
+restore_fixture_vars staging
 for binding in environment stack stopped role profile ip association group subnet key; do
     : >"$MORROWPAL_TEST_LOG"
     if MORROWPAL_TEST_BINDING_FAILURE="$binding" "$deploy" staging backend "$tag" --dry-run \
@@ -405,7 +410,7 @@ for environment in staging prod; do
         if "$deploy" "$environment" app "$tag" "${confirmation[@]}" >"$test_directory/rejected.log" 2>&1; then fail 'Invalid deployment stack name accepted'; fi
         if grep -Eq '^aws:|^deploy:' "$MORROWPAL_TEST_LOG"; then fail 'Invalid stack name reached AWS or host'; fi
     done
-    cp "$repository_directory/environments/$environment/vars.yml" "$vars"
+    restore_fixture_vars "$environment"
 done
 : >"$MORROWPAL_TEST_LOG"
 if MORROWPAL_TEST_HIGH=1 "$deploy" staging app "$tag" >"$test_directory/rejected.log" 2>&1; then fail 'High findings accepted'; fi
@@ -426,7 +431,7 @@ MORROWPAL_TEST_MISSING=true "$deploy" staging backend "$(cat "$test_directory/BA
     >"$test_directory/push.log" 2>&1 || fail 'Published image could not be deployed without its local copy'
 MORROWPAL_TEST_MUTATE_INPUTS=true "$deploy" staging app "$tag" >"$test_directory/push.log" 2>&1 \
     || fail 'Deployment did not preserve its validated snapshots'
-cp "$repository_directory/environments/staging/vars.yml" "$fixture/environments/staging/vars.yml"
+restore_fixture_vars staging
 cp "$repository_directory/environments/staging/inventory.ini" "$fixture/environments/staging/inventory.ini"
 : >"$MORROWPAL_TEST_LOG"
 "$deploy" staging infrastructure --check --diff >"$test_directory/push.log" 2>&1

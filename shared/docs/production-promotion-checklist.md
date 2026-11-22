@@ -26,6 +26,21 @@ The private dump is stored locally outside the component repositories. Its
 recovery point is the time of the dump; assess whether it needs refreshing before
 disruptive rollout. This does not approve host or image deployment.
 
+The user subsequently approved the reviewed host/image rollout on 2026-11-21.
+Its API image was published to production ECR, then the wrapper stopped on five
+HIGH scan findings before any host deployment. Production remained on its original
+releases with unchanged containers and healthy endpoints. See the
+[stopped execution record](../../../artifacts/production-host-rollout-review-2026-11-21/execution/summary.json).
+Resolve the backend image findings and verify the replacement artifact in staging
+before reviewing a retry; keep the scan gate enabled.
+
+The replacement API/job release `build-34-2ae804f` subsequently passed staging
+scans with no findings and the guarded staging rollout on 2026-11-21. Its JARs
+match the previously tested application bytes; only runtime packages changed.
+See the [production retry review](../../../artifacts/backend-runtime-refresh-2026-11-21/production-retry-review.md)
+for the updated artifact selection. Production scanning and deployment remain
+to be performed; the original failed artifact must not be substituted for it.
+
 ## 1. Complete the staging gate and select the release
 
 - [ ] Select the tested infrastructure revision and affected components. Record

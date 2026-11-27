@@ -30,3 +30,13 @@ ansible-playbook \
 For deployment, use `shared/scripts/deploy-images.sh` with an explicit environment
 and follow its environment's operating guide. Private keys stay outside the
 infrastructure repository; their configured paths are relative to this directory.
+
+Integration exchange/API audiences are nonsecret runtime identifiers rendered in
+`shared/runtime/compose.env.j2`: `urn:morrowpal:<environment>:integration-exchange`
+and `urn:morrowpal:<environment>:api`, using `staging` or `prod`. API Compose
+forwards these with empty fallbacks for older rendered runtime files, which keep
+integration exchange unavailable. The maximum token lifetime defaults to 900
+seconds and the exchange quota to 60 requests per minute per API instance. Public
+keys and explicit grants must be provisioned separately in the backend registry;
+rendering audiences does not register or enable a key. Roll out backend support to
+all serving instances before allowing restricted integration access.

@@ -32,6 +32,8 @@ services:
       DB_USER: morrowpal
       DB_PASSWORD: morrowpal
       APP_AUTH_JWT_SECRET: change-me-local-development-secret
+      APP_AUTH_INTEGRATION_EXCHANGE_AUDIENCE: urn:morrowpal:dev:integration-exchange
+      APP_AUTH_INTEGRATION_API_AUDIENCE: urn:morrowpal:dev:api
       APP_EMAIL_OTP_SEND_COOLDOWN_SECONDS: "1"
       APP_EMAIL_OTP_SENDS_PER_HOUR: "5"
       APP_EMAIL_OTP_FAILED_ATTEMPTS_PER_HOUR: "10"

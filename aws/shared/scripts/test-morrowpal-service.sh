@@ -39,6 +39,7 @@ assert_environment() {
     local expected_website_domain="$7"
     local expected_deployment_root="$8"
     local expected_mysql_data_mount="$9"
+    local expected_environment="${10}"
 
     set -a
     # shellcheck source=/dev/null
@@ -46,6 +47,11 @@ assert_environment() {
     set +a
     # shellcheck source=morrowpal-runtime-config.sh
     source "$runtime_config_library"
+
+    [[ "$MORROWPAL_INTEGRATION_EXCHANGE_AUDIENCE" == "urn:morrowpal:$expected_environment:integration-exchange" ]] \
+        || fail "Unexpected integration exchange audience"
+    [[ "$MORROWPAL_INTEGRATION_API_AUDIENCE" == "urn:morrowpal:$expected_environment:api" ]] \
+        || fail "Unexpected integration API audience"
 
     [[ "$MORROWPAL_AWS_REGION" == "$expected_region" ]] || fail "Unexpected AWS Region"
     [[ "$MORROWPAL_ECR_REGISTRY" == "$expected_registry" ]] || fail "Unexpected ECR registry"
@@ -125,7 +131,8 @@ main() {
         app.morrowpal.com \
         morrowpal.com \
         /opt/morrowpal \
-        /var/lib/morrowpal
+        /var/lib/morrowpal \
+        prod
     assert_environment \
         "$staging_environment" \
         us-east-1 \
@@ -135,7 +142,8 @@ main() {
         app.staging.morrowpal.com \
         staging.morrowpal.com \
         /opt/morrowpal \
-        /var/lib/morrowpal
+        /var/lib/morrowpal \
+        staging
 
     printf 'MorrowPal service helper validation passed.\n'
 }
